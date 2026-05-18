@@ -1,0 +1,18 @@
+{
+    "files.exclude": {
+        "**/bin": true,
+        "**/obj": true,
+        "**/.vs": true,
+        "**/Debug": true,
+        "**/Release": true,
+        "**/node_modules": true
+    },
+    
+    "search.exclude": {
+        "**/bin": true,
+        "**/obj": true,
+        "**/node_modules": true
+    },
+
+    "explorer.excludeGitIgnore": true
+}

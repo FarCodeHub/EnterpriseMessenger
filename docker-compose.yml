@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: enterprise-messenger-postgres
+    environment:
+      POSTGRES_DB: enterprise_messenger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - enterprise_messenger_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  enterprise_messenger_postgres_data:
