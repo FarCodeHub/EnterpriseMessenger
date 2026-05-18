@@ -100,6 +100,18 @@ public sealed class MessagesController : ControllerBase
 
         _dbContext.Messages.Add(message);
 
+var memberUserIds = await _dbContext.ConversationMembers
+    .Where(x => x.ConversationId == request.ConversationId)
+    .Select(x => x.UserId)
+    .ToListAsync(cancellationToken);
+
+foreach (var memberUserId in memberUserIds)
+{
+    _dbContext.MessageDeliveries.Add(
+        new MessageDelivery(message.Id, memberUserId));
+}
+
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
 
