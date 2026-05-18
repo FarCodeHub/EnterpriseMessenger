@@ -1,16 +1,22 @@
 using Messenger.Api.Realtime;
 using Microsoft.AspNetCore.SignalR;
-
+using Messenger.Infrastructure.Persistence;
+using Messenger.Domain.Messages;
+using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Hubs;
 
 public sealed class ChatHub : Hub
 {
-    private readonly InMemoryConnectionTracker _connectionTracker;
+private readonly InMemoryConnectionTracker _connectionTracker;
+private readonly MessengerDbContext _dbContext;
 
-    public ChatHub(InMemoryConnectionTracker connectionTracker)
-    {
-        _connectionTracker = connectionTracker;
-    }
+public ChatHub(
+    InMemoryConnectionTracker connectionTracker,
+    MessengerDbContext dbContext)
+{
+    _connectionTracker = connectionTracker;
+    _dbContext = dbContext;
+}
 
     public async Task RegisterUser(string userId)
     {
@@ -59,4 +65,34 @@ public sealed class ChatHub : Hub
 
         await base.OnDisconnectedAsync(exception);
     }
+
+
+public async Task AcknowledgeDelivered(string messageId, string userId)
+{
+    if (!Guid.TryParse(messageId, out var parsedMessageId))
+        throw new HubException("Invalid messageId.");
+
+    if (!Guid.TryParse(userId, out var parsedUserId))
+        throw new HubException("Invalid userId.");
+
+    var delivery = await _dbContext.MessageDeliveries
+        .FirstOrDefaultAsync(x =>
+            x.MessageId == parsedMessageId &&
+            x.UserId == parsedUserId);
+
+    if (delivery is null)
+        return;
+
+    delivery.MarkDelivered();
+
+    await _dbContext.SaveChangesAsync();
+
+    await Clients.Caller.SendAsync("message.delivered.ack", new
+    {
+        MessageId = parsedMessageId,
+        UserId = parsedUserId,
+        DeliveredAtUtc = DateTime.UtcNow
+    });
+}
+
 }

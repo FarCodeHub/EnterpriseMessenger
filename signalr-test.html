@@ -1,15 +1,17 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>SignalR Test</title>
 </head>
+
 <body>
     <h3>SignalR Test</h3>
 
- <input id="userId" placeholder="UserId" style="width:400px" />
-<br />
-<input id="conversationId" placeholder="ConversationId" style="width:400px" />
-<button onclick="connect()">Connect</button>
+    <input id="userId" placeholder="UserId" style="width:400px" />
+    <br />
+    <input id="conversationId" placeholder="ConversationId" style="width:400px" />
+    <button onclick="connect()">Connect</button>
 
     <pre id="log"></pre>
 
@@ -34,9 +36,24 @@
                     .withAutomaticReconnect()
                     .build();
 
-                connection.on("message.received", message => {
+                connection.on("message.received", async message => {
                     log("MESSAGE RECEIVED:");
                     log(JSON.stringify(message, null, 2));
+
+                    const userId = document.getElementById("userId").value;
+
+                    await connection.invoke(
+                        "AcknowledgeDelivered",
+                        message.id,
+                        userId
+                    );
+
+                    log("Delivered ACK sent for message: " + message.id);
+                });
+
+                connection.on("message.delivered.ack", data => {
+                    log("DELIVERED ACK CONFIRMED:");
+                    log(JSON.stringify(data, null, 2));
                 });
 
                 await connection.start();
@@ -44,25 +61,25 @@
 
 
 
-const userId = document.getElementById("userId").value;
+                const userId = document.getElementById("userId").value;
 
-connection.on("presence.registered", data => {
-    log("PRESENCE REGISTERED:");
-    log(JSON.stringify(data, null, 2));
-});
+                connection.on("presence.registered", data => {
+                    log("PRESENCE REGISTERED:");
+                    log(JSON.stringify(data, null, 2));
+                });
 
-connection.on("presence.offline", data => {
-    log("PRESENCE OFFLINE:");
-    log(JSON.stringify(data, null, 2));
-});
+                connection.on("presence.offline", data => {
+                    log("PRESENCE OFFLINE:");
+                    log(JSON.stringify(data, null, 2));
+                });
 
-connection.on("conversation.joined", data => {
-    log("CONVERSATION JOINED:");
-    log(JSON.stringify(data, null, 2));
-});
+                connection.on("conversation.joined", data => {
+                    log("CONVERSATION JOINED:");
+                    log(JSON.stringify(data, null, 2));
+                });
 
-await connection.invoke("RegisterUser", userId);
-log("Registered user: " + userId);
+                await connection.invoke("RegisterUser", userId);
+                log("Registered user: " + userId);
 
 
                 await connection.invoke("JoinConversation", conversationId);
@@ -74,9 +91,10 @@ log("Registered user: " + userId);
                 console.error(err);
             }
         }
-    
-     
-    
+
+
+
     </script>
 </body>
+
 </html>
