@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SignalR Test</title>
+</head>
+<body>
+    <h3>SignalR Test</h3>
+
+    <input id="conversationId" placeholder="ConversationId" style="width:400px" />
+    <button onclick="connect()">Connect</button>
+
+    <pre id="log"></pre>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+    <script>
+        let connection;
+
+        function log(message) {
+            console.log(message);
+            document.getElementById("log").textContent += message + "\n";
+        }
+
+        async function connect() {
+            try {
+                const conversationId = document.getElementById("conversationId").value;
+
+                log("Connecting to hub...");
+
+                connection = new signalR.HubConnectionBuilder()
+                    .withUrl("http://localhost:5113/hubs/chat")
+                    .configureLogging(signalR.LogLevel.Information)
+                    .withAutomaticReconnect()
+                    .build();
+
+                connection.on("message.received", message => {
+                    log("MESSAGE RECEIVED:");
+                    log(JSON.stringify(message, null, 2));
+                });
+
+                await connection.start();
+                log("Connected. ConnectionId: " + connection.connectionId);
+
+                await connection.invoke("JoinConversation", conversationId);
+                log("Joined conversation: " + conversationId);
+            }
+            catch (err) {
+                log("ERROR:");
+                log(err.toString());
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
