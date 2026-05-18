@@ -32,6 +32,9 @@ public sealed class UsersController : ControllerBase
 
         _dbContext.Users.Add(user);
 
+        _dbContext.UserSyncCounters.Add(
+            new Messenger.Domain.Sync.UserSyncCounter(user.Id));
+            
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(new
