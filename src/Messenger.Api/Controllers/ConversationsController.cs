@@ -41,8 +41,8 @@ public sealed class ConversationsController : ControllerBase
         _dbContext.Conversations.Add(conversation);
 
 
-_dbContext.ConversationCounters.Add(
-    new ConversationCounter(conversation.Id));
+        _dbContext.ConversationCounters.Add(
+            new ConversationCounter(conversation.Id));
 
         _dbContext.ConversationMembers.AddRange(
             new ConversationMember(conversation.Id, request.FirstUserId),
@@ -87,8 +87,8 @@ _dbContext.ConversationCounters.Add(
 
         _dbContext.Conversations.Add(conversation);
 
-_dbContext.ConversationCounters.Add(
-    new ConversationCounter(conversation.Id));
+        _dbContext.ConversationCounters.Add(
+            new ConversationCounter(conversation.Id));
 
         foreach (var userId in memberUserIds)
         {
@@ -124,9 +124,11 @@ _dbContext.ConversationCounters.Add(
                     conversation.Type,
                     conversation.Title,
                     conversation.CreatedAtUtc,
+                    conversation.LastMessageId,
+                    conversation.LastMessageAtUtc,
                     member.LastReadSequenceNumber
                 })
-            .OrderByDescending(x => x.CreatedAtUtc)
+            .OrderByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         return Ok(conversations);

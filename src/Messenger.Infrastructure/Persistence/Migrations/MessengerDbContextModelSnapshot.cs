@@ -34,6 +34,12 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("LastMessageAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LastMessageId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");

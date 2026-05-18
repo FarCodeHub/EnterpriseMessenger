@@ -100,16 +100,24 @@ public sealed class MessagesController : ControllerBase
 
         _dbContext.Messages.Add(message);
 
-var memberUserIds = await _dbContext.ConversationMembers
-    .Where(x => x.ConversationId == request.ConversationId)
-    .Select(x => x.UserId)
-    .ToListAsync(cancellationToken);
 
-foreach (var memberUserId in memberUserIds)
-{
-    _dbContext.MessageDeliveries.Add(
-        new MessageDelivery(message.Id, memberUserId));
-}
+
+        var conversation = await _dbContext.Conversations
+            .FirstAsync(x => x.Id == request.ConversationId, cancellationToken);
+
+        conversation.UpdateLastMessage(message.Id, message.CreatedAtUtc);
+
+
+        var memberUserIds = await _dbContext.ConversationMembers
+            .Where(x => x.ConversationId == request.ConversationId)
+            .Select(x => x.UserId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var memberUserId in memberUserIds)
+        {
+            _dbContext.MessageDeliveries.Add(
+                new MessageDelivery(message.Id, memberUserId));
+        }
 
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -132,6 +140,22 @@ foreach (var memberUserId in memberUserIds)
         await _hubContext.Clients
             .Group($"conversation:{message.ConversationId}")
             .SendAsync("message.received", response, cancellationToken);
+
+
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync("conversation.updated", new
+            {
+                ConversationId = message.ConversationId,
+                LastMessageId = message.Id,
+                LastMessageBody = message.Body,
+                LastMessageAtUtc = message.CreatedAtUtc,
+                LastMessageSenderUserId = message.SenderUserId,
+                LastMessageSequenceNumber = message.SequenceNumber
+            }, cancellationToken);
+
+
+
 
         return Ok(response);
 
