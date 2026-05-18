@@ -272,4 +272,67 @@ public sealed class MessagesController : ControllerBase
 
         return Ok(messages);
     }
+
+
+[HttpGet("{messageId:guid}/reply-context")]
+public async Task<IActionResult> GetReplyContext(
+    Guid messageId,
+    int radius = 100,
+    CancellationToken cancellationToken = default)
+{
+    radius = Math.Clamp(radius, 10, 200);
+
+    var message = await _dbContext.Messages
+        .Where(x => x.Id == messageId)
+        .Select(x => new
+        {
+            x.Id,
+            x.ConversationId,
+            x.ReplyToMessageId,
+            x.ReplyToSequenceNumber
+        })
+        .FirstOrDefaultAsync(cancellationToken);
+
+    if (message is null)
+        return NotFound("Message not found.");
+
+    if (message.ReplyToSequenceNumber is null)
+        return BadRequest("This message is not a reply.");
+
+    var from = message.ReplyToSequenceNumber.Value - radius;
+    var to = message.ReplyToSequenceNumber.Value + radius;
+
+    var messages = await _dbContext.Messages
+        .Where(x =>
+            x.ConversationId == message.ConversationId &&
+            x.SequenceNumber >= from &&
+            x.SequenceNumber <= to)
+        .OrderBy(x => x.SequenceNumber)
+        .Select(x => new
+        {
+            x.Id,
+            x.ConversationId,
+            x.SequenceNumber,
+            x.SenderUserId,
+            x.Body,
+            x.ReplyToMessageId,
+            x.ReplyToSequenceNumber,
+            x.CreatedAtUtc,
+            IsTarget = x.Id == message.ReplyToMessageId
+        })
+        .ToListAsync(cancellationToken);
+
+    return Ok(new
+    {
+        message.Id,
+        message.ConversationId,
+        TargetMessageId = message.ReplyToMessageId,
+        TargetSequenceNumber = message.ReplyToSequenceNumber,
+        Radius = radius,
+        Messages = messages
+    });
+}
+
+
+
 }
