@@ -3,7 +3,8 @@ using Messenger.Domain.Messages;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
+using Messenger.Api.Hubs;
+using Microsoft.AspNetCore.SignalR;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -11,10 +12,14 @@ namespace Messenger.Api.Controllers;
 public sealed class MessagesController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IHubContext<ChatHub> _hubContext;
 
-    public MessagesController(MessengerDbContext dbContext)
+    public MessagesController(
+        MessengerDbContext dbContext,
+        IHubContext<ChatHub> hubContext)
     {
         _dbContext = dbContext;
+        _hubContext = hubContext;
     }
 
     [HttpPost]
@@ -76,11 +81,13 @@ public sealed class MessagesController : ControllerBase
             replyToSequenceNumber = replyToMessage.SequenceNumber;
         }
 
-        var lastSequenceNumber = await _dbContext.Messages
-            .Where(x => x.ConversationId == request.ConversationId)
-            .MaxAsync(x => (long?)x.SequenceNumber, cancellationToken) ?? 0;
+        var counter = await _dbContext.ConversationCounters
+            .FirstOrDefaultAsync(x => x.ConversationId == request.ConversationId, cancellationToken);
 
-        var nextSequenceNumber = lastSequenceNumber + 1;
+        if (counter is null)
+            return BadRequest("Conversation counter not found.");
+
+        var nextSequenceNumber = counter.GetNextSequenceNumber();
 
         var message = new Message(
             request.ConversationId,
@@ -93,9 +100,22 @@ public sealed class MessagesController : ControllerBase
 
         _dbContext.Messages.Add(message);
 
+var memberUserIds = await _dbContext.ConversationMembers
+    .Where(x => x.ConversationId == request.ConversationId)
+    .Select(x => x.UserId)
+    .ToListAsync(cancellationToken);
+
+foreach (var memberUserId in memberUserIds)
+{
+    _dbContext.MessageDeliveries.Add(
+        new MessageDelivery(message.Id, memberUserId));
+}
+
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return Ok(new
+
+        var response = new
         {
             message.Id,
             message.ConversationId,
@@ -107,7 +127,15 @@ public sealed class MessagesController : ControllerBase
             message.ReplyToSequenceNumber,
             message.CreatedAtUtc,
             IsDuplicate = false
-        });
+        };
+
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync("message.received", response, cancellationToken);
+
+        return Ok(response);
+
+
     }
 
     [HttpGet("conversation/{conversationId:guid}")]

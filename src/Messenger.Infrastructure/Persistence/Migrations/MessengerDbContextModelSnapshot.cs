@@ -50,6 +50,29 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.ToTable("Conversations", (string)null);
                 });
 
+            modelBuilder.Entity("Messenger.Domain.Conversations.ConversationCounter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("LastSequenceNumber")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId")
+                        .IsUnique();
+
+                    b.ToTable("ConversationCounters", (string)null);
+                });
+
             modelBuilder.Entity("Messenger.Domain.Conversations.ConversationMember", b =>
                 {
                     b.Property<Guid>("Id")
@@ -127,6 +150,39 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.HasIndex("SenderUserId", "CreatedAtUtc");
 
                     b.ToTable("Messages", (string)null);
+                });
+
+            modelBuilder.Entity("Messenger.Domain.Messages.MessageDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeliveredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "DeliveredAtUtc");
+
+                    b.HasIndex("UserId", "SeenAtUtc");
+
+                    b.ToTable("MessageDeliveries", (string)null);
                 });
 
             modelBuilder.Entity("Messenger.Domain.Sync.UserSyncEvent", b =>
