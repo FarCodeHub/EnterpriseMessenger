@@ -120,6 +120,46 @@ public sealed class MessagesController : ControllerBase
         }
 
 
+
+        foreach (var memberUserId in memberUserIds)
+        {
+            var syncCounter = await _dbContext.UserSyncCounters
+                .FirstOrDefaultAsync(x => x.UserId == memberUserId, cancellationToken);
+
+            if (syncCounter is null)
+            {
+                syncCounter = new Messenger.Domain.Sync.UserSyncCounter(memberUserId);
+                _dbContext.UserSyncCounters.Add(syncCounter);
+            }
+
+            var eventId = syncCounter.GetNextEventId();
+
+            var payloadJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                MessageId = message.Id,
+                message.ConversationId,
+                message.SequenceNumber,
+                message.SenderUserId,
+                message.Body,
+                message.ReplyToMessageId,
+                message.ReplyToSequenceNumber,
+                message.CreatedAtUtc
+            });
+
+            _dbContext.UserSyncEvents.Add(
+                new Messenger.Domain.Sync.UserSyncEvent(
+                    eventId,
+                    memberUserId,
+                    "MessageCreated",
+                    payloadJson,
+                    message.ConversationId,
+                    message.Id));
+        }
+
+
+
+
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
 
