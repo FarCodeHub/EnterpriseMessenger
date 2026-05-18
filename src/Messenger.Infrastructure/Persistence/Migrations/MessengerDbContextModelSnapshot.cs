@@ -50,6 +50,29 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.ToTable("Conversations", (string)null);
                 });
 
+            modelBuilder.Entity("Messenger.Domain.Conversations.ConversationCounter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("LastSequenceNumber")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId")
+                        .IsUnique();
+
+                    b.ToTable("ConversationCounters", (string)null);
+                });
+
             modelBuilder.Entity("Messenger.Domain.Conversations.ConversationMember", b =>
                 {
                     b.Property<Guid>("Id")
