@@ -95,4 +95,35 @@ public async Task AcknowledgeDelivered(string messageId, string userId)
     });
 }
 
+
+
+public async Task AcknowledgeSeen(string messageId, string userId)
+{
+    if (!Guid.TryParse(messageId, out var parsedMessageId))
+        throw new HubException("Invalid messageId.");
+
+    if (!Guid.TryParse(userId, out var parsedUserId))
+        throw new HubException("Invalid userId.");
+
+    var delivery = await _dbContext.MessageDeliveries
+        .FirstOrDefaultAsync(x =>
+            x.MessageId == parsedMessageId &&
+            x.UserId == parsedUserId);
+
+    if (delivery is null)
+        return;
+
+    delivery.MarkSeen();
+
+    await _dbContext.SaveChangesAsync();
+
+    await Clients.Caller.SendAsync("message.seen.ack", new
+    {
+        MessageId = parsedMessageId,
+        UserId = parsedUserId,
+        SeenAtUtc = DateTime.UtcNow
+    });
+}
+
+
 }

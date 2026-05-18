@@ -36,6 +36,7 @@
                     .withAutomaticReconnect()
                     .build();
 
+
                 connection.on("message.received", async message => {
                     log("MESSAGE RECEIVED:");
                     log(JSON.stringify(message, null, 2));
@@ -49,12 +50,26 @@
                     );
 
                     log("Delivered ACK sent for message: " + message.id);
+
+                    await connection.invoke(
+                        "AcknowledgeSeen",
+                        message.id,
+                        userId
+                    );
+
+                    log("Seen ACK sent for message: " + message.id);
                 });
 
                 connection.on("message.delivered.ack", data => {
                     log("DELIVERED ACK CONFIRMED:");
                     log(JSON.stringify(data, null, 2));
                 });
+
+                connection.on("message.seen.ack", data => {
+                    log("SEEN ACK CONFIRMED:");
+                    log(JSON.stringify(data, null, 2));
+                });
+
 
                 await connection.start();
                 log("Connected. ConnectionId: " + connection.connectionId);
