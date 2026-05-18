@@ -81,6 +81,11 @@
                     log(JSON.stringify(data, null, 2));
                 });
 
+                
+                connection.on("conversation.updated", data => {
+                    log("CONVERSATION UPDATED:");
+                    log(JSON.stringify(data, null, 2));
+                });
 
 
                 await connection.start();

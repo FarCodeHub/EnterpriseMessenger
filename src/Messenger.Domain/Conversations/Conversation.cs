@@ -11,6 +11,9 @@ public class Conversation : BaseEntity
 
     public Guid CreatedByUserId { get; private set; }
 
+    public Guid? LastMessageId { get; private set; }
+    public DateTime? LastMessageAtUtc { get; private set; }
+
     private Conversation()
     {
     }
@@ -24,4 +27,12 @@ public class Conversation : BaseEntity
         CreatedByUserId = createdByUserId;
         Title = title;
     }
+
+public void UpdateLastMessage(Guid messageId, DateTime messageCreatedAtUtc)
+{
+    LastMessageId = messageId;
+    LastMessageAtUtc = messageCreatedAtUtc;
+}
+
+
 }
