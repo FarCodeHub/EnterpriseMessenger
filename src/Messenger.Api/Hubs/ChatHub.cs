@@ -7,16 +7,16 @@ namespace Messenger.Api.Hubs;
 
 public sealed class ChatHub : Hub
 {
-private readonly InMemoryConnectionTracker _connectionTracker;
-private readonly MessengerDbContext _dbContext;
+    private readonly InMemoryConnectionTracker _connectionTracker;
+    private readonly MessengerDbContext _dbContext;
 
-public ChatHub(
-    InMemoryConnectionTracker connectionTracker,
-    MessengerDbContext dbContext)
-{
-    _connectionTracker = connectionTracker;
-    _dbContext = dbContext;
-}
+    public ChatHub(
+        InMemoryConnectionTracker connectionTracker,
+        MessengerDbContext dbContext)
+    {
+        _connectionTracker = connectionTracker;
+        _dbContext = dbContext;
+    }
 
     public async Task RegisterUser(string userId)
     {
@@ -67,32 +67,116 @@ public ChatHub(
     }
 
 
-public async Task AcknowledgeDelivered(string messageId, string userId)
-{
-    if (!Guid.TryParse(messageId, out var parsedMessageId))
-        throw new HubException("Invalid messageId.");
-
-    if (!Guid.TryParse(userId, out var parsedUserId))
-        throw new HubException("Invalid userId.");
-
-    var delivery = await _dbContext.MessageDeliveries
-        .FirstOrDefaultAsync(x =>
-            x.MessageId == parsedMessageId &&
-            x.UserId == parsedUserId);
-
-    if (delivery is null)
-        return;
-
-    delivery.MarkDelivered();
-
-    await _dbContext.SaveChangesAsync();
-
-    await Clients.Caller.SendAsync("message.delivered.ack", new
+    public async Task AcknowledgeDelivered(string messageId, string userId)
     {
-        MessageId = parsedMessageId,
-        UserId = parsedUserId,
-        DeliveredAtUtc = DateTime.UtcNow
-    });
-}
+        if (!Guid.TryParse(messageId, out var parsedMessageId))
+            throw new HubException("Invalid messageId.");
+
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            throw new HubException("Invalid userId.");
+
+        var delivery = await _dbContext.MessageDeliveries
+            .FirstOrDefaultAsync(x =>
+                x.MessageId == parsedMessageId &&
+                x.UserId == parsedUserId);
+
+        if (delivery is null)
+            return;
+
+        delivery.MarkDelivered();
+
+        await _dbContext.SaveChangesAsync();
+
+        var message = await _dbContext.Messages
+            .Where(x => x.Id == parsedMessageId)
+            .Select(x => new
+            {
+                x.Id,
+                x.ConversationId,
+                x.SenderUserId,
+                x.SequenceNumber
+            })
+            .FirstOrDefaultAsync();
+
+        if (message is not null)
+        {
+            await Clients
+                .Group($"conversation:{message.ConversationId}")
+                .SendAsync("message.delivered", new
+                {
+                    MessageId = message.Id,
+                    ConversationId = message.ConversationId,
+                    SequenceNumber = message.SequenceNumber,
+                    DeliveredByUserId = parsedUserId,
+                    DeliveredAtUtc = DateTime.UtcNow
+                });
+        }
+
+
+        await Clients.Caller.SendAsync("message.delivered.ack", new
+        {
+            MessageId = parsedMessageId,
+            UserId = parsedUserId,
+            DeliveredAtUtc = DateTime.UtcNow
+        });
+    }
+
+
+
+    public async Task AcknowledgeSeen(string messageId, string userId)
+    {
+        if (!Guid.TryParse(messageId, out var parsedMessageId))
+            throw new HubException("Invalid messageId.");
+
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            throw new HubException("Invalid userId.");
+
+        var delivery = await _dbContext.MessageDeliveries
+            .FirstOrDefaultAsync(x =>
+                x.MessageId == parsedMessageId &&
+                x.UserId == parsedUserId);
+
+        if (delivery is null)
+            return;
+
+        delivery.MarkSeen();
+
+        await _dbContext.SaveChangesAsync();
+
+
+        var message = await _dbContext.Messages
+            .Where(x => x.Id == parsedMessageId)
+            .Select(x => new
+            {
+                x.Id,
+                x.ConversationId,
+                x.SenderUserId,
+                x.SequenceNumber
+            })
+            .FirstOrDefaultAsync();
+
+        if (message is not null)
+        {
+            await Clients
+                .Group($"conversation:{message.ConversationId}")
+                .SendAsync("message.seen", new
+                {
+                    MessageId = message.Id,
+                    ConversationId = message.ConversationId,
+                    SequenceNumber = message.SequenceNumber,
+                    SeenByUserId = parsedUserId,
+                    SeenAtUtc = DateTime.UtcNow
+                });
+        }
+
+
+        await Clients.Caller.SendAsync("message.seen.ack", new
+        {
+            MessageId = parsedMessageId,
+            UserId = parsedUserId,
+            SeenAtUtc = DateTime.UtcNow
+        });
+    }
+
 
 }
