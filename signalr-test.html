@@ -71,6 +71,18 @@
                 });
 
 
+                connection.on("message.delivered", data => {
+                    log("MESSAGE DELIVERED EVENT:");
+                    log(JSON.stringify(data, null, 2));
+                });
+
+                connection.on("message.seen", data => {
+                    log("MESSAGE SEEN EVENT:");
+                    log(JSON.stringify(data, null, 2));
+                });
+
+
+
                 await connection.start();
                 log("Connected. ConnectionId: " + connection.connectionId);
 
