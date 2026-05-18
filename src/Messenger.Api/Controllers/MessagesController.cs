@@ -333,6 +333,44 @@ public async Task<IActionResult> GetReplyContext(
     });
 }
 
+[HttpGet("conversation/{conversationId:guid}/search")]
+public async Task<IActionResult> SearchMessages(
+    Guid conversationId,
+    string query,
+    int take = 20,
+    CancellationToken cancellationToken = default)
+{
+    if (string.IsNullOrWhiteSpace(query))
+        return BadRequest("Search query is required.");
 
+    take = Math.Clamp(take, 1, 50);
+
+    var messages = await _dbContext.Messages
+        .Where(x =>
+            x.ConversationId == conversationId &&
+            EF.Functions.ILike(x.Body, $"%{query}%"))
+        .OrderByDescending(x => x.SequenceNumber)
+        .Take(take)
+        .Select(x => new
+        {
+            x.Id,
+            x.ConversationId,
+            x.SequenceNumber,
+            x.SenderUserId,
+            x.Body,
+            x.ReplyToMessageId,
+            x.ReplyToSequenceNumber,
+            x.CreatedAtUtc
+        })
+        .ToListAsync(cancellationToken);
+
+    return Ok(new
+    {
+        ConversationId = conversationId,
+        Query = query,
+        Count = messages.Count,
+        Results = messages
+    });
+}
 
 }
