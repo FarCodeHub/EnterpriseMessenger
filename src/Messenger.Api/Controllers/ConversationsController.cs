@@ -40,6 +40,10 @@ public sealed class ConversationsController : ControllerBase
 
         _dbContext.Conversations.Add(conversation);
 
+
+_dbContext.ConversationCounters.Add(
+    new ConversationCounter(conversation.Id));
+
         _dbContext.ConversationMembers.AddRange(
             new ConversationMember(conversation.Id, request.FirstUserId),
             new ConversationMember(conversation.Id, request.SecondUserId));
@@ -82,6 +86,9 @@ public sealed class ConversationsController : ControllerBase
             request.Title);
 
         _dbContext.Conversations.Add(conversation);
+
+_dbContext.ConversationCounters.Add(
+    new ConversationCounter(conversation.Id));
 
         foreach (var userId in memberUserIds)
         {

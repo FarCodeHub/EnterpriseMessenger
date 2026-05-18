@@ -76,11 +76,13 @@ public sealed class MessagesController : ControllerBase
             replyToSequenceNumber = replyToMessage.SequenceNumber;
         }
 
-        var lastSequenceNumber = await _dbContext.Messages
-            .Where(x => x.ConversationId == request.ConversationId)
-            .MaxAsync(x => (long?)x.SequenceNumber, cancellationToken) ?? 0;
+var counter = await _dbContext.ConversationCounters
+    .FirstOrDefaultAsync(x => x.ConversationId == request.ConversationId, cancellationToken);
 
-        var nextSequenceNumber = lastSequenceNumber + 1;
+if (counter is null)
+    return BadRequest("Conversation counter not found.");
+
+var nextSequenceNumber = counter.GetNextSequenceNumber();
 
         var message = new Message(
             request.ConversationId,

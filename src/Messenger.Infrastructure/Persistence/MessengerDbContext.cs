@@ -19,6 +19,7 @@ public sealed class MessengerDbContext : DbContext
     public DbSet<ConversationMember> ConversationMembers => Set<ConversationMember>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<UserSyncEvent> UserSyncEvents => Set<UserSyncEvent>();
+    public DbSet<ConversationCounter> ConversationCounters => Set<ConversationCounter>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
