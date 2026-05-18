@@ -6,8 +6,10 @@
 <body>
     <h3>SignalR Test</h3>
 
-    <input id="conversationId" placeholder="ConversationId" style="width:400px" />
-    <button onclick="connect()">Connect</button>
+ <input id="userId" placeholder="UserId" style="width:400px" />
+<br />
+<input id="conversationId" placeholder="ConversationId" style="width:400px" />
+<button onclick="connect()">Connect</button>
 
     <pre id="log"></pre>
 
@@ -40,6 +42,29 @@
                 await connection.start();
                 log("Connected. ConnectionId: " + connection.connectionId);
 
+
+
+const userId = document.getElementById("userId").value;
+
+connection.on("presence.registered", data => {
+    log("PRESENCE REGISTERED:");
+    log(JSON.stringify(data, null, 2));
+});
+
+connection.on("presence.offline", data => {
+    log("PRESENCE OFFLINE:");
+    log(JSON.stringify(data, null, 2));
+});
+
+connection.on("conversation.joined", data => {
+    log("CONVERSATION JOINED:");
+    log(JSON.stringify(data, null, 2));
+});
+
+await connection.invoke("RegisterUser", userId);
+log("Registered user: " + userId);
+
+
                 await connection.invoke("JoinConversation", conversationId);
                 log("Joined conversation: " + conversationId);
             }
@@ -49,6 +74,9 @@
                 console.error(err);
             }
         }
+    
+     
+    
     </script>
 </body>
 </html>
