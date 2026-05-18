@@ -1,5 +1,7 @@
 using Messenger.Infrastructure;
 using Messenger.Api.Hubs;
+using Messenger.Api.Realtime;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -20,7 +22,7 @@ builder.Services.AddCors(options =>
     });
 });
 builder.Services.AddSignalR();
-
+builder.Services.AddSingleton<InMemoryConnectionTracker>();
 var app = builder.Build();
 
 app.UseCors("AllowLocalTest");
