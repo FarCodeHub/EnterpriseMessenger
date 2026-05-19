@@ -8,6 +8,10 @@ using Messenger.Application.Messages.EditMessage;
 using Messenger.Application.Messages.DeleteMessage;
 using Messenger.Application.Sync;
 using Messenger.Infrastructure.Sync;
+using Messenger.Application.Conversations.CreatePrivateConversation;
+using Messenger.Infrastructure.Conversations;
+using Messenger.Application.Conversations.CreateGroupConversation;
+using Messenger.Application.Conversations.GetUserConversations;
 namespace Messenger.Infrastructure;
 
 
@@ -28,6 +32,9 @@ public static class DependencyInjection
         services.AddScoped<IMessageEditor, MessageEditor>();
         services.AddScoped<IMessageDeleter, MessageDeleter>();
         services.AddScoped<IUserSyncEventWriter, UserSyncEventWriter>();
+        services.AddScoped<IPrivateConversationCreator, PrivateConversationCreator>();
+        services.AddScoped<IGroupConversationCreator, GroupConversationCreator>();
+        services.AddScoped<IUserConversationReader, UserConversationReader>();
         return services;
     }
 }
