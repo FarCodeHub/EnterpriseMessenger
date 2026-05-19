@@ -15,6 +15,9 @@ using Messenger.Application.Conversations.GetUserConversations;
 using Messenger.Application.Messages.GetMessages;
 using Messenger.Application.Messages.SearchMessages;
 using Messenger.Application.Conversations.MarkConversationRead;
+using Messenger.Application.Users.CreateUser;
+using Messenger.Application.Users.RegisterDevice;
+using Messenger.Infrastructure.Users;
 namespace Messenger.Infrastructure;
 
 
@@ -41,6 +44,8 @@ public static class DependencyInjection
         services.AddScoped<IMessageReader, MessageReader>();
         services.AddScoped<IMessageSearchService, PostgresMessageSearchService>();
         services.AddScoped<IConversationReadMarker, ConversationReadMarker>();
+        services.AddScoped<IUserCreator, UserCreator>();
+        services.AddScoped<IUserDeviceRegistrar, UserDeviceRegistrar>();
         return services;
     }
 }

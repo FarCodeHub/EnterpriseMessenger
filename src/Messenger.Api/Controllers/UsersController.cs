@@ -3,6 +3,8 @@ using Messenger.Domain.Users;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Messenger.Application.Users.CreateUser;
+using Messenger.Application.Users.RegisterDevice;
 
 namespace Messenger.Api.Controllers;
 
@@ -11,40 +13,36 @@ namespace Messenger.Api.Controllers;
 public sealed class UsersController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IUserCreator _userCreator;
+    private readonly IUserDeviceRegistrar _userDeviceRegistrar;
 
-    public UsersController(MessengerDbContext dbContext)
+    public UsersController(MessengerDbContext dbContext, IUserDeviceRegistrar userDeviceRegistrar, IUserCreator userCreator)
     {
         _dbContext = dbContext;
+        _userDeviceRegistrar = userDeviceRegistrar;
+        _userCreator = userCreator;
     }
 
-    [HttpPost]
-    public async Task<IActionResult> CreateUser(
-        CreateUserRequest request,
-        CancellationToken cancellationToken)
+  [HttpPost]
+public async Task<IActionResult> CreateUser(
+    CreateUserRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var userNameExists = await _dbContext.Users
-            .AnyAsync(x => x.UserName == request.UserName, cancellationToken);
+        var result = await _userCreator.CreateAsync(
+            new CreateUserCommand(
+                request.DisplayName,
+                request.UserName),
+            cancellationToken);
 
-        if (userNameExists)
-            return Conflict("Username already exists.");
-
-        var user = new User(request.DisplayName, request.UserName);
-
-        _dbContext.Users.Add(user);
-
-        _dbContext.UserSyncCounters.Add(
-            new Messenger.Domain.Sync.UserSyncCounter(user.Id));
-            
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            user.Id,
-            user.DisplayName,
-            user.UserName
-        });
+        return Ok(result);
     }
-
+    catch (InvalidOperationException ex)
+    {
+        return Conflict(ex.Message);
+    }
+}
     [HttpGet]
     public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
     {
@@ -63,51 +61,28 @@ public sealed class UsersController : ControllerBase
         return Ok(users);
     }
 
-    [HttpPost("{userId:guid}/devices")]
-    public async Task<IActionResult> RegisterDevice(
-        Guid userId,
-        RegisterDeviceRequest request,
-        CancellationToken cancellationToken)
+ [HttpPost("{userId:guid}/devices")]
+public async Task<IActionResult> RegisterDevice(
+    Guid userId,
+    RegisterDeviceRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var userExists = await _dbContext.Users
-            .AnyAsync(x => x.Id == userId, cancellationToken);
+        var result = await _userDeviceRegistrar.RegisterAsync(
+            new RegisterDeviceCommand(
+                userId,
+                request.DeviceId,
+                request.DeviceName),
+            cancellationToken);
 
-        if (!userExists)
-            return NotFound("User not found.");
-
-        var existingDevice = await _dbContext.UserDevices
-            .FirstOrDefaultAsync(
-                x => x.UserId == userId && x.DeviceId == request.DeviceId,
-                cancellationToken);
-
-        if (existingDevice is not null)
-        {
-            return Ok(new
-            {
-                existingDevice.Id,
-                existingDevice.UserId,
-                existingDevice.DeviceId,
-                existingDevice.DeviceName,
-                existingDevice.LastSyncedEventId
-            });
-        }
-
-        var device = new UserDevice(
-            userId,
-            request.DeviceId,
-            request.DeviceName);
-
-        _dbContext.UserDevices.Add(device);
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            device.Id,
-            device.UserId,
-            device.DeviceId,
-            device.DeviceName,
-            device.LastSyncedEventId
-        });
+        return Ok(result);
     }
+    catch (InvalidOperationException ex)
+    {
+        return NotFound(ex.Message);
+    }
+}
+
+
 }
