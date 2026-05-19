@@ -4,6 +4,7 @@ using Messenger.Domain.Enums;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Messenger.Application.Conversations.CreatePrivateConversation;
 
 namespace Messenger.Api.Controllers;
 
@@ -12,51 +13,37 @@ namespace Messenger.Api.Controllers;
 public sealed class ConversationsController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IPrivateConversationCreator _privateConversationCreator;
 
-    public ConversationsController(MessengerDbContext dbContext)
+    public ConversationsController(MessengerDbContext dbContext, IPrivateConversationCreator privateConversationCreator)
     {
         _dbContext = dbContext;
+        _privateConversationCreator = privateConversationCreator;
     }
+
 
     [HttpPost("private")]
     public async Task<IActionResult> CreatePrivateConversation(
         CreatePrivateConversationRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.FirstUserId == request.SecondUserId)
-            return BadRequest("Private conversation requires two different users.");
-
-        var userIds = new[] { request.FirstUserId, request.SecondUserId };
-
-        var existingUsersCount = await _dbContext.Users
-            .CountAsync(x => userIds.Contains(x.Id), cancellationToken);
-
-        if (existingUsersCount != 2)
-            return BadRequest("One or both users do not exist.");
-
-        var conversation = new Conversation(
-            ConversationType.Private,
-            request.FirstUserId);
-
-        _dbContext.Conversations.Add(conversation);
-
-
-        _dbContext.ConversationCounters.Add(
-            new ConversationCounter(conversation.Id));
-
-        _dbContext.ConversationMembers.AddRange(
-            new ConversationMember(conversation.Id, request.FirstUserId),
-            new ConversationMember(conversation.Id, request.SecondUserId));
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
+        try
         {
-            conversation.Id,
-            conversation.Type,
-            Members = userIds
-        });
+            var result = await _privateConversationCreator.CreateAsync(
+                new CreatePrivateConversationCommand(
+                    request.FirstUserId,
+                    request.SecondUserId),
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
+
+
 
     [HttpPost("group")]
     public async Task<IActionResult> CreateGroupConversation(
