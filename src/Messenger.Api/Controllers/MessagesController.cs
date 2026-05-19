@@ -487,6 +487,72 @@ public sealed class MessagesController : ControllerBase
         });
     }
 
+    [HttpPut("{messageId:guid}")]
+    public async Task<IActionResult> EditMessage(
+        Guid messageId,
+        EditMessageRequest request,
+        CancellationToken cancellationToken)
+    {
+        var message = await _dbContext.Messages
+            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken);
 
+        if (message is null)
+            return NotFound("Message not found.");
 
+        if (message.SenderUserId != request.UserId)
+            return StatusCode(StatusCodes.Status403Forbidden, "You can only edit your own messages.");
+
+        message.Edit(request.Body);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var response = new
+        {
+            message.Id,
+            message.ConversationId,
+            message.SequenceNumber,
+            message.SenderUserId,
+            message.Body,
+            message.EditedAtUtc
+        };
+
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync("message.edited", response, cancellationToken);
+
+        return Ok(response);
+    }
+    [HttpDelete("{messageId:guid}")]
+    public async Task<IActionResult> DeleteMessage(
+        Guid messageId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var message = await _dbContext.Messages
+            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken);
+
+        if (message is null)
+            return NotFound("Message not found.");
+
+        if (message.SenderUserId != userId)
+            return StatusCode(StatusCodes.Status403Forbidden, "You can only delete your own messages.");
+
+        message.Delete();
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var response = new
+        {
+            message.Id,
+            message.ConversationId,
+            message.SequenceNumber,
+            message.DeletedAtUtc
+        };
+
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync("message.deleted", response, cancellationToken);
+
+        return Ok(response);
+    }
 }

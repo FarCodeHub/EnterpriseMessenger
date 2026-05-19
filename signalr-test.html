@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>SignalR Test</title>
 </head>
+
 <body>
     <h3>SignalR Test</h3>
 
@@ -97,6 +99,16 @@
                 log("Seen ACK sent for message: " + message.id);
             });
 
+
+            connection.on("message.edited", data => {
+                log("MESSAGE EDITED:");
+                log(JSON.stringify(data, null, 2));
+            });
+
+            connection.on("message.deleted", data => {
+                log("MESSAGE DELETED:");
+                log(JSON.stringify(data, null, 2));
+            });
             connection.on("message.delivered.ack", data => {
                 log("DELIVERED ACK CONFIRMED:");
                 log(JSON.stringify(data, null, 2));
@@ -155,4 +167,5 @@
         }
     </script>
 </body>
+
 </html>
