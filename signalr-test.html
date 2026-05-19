@@ -81,7 +81,7 @@
                     log(JSON.stringify(data, null, 2));
                 });
 
-                
+
                 connection.on("conversation.updated", data => {
                     log("CONVERSATION UPDATED:");
                     log(JSON.stringify(data, null, 2));
@@ -107,6 +107,11 @@
 
                 connection.on("conversation.joined", data => {
                     log("CONVERSATION JOINED:");
+                    log(JSON.stringify(data, null, 2));
+                });
+
+                connection.on("conversation.read", data => {
+                    log("CONVERSATION READ:");
                     log(JSON.stringify(data, null, 2));
                 });
 

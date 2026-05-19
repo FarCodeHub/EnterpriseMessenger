@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.SignalR;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
-[Route("api/messages")]
+[Route("api/v1/[controller]")]
 public sealed class MessagesController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;
@@ -274,103 +274,167 @@ public sealed class MessagesController : ControllerBase
     }
 
 
-[HttpGet("{messageId:guid}/reply-context")]
-public async Task<IActionResult> GetReplyContext(
-    Guid messageId,
-    int radius = 100,
-    CancellationToken cancellationToken = default)
-{
-    radius = Math.Clamp(radius, 10, 200);
-
-    var message = await _dbContext.Messages
-        .Where(x => x.Id == messageId)
-        .Select(x => new
-        {
-            x.Id,
-            x.ConversationId,
-            x.ReplyToMessageId,
-            x.ReplyToSequenceNumber
-        })
-        .FirstOrDefaultAsync(cancellationToken);
-
-    if (message is null)
-        return NotFound("Message not found.");
-
-    if (message.ReplyToSequenceNumber is null)
-        return BadRequest("This message is not a reply.");
-
-    var from = message.ReplyToSequenceNumber.Value - radius;
-    var to = message.ReplyToSequenceNumber.Value + radius;
-
-    var messages = await _dbContext.Messages
-        .Where(x =>
-            x.ConversationId == message.ConversationId &&
-            x.SequenceNumber >= from &&
-            x.SequenceNumber <= to)
-        .OrderBy(x => x.SequenceNumber)
-        .Select(x => new
-        {
-            x.Id,
-            x.ConversationId,
-            x.SequenceNumber,
-            x.SenderUserId,
-            x.Body,
-            x.ReplyToMessageId,
-            x.ReplyToSequenceNumber,
-            x.CreatedAtUtc,
-            IsTarget = x.Id == message.ReplyToMessageId
-        })
-        .ToListAsync(cancellationToken);
-
-    return Ok(new
+    [HttpGet("{messageId:guid}/reply-context")]
+    public async Task<IActionResult> GetReplyContext(
+        Guid messageId,
+        int radius = 100,
+        CancellationToken cancellationToken = default)
     {
-        message.Id,
-        message.ConversationId,
-        TargetMessageId = message.ReplyToMessageId,
-        TargetSequenceNumber = message.ReplyToSequenceNumber,
-        Radius = radius,
-        Messages = messages
-    });
-}
+        radius = Math.Clamp(radius, 10, 200);
 
-[HttpGet("conversation/{conversationId:guid}/search")]
-public async Task<IActionResult> SearchMessages(
-    Guid conversationId,
-    string query,
-    int take = 20,
-    CancellationToken cancellationToken = default)
-{
-    if (string.IsNullOrWhiteSpace(query))
-        return BadRequest("Search query is required.");
+        var message = await _dbContext.Messages
+            .Where(x => x.Id == messageId)
+            .Select(x => new
+            {
+                x.Id,
+                x.ConversationId,
+                x.ReplyToMessageId,
+                x.ReplyToSequenceNumber
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-    take = Math.Clamp(take, 1, 50);
+        if (message is null)
+            return NotFound("Message not found.");
 
-    var messages = await _dbContext.Messages
-        .Where(x =>
-            x.ConversationId == conversationId &&
-            EF.Functions.ILike(x.Body, $"%{query}%"))
-        .OrderByDescending(x => x.SequenceNumber)
-        .Take(take)
-        .Select(x => new
+        if (message.ReplyToSequenceNumber is null)
+            return BadRequest("This message is not a reply.");
+
+        var from = message.ReplyToSequenceNumber.Value - radius;
+        var to = message.ReplyToSequenceNumber.Value + radius;
+
+        var messages = await _dbContext.Messages
+            .Where(x =>
+                x.ConversationId == message.ConversationId &&
+                x.SequenceNumber >= from &&
+                x.SequenceNumber <= to)
+            .OrderBy(x => x.SequenceNumber)
+            .Select(x => new
+            {
+                x.Id,
+                x.ConversationId,
+                x.SequenceNumber,
+                x.SenderUserId,
+                x.Body,
+                x.ReplyToMessageId,
+                x.ReplyToSequenceNumber,
+                x.CreatedAtUtc,
+                IsTarget = x.Id == message.ReplyToMessageId
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new
         {
-            x.Id,
-            x.ConversationId,
-            x.SequenceNumber,
-            x.SenderUserId,
-            x.Body,
-            x.ReplyToMessageId,
-            x.ReplyToSequenceNumber,
-            x.CreatedAtUtc
-        })
-        .ToListAsync(cancellationToken);
+            message.Id,
+            message.ConversationId,
+            TargetMessageId = message.ReplyToMessageId,
+            TargetSequenceNumber = message.ReplyToSequenceNumber,
+            Radius = radius,
+            Messages = messages
+        });
+    }
 
-    return Ok(new
+    [HttpGet("conversation/{conversationId:guid}/search")]
+    public async Task<IActionResult> SearchMessages(
+        Guid conversationId,
+        string query,
+        int take = 20,
+        CancellationToken cancellationToken = default)
     {
-        ConversationId = conversationId,
-        Query = query,
-        Count = messages.Count,
-        Results = messages
-    });
-}
+        if (string.IsNullOrWhiteSpace(query))
+            return BadRequest("Search query is required.");
+
+        take = Math.Clamp(take, 1, 50);
+
+        var messages = await _dbContext.Messages
+            .Where(x =>
+                x.ConversationId == conversationId &&
+                EF.Functions.ILike(x.Body, $"%{query}%"))
+            .OrderByDescending(x => x.SequenceNumber)
+            .Take(take)
+            .Select(x => new
+            {
+                x.Id,
+                x.ConversationId,
+                x.SequenceNumber,
+                x.SenderUserId,
+                x.Body,
+                x.ReplyToMessageId,
+                x.ReplyToSequenceNumber,
+                x.CreatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new
+        {
+            ConversationId = conversationId,
+            Query = query,
+            Count = messages.Count,
+            Results = messages
+        });
+    }
+
+
+    [HttpPost("conversation/{conversationId:guid}/read")]
+    public async Task<IActionResult> MarkConversationAsRead(
+        Guid conversationId,
+        MarkConversationReadRequest request,
+        CancellationToken cancellationToken)
+    {
+        var member = await _dbContext.ConversationMembers
+            .FirstOrDefaultAsync(x =>
+                x.ConversationId == conversationId &&
+                x.UserId == request.UserId,
+                cancellationToken);
+
+        if (member is null)
+            return BadRequest("User is not a member of this conversation.");
+
+        if (request.LastReadSequenceNumber < member.LastReadSequenceNumber)
+            return BadRequest("LastReadSequenceNumber cannot move backward.");
+
+        member.UpdateLastReadSequenceNumber(request.LastReadSequenceNumber);
+
+        var messageIds = await _dbContext.Messages
+            .Where(x =>
+                x.ConversationId == conversationId &&
+                x.SequenceNumber <= request.LastReadSequenceNumber)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var deliveries = await _dbContext.MessageDeliveries
+            .Where(x =>
+                messageIds.Contains(x.MessageId) &&
+                x.UserId == request.UserId &&
+                x.SeenAtUtc == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var delivery in deliveries)
+        {
+            delivery.MarkSeen();
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _hubContext.Clients
+            .Group($"conversation:{conversationId}")
+            .SendAsync("conversation.read", new
+            {
+                ConversationId = conversationId,
+                request.UserId,
+                request.LastReadSequenceNumber,
+                SeenMessagesCount = deliveries.Count,
+                ReadAtUtc = DateTime.UtcNow
+            }, cancellationToken);
+
+        return Ok(new
+        {
+            ConversationId = conversationId,
+            request.UserId,
+            request.LastReadSequenceNumber,
+            SeenMessagesCount = deliveries.Count
+        });
+    }
+
+
 
 }

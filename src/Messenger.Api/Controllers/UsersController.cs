@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route("api/v1/[controller]")]
 public sealed class UsersController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;

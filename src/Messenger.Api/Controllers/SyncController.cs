@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
-[Route("api/sync")]
+[Route("api/v1/[controller]")]
 public sealed class SyncController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;
