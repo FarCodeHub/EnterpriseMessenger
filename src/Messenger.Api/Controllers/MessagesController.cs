@@ -132,45 +132,29 @@ public sealed class MessagesController : ControllerBase
         }
 
 
-
-        foreach (var memberUserId in memberUserIds)
+ await AddSyncEventForConversationMembers(
+    message.ConversationId,
+    message.Id,
+    "MessageCreated",
+    new
+    {
+        MessageId = message.Id,
+        message.ConversationId,
+        message.SequenceNumber,
+        message.SenderUserId,
+        message.Body,
+        message.ReplyToMessageId,
+        message.ReplyToSequenceNumber,
+        message.CreatedAtUtc,
+        Attachments = request.Attachments?.Select(x => new
         {
-            var syncCounter = await _dbContext.UserSyncCounters
-                .FirstOrDefaultAsync(x => x.UserId == memberUserId, cancellationToken);
-
-            if (syncCounter is null)
-            {
-                syncCounter = new Messenger.Domain.Sync.UserSyncCounter(memberUserId);
-                _dbContext.UserSyncCounters.Add(syncCounter);
-            }
-
-            var eventId = syncCounter.GetNextEventId();
-
-            var payloadJson = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                MessageId = message.Id,
-                message.ConversationId,
-                message.SequenceNumber,
-                message.SenderUserId,
-                message.Body,
-                message.ReplyToMessageId,
-                message.ReplyToSequenceNumber,
-                message.CreatedAtUtc
-            });
-
-            _dbContext.UserSyncEvents.Add(
-                new Messenger.Domain.Sync.UserSyncEvent(
-                    eventId,
-                    memberUserId,
-                    "MessageCreated",
-                    payloadJson,
-                    message.ConversationId,
-                    message.Id));
-        }
-
-
-
-
+            x.FileName,
+            x.ContentType,
+            x.Size,
+            x.StoragePath
+        })
+    },
+    cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
