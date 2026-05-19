@@ -12,6 +12,7 @@ using Messenger.Application.Conversations.CreatePrivateConversation;
 using Messenger.Infrastructure.Conversations;
 using Messenger.Application.Conversations.CreateGroupConversation;
 using Messenger.Application.Conversations.GetUserConversations;
+using Messenger.Application.Messages.GetMessages;
 namespace Messenger.Infrastructure;
 
 
@@ -35,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<IPrivateConversationCreator, PrivateConversationCreator>();
         services.AddScoped<IGroupConversationCreator, GroupConversationCreator>();
         services.AddScoped<IUserConversationReader, UserConversationReader>();
+        services.AddScoped<IMessageReader, MessageReader>();
         return services;
     }
 }
