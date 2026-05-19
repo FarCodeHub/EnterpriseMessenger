@@ -9,6 +9,7 @@ using Messenger.Application.Messages.SendMessage;
 using Messenger.Application.Messages.EditMessage;
 using Messenger.Application.Messages.DeleteMessage;
 using Messenger.Application.Messages.GetMessages;
+using Messenger.Application.Messages.SearchMessages;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -21,6 +22,7 @@ public sealed class MessagesController : ControllerBase
     private readonly IMessageEditor _messageEditor;
     private readonly IMessageDeleter _messageDeleter;
     private readonly IMessageReader _messageReader;
+    private readonly IMessageSearchService _messageSearchService;
 
     public MessagesController(
         MessengerDbContext dbContext,
@@ -28,7 +30,8 @@ public sealed class MessagesController : ControllerBase
         IMessageSender messageSender,
         IMessageEditor messageEditor,
         IMessageDeleter messageDeleter,
-        IMessageReader messageReader)
+        IMessageReader messageReader,
+        IMessageSearchService messageSearchService)
     {
         _dbContext = dbContext;
         _hubContext = hubContext;
@@ -36,6 +39,7 @@ public sealed class MessagesController : ControllerBase
         _messageEditor = messageEditor;
         _messageDeleter = messageDeleter;
         _messageReader = messageReader;
+        _messageSearchService = messageSearchService;
     }
 
     [HttpPost]
@@ -141,48 +145,27 @@ public sealed class MessagesController : ControllerBase
         }
     }
 
-
-    [HttpGet("conversation/{conversationId:guid}/search")]
-    public async Task<IActionResult> SearchMessages(
-        Guid conversationId,
-        string query,
-        int take = 20,
-        CancellationToken cancellationToken = default)
+[HttpGet("conversation/{conversationId:guid}/search")]
+public async Task<IActionResult> SearchMessages(
+    Guid conversationId,
+    string query,
+    int take = 20,
+    CancellationToken cancellationToken = default)
+{
+    try
     {
-        if (string.IsNullOrWhiteSpace(query))
-            return BadRequest("Search query is required.");
+        var result = await _messageSearchService.SearchAsync(
+            new SearchMessagesQuery(conversationId, query, take),
+            cancellationToken);
 
-        take = Math.Clamp(take, 1, 50);
-
-        var messages = await _dbContext.Messages
-            .Where(x =>
-                x.ConversationId == conversationId &&
-                EF.Functions.ILike(x.Body, $"%{query}%"))
-            .OrderByDescending(x => x.SequenceNumber)
-            .Take(take)
-            .Select(x => new
-            {
-                x.Id,
-                x.ConversationId,
-                x.SequenceNumber,
-                x.SenderUserId,
-                x.Body,
-                x.ReplyToMessageId,
-                x.ReplyToSequenceNumber,
-                x.CreatedAtUtc
-            })
-            .ToListAsync(cancellationToken);
-
-        return Ok(new
-        {
-            ConversationId = conversationId,
-            Query = query,
-            Count = messages.Count,
-            Results = messages
-        });
+        return Ok(result);
     }
-
-
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+ 
     [HttpPost("conversation/{conversationId:guid}/read")]
     public async Task<IActionResult> MarkConversationAsRead(
         Guid conversationId,
