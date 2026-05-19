@@ -10,6 +10,7 @@ using Messenger.Application.Messages.EditMessage;
 using Messenger.Application.Messages.DeleteMessage;
 using Messenger.Application.Messages.GetMessages;
 using Messenger.Application.Messages.SearchMessages;
+using Messenger.Application.Conversations.MarkConversationRead;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -23,6 +24,7 @@ public sealed class MessagesController : ControllerBase
     private readonly IMessageDeleter _messageDeleter;
     private readonly IMessageReader _messageReader;
     private readonly IMessageSearchService _messageSearchService;
+    private readonly IConversationReadMarker _conversationReadMarker;
 
     public MessagesController(
         MessengerDbContext dbContext,
@@ -31,7 +33,8 @@ public sealed class MessagesController : ControllerBase
         IMessageEditor messageEditor,
         IMessageDeleter messageDeleter,
         IMessageReader messageReader,
-        IMessageSearchService messageSearchService)
+        IMessageSearchService messageSearchService,
+        IConversationReadMarker conversationReadMarker)
     {
         _dbContext = dbContext;
         _hubContext = hubContext;
@@ -40,6 +43,7 @@ public sealed class MessagesController : ControllerBase
         _messageDeleter = messageDeleter;
         _messageReader = messageReader;
         _messageSearchService = messageSearchService;
+        _conversationReadMarker = conversationReadMarker;
     }
 
     [HttpPost]
@@ -166,67 +170,36 @@ public async Task<IActionResult> SearchMessages(
     }
 }
  
-    [HttpPost("conversation/{conversationId:guid}/read")]
-    public async Task<IActionResult> MarkConversationAsRead(
-        Guid conversationId,
-        MarkConversationReadRequest request,
-        CancellationToken cancellationToken)
+ [HttpPost("conversation/{conversationId:guid}/read")]
+public async Task<IActionResult> MarkConversationAsRead(
+    Guid conversationId,
+    MarkConversationReadRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var member = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == conversationId &&
-                x.UserId == request.UserId,
-                cancellationToken);
-
-        if (member is null)
-            return BadRequest("User is not a member of this conversation.");
-
-        if (request.LastReadSequenceNumber < member.LastReadSequenceNumber)
-            return BadRequest("LastReadSequenceNumber cannot move backward.");
-
-        member.UpdateLastReadSequenceNumber(request.LastReadSequenceNumber);
-
-        var messageIds = await _dbContext.Messages
-            .Where(x =>
-                x.ConversationId == conversationId &&
-                x.SequenceNumber <= request.LastReadSequenceNumber)
-            .Select(x => x.Id)
-            .ToListAsync(cancellationToken);
-
-        var deliveries = await _dbContext.MessageDeliveries
-            .Where(x =>
-                messageIds.Contains(x.MessageId) &&
-                x.UserId == request.UserId &&
-                x.SeenAtUtc == null)
-            .ToListAsync(cancellationToken);
-
-        foreach (var delivery in deliveries)
-        {
-            delivery.MarkSeen();
-        }
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        var result = await _conversationReadMarker.MarkAsReadAsync(
+            new MarkConversationReadCommand(
+                conversationId,
+                request.UserId,
+                request.LastReadSequenceNumber),
+            cancellationToken);
 
         await _hubContext.Clients
             .Group($"conversation:{conversationId}")
-            .SendAsync("conversation.read", new
-            {
-                ConversationId = conversationId,
-                request.UserId,
-                request.LastReadSequenceNumber,
-                SeenMessagesCount = deliveries.Count,
-                ReadAtUtc = DateTime.UtcNow
-            }, cancellationToken);
+            .SendAsync("conversation.read", result, cancellationToken);
 
-        return Ok(new
-        {
-            ConversationId = conversationId,
-            request.UserId,
-            request.LastReadSequenceNumber,
-            SeenMessagesCount = deliveries.Count
-        });
+        return Ok(result);
     }
-
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+   
+   
+   
+   
     [HttpPut("{messageId:guid}")]
     public async Task<IActionResult> EditMessage(
     Guid messageId,
