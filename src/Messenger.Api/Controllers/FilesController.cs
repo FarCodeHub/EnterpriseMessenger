@@ -58,20 +58,20 @@ public sealed class FilesController : ControllerBase
         });
     }
 
-    [Obsolete("This endpoint is for testing purposes only. Use the /api/v1/files/{attachmentId}/download endpoint to download attachments.")]
-    [HttpGet("download")]
-    public IActionResult DownloadFile(string storagePath, string fileName, string contentType)
-    {
-        if (string.IsNullOrWhiteSpace(storagePath))
-            return BadRequest("Storage path is required.");
+    // [Obsolete("This endpoint is for testing purposes only. Use the /api/v1/files/{attachmentId}/download endpoint to download attachments.")]
+    // [HttpGet("download")]
+    // public IActionResult DownloadFile(string storagePath, string fileName, string contentType)
+    // {
+    //     if (string.IsNullOrWhiteSpace(storagePath))
+    //         return BadRequest("Storage path is required.");
 
-        if (!System.IO.File.Exists(storagePath))
-            return NotFound("File not found.");
+    //     if (!System.IO.File.Exists(storagePath))
+    //         return NotFound("File not found.");
 
-        var fileStream = System.IO.File.OpenRead(storagePath);
+    //     var fileStream = System.IO.File.OpenRead(storagePath);
 
-        return File(fileStream, contentType, fileName);
-    }
+    //     return File(fileStream, contentType, fileName);
+    // }
 
     [HttpGet("{attachmentId:guid}/download")]
     public async Task<IActionResult> DownloadAttachment(
@@ -94,5 +94,6 @@ public sealed class FilesController : ControllerBase
             attachment.ContentType,
             attachment.FileName);
     }
+
 
 }
