@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route("api/v1/[controller]")]
 public sealed class UsersController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;
@@ -32,6 +32,9 @@ public sealed class UsersController : ControllerBase
 
         _dbContext.Users.Add(user);
 
+        _dbContext.UserSyncCounters.Add(
+            new Messenger.Domain.Sync.UserSyncCounter(user.Id));
+            
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(new

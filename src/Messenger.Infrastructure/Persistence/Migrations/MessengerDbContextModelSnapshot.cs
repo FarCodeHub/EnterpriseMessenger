@@ -34,6 +34,12 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("LastMessageAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LastMessageId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -44,6 +50,8 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("LastMessageAtUtc");
 
                     b.HasIndex("Type");
 
@@ -183,6 +191,29 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "SeenAtUtc");
 
                     b.ToTable("MessageDeliveries", (string)null);
+                });
+
+            modelBuilder.Entity("Messenger.Domain.Sync.UserSyncCounter", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("LastEventId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("UserSyncCounters", (string)null);
                 });
 
             modelBuilder.Entity("Messenger.Domain.Sync.UserSyncEvent", b =>

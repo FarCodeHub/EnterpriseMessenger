@@ -21,5 +21,6 @@ public sealed class ConversationConfiguration : IEntityTypeConfiguration<Convers
 
         builder.HasIndex(x => x.Type);
         builder.HasIndex(x => x.CreatedByUserId);
+        builder.HasIndex(x => x.LastMessageAtUtc);
     }
 }

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
-[Route("api/conversations")]
+[Route("api/v1/[controller]")]
 public sealed class ConversationsController : ControllerBase
 {
     private readonly MessengerDbContext _dbContext;
@@ -41,8 +41,8 @@ public sealed class ConversationsController : ControllerBase
         _dbContext.Conversations.Add(conversation);
 
 
-_dbContext.ConversationCounters.Add(
-    new ConversationCounter(conversation.Id));
+        _dbContext.ConversationCounters.Add(
+            new ConversationCounter(conversation.Id));
 
         _dbContext.ConversationMembers.AddRange(
             new ConversationMember(conversation.Id, request.FirstUserId),
@@ -87,8 +87,8 @@ _dbContext.ConversationCounters.Add(
 
         _dbContext.Conversations.Add(conversation);
 
-_dbContext.ConversationCounters.Add(
-    new ConversationCounter(conversation.Id));
+        _dbContext.ConversationCounters.Add(
+            new ConversationCounter(conversation.Id));
 
         foreach (var userId in memberUserIds)
         {
@@ -107,13 +107,15 @@ _dbContext.ConversationCounters.Add(
         });
     }
 
+
+
     [HttpGet("user/{userId:guid}")]
     public async Task<IActionResult> GetUserConversations(
         Guid userId,
         CancellationToken cancellationToken)
     {
         var conversations = await _dbContext.ConversationMembers
-            .Where(x => x.UserId == userId)
+            .Where(member => member.UserId == userId)
             .Join(
                 _dbContext.Conversations,
                 member => member.ConversationId,
@@ -124,11 +126,56 @@ _dbContext.ConversationCounters.Add(
                     conversation.Type,
                     conversation.Title,
                     conversation.CreatedAtUtc,
+                    conversation.LastMessageId,
+                    conversation.LastMessageAtUtc,
                     member.LastReadSequenceNumber
                 })
-            .OrderByDescending(x => x.CreatedAtUtc)
+            .OrderByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
-        return Ok(conversations);
+        var conversationIds = conversations
+            .Select(x => x.Id)
+            .ToList();
+
+        var unreadCounts = await _dbContext.Messages
+            .Where(message =>
+                conversationIds.Contains(message.ConversationId))
+            .GroupJoin(
+                _dbContext.ConversationMembers.Where(member => member.UserId == userId),
+                message => message.ConversationId,
+                member => member.ConversationId,
+                (message, members) => new
+                {
+                    Message = message,
+                    Member = members.FirstOrDefault()
+                })
+            .Where(x =>
+                x.Member != null &&
+                x.Message.SequenceNumber > x.Member.LastReadSequenceNumber &&
+                x.Message.SenderUserId != userId)
+            .GroupBy(x => x.Message.ConversationId)
+            .Select(x => new
+            {
+                ConversationId = x.Key,
+                Count = x.Count()
+            })
+            .ToDictionaryAsync(x => x.ConversationId, x => x.Count, cancellationToken);
+
+        var result = conversations.Select(x => new
+        {
+            x.Id,
+            x.Type,
+            x.Title,
+            x.CreatedAtUtc,
+            x.LastMessageId,
+            x.LastMessageAtUtc,
+            x.LastReadSequenceNumber,
+            UnreadCount = unreadCounts.TryGetValue(x.Id, out var count) ? count : 0
+        });
+
+        return Ok(result);
     }
+
+
+
 }
