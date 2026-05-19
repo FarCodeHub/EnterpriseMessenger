@@ -1,4 +1,5 @@
 using Messenger.Application.Messages.SendMessage;
+using Messenger.Application.Sync;
 using Messenger.Domain.Messages;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -8,10 +9,12 @@ namespace Messenger.Infrastructure.Messages;
 public sealed class MessageSender : IMessageSender
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IUserSyncEventWriter _syncEventWriter;
 
-    public MessageSender(MessengerDbContext dbContext)
+    public MessageSender(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter)
     {
         _dbContext = dbContext;
+        _syncEventWriter = syncEventWriter;
     }
 
     public async Task<SendMessageResult> SendAsync(
@@ -124,29 +127,22 @@ public sealed class MessageSender : IMessageSender
                 new MessageDelivery(message.Id, memberUserId));
         }
 
-        await AddSyncEventForConversationMembers(
-            message.ConversationId,
-            message.Id,
-            "MessageCreated",
-            new
-            {
-                MessageId = message.Id,
-                message.ConversationId,
-                message.SequenceNumber,
-                message.SenderUserId,
-                message.Body,
-                message.ReplyToMessageId,
-                message.ReplyToSequenceNumber,
-                message.CreatedAtUtc,
-                Attachments = command.Attachments?.Select(x => new
-                {
-                    x.FileName,
-                    x.ContentType,
-                    x.Size,
-                    x.StoragePath
-                })
-            },
-            cancellationToken);
+ await _syncEventWriter.AddForConversationMembersAsync(
+    message.ConversationId,
+    message.Id,
+    "MessageCreated",
+    new
+    {
+        MessageId = message.Id,
+        message.ConversationId,
+        message.SequenceNumber,
+        message.SenderUserId,
+        message.Body,
+        message.ReplyToMessageId,
+        message.ReplyToSequenceNumber,
+        message.CreatedAtUtc
+    },
+    cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -169,41 +165,9 @@ public sealed class MessageSender : IMessageSender
                     x.StoragePath)).ToList());
     }
 
-    private async Task AddSyncEventForConversationMembers(
-        Guid conversationId,
-        Guid? messageId,
-        string eventType,
-        object payload,
-        CancellationToken cancellationToken)
-    {
-        var memberUserIds = await _dbContext.ConversationMembers
-            .Where(x => x.ConversationId == conversationId)
-            .Select(x => x.UserId)
-            .ToListAsync(cancellationToken);
 
-        var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
+ 
 
-        foreach (var memberUserId in memberUserIds)
-        {
-            var syncCounter = await _dbContext.UserSyncCounters
-                .FirstOrDefaultAsync(x => x.UserId == memberUserId, cancellationToken);
 
-            if (syncCounter is null)
-            {
-                syncCounter = new Messenger.Domain.Sync.UserSyncCounter(memberUserId);
-                _dbContext.UserSyncCounters.Add(syncCounter);
-            }
 
-            var eventId = syncCounter.GetNextEventId();
-
-            _dbContext.UserSyncEvents.Add(
-                new Messenger.Domain.Sync.UserSyncEvent(
-                    eventId,
-                    memberUserId,
-                    eventType,
-                    payloadJson,
-                    conversationId,
-                    messageId));
-        }
-    }
 }
