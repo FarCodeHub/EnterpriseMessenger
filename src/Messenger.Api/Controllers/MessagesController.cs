@@ -7,6 +7,7 @@ using Messenger.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Messenger.Application.Messages.SendMessage;
 using Messenger.Application.Messages.EditMessage;
+using Messenger.Application.Messages.DeleteMessage;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -17,20 +18,23 @@ private readonly MessengerDbContext _dbContext;
 private readonly IHubContext<ChatHub> _hubContext;
 private readonly IMessageSender _messageSender;
 private readonly IMessageEditor _messageEditor;
+private readonly IMessageDeleter _messageDeleter;
 
-public MessagesController(
-    MessengerDbContext dbContext,
-    IHubContext<ChatHub> hubContext,
-    IMessageSender messageSender,
-    IMessageEditor messageEditor)
-{
-    _dbContext = dbContext;
-    _hubContext = hubContext;
-    _messageSender = messageSender;
-    _messageEditor = messageEditor;
-}
+    public MessagesController(
+        MessengerDbContext dbContext,
+        IHubContext<ChatHub> hubContext,
+        IMessageSender messageSender,
+        IMessageEditor messageEditor,
+        IMessageDeleter messageDeleter)
+    {
+        _dbContext = dbContext;
+        _hubContext = hubContext;
+        _messageSender = messageSender;
+        _messageEditor = messageEditor;
+        _messageDeleter = messageDeleter;
+    }
 
-   [HttpPost]
+    [HttpPost]
 public async Task<IActionResult> SendMessage(
     SendMessageRequest request,
     CancellationToken cancellationToken)
@@ -376,52 +380,35 @@ public async Task<IActionResult> EditMessage(
         return BadRequest(ex.Message);
     }
 }
-    
-    [HttpDelete("{messageId:guid}")]
-    public async Task<IActionResult> DeleteMessage(
-        Guid messageId,
-        Guid userId,
-        CancellationToken cancellationToken)
+ 
+
+[HttpDelete("{messageId:guid}")]
+public async Task<IActionResult> DeleteMessage(
+    Guid messageId,
+    Guid userId,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var message = await _dbContext.Messages
-            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken);
-
-        if (message is null)
-            return NotFound("Message not found.");
-
-        if (message.SenderUserId != userId)
-            return StatusCode(StatusCodes.Status403Forbidden, "You can only delete your own messages.");
-
-        message.Delete();
-        await AddSyncEventForConversationMembers(
-            message.ConversationId,
-            message.Id,
-            "MessageDeleted",
-            new
-            {
-                MessageId = message.Id,
-                message.ConversationId,
-                message.SequenceNumber,
-                message.DeletedAtUtc
-            },
+        var result = await _messageDeleter.DeleteAsync(
+            new DeleteMessageCommand(messageId, userId),
             cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var response = new
-        {
-            message.Id,
-            message.ConversationId,
-            message.SequenceNumber,
-            message.DeletedAtUtc
-        };
 
         await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync("message.deleted", response, cancellationToken);
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync("message.deleted", result, cancellationToken);
 
-        return Ok(response);
+        return Ok(result);
     }
-
+    catch (UnauthorizedAccessException ex)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
 
     private async Task AddSyncEventForConversationMembers(
         Guid conversationId,
