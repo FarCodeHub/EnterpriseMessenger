@@ -2,6 +2,8 @@ using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Messenger.Application.Messages.SendMessage;
+using Messenger.Infrastructure.Messages;
 
 namespace Messenger.Infrastructure;
 
@@ -17,6 +19,8 @@ public static class DependencyInjection
         {
             options.UseNpgsql(connectionString);
         });
+
+        services.AddScoped<IMessageSender, MessageSender>();
 
         return services;
     }
