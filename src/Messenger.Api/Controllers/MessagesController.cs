@@ -5,205 +5,84 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Messenger.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using Messenger.Application.Messages.SendMessage;
+using Messenger.Application.Messages.EditMessage;
+using Messenger.Application.Messages.DeleteMessage;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class MessagesController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
-    private readonly IHubContext<ChatHub> _hubContext;
+private readonly MessengerDbContext _dbContext;
+private readonly IHubContext<ChatHub> _hubContext;
+private readonly IMessageSender _messageSender;
+private readonly IMessageEditor _messageEditor;
+private readonly IMessageDeleter _messageDeleter;
 
     public MessagesController(
         MessengerDbContext dbContext,
-        IHubContext<ChatHub> hubContext)
+        IHubContext<ChatHub> hubContext,
+        IMessageSender messageSender,
+        IMessageEditor messageEditor,
+        IMessageDeleter messageDeleter)
     {
         _dbContext = dbContext;
         _hubContext = hubContext;
+        _messageSender = messageSender;
+        _messageEditor = messageEditor;
+        _messageDeleter = messageDeleter;
     }
 
     [HttpPost]
-    public async Task<IActionResult> SendMessage(
-        SendMessageRequest request,
-        CancellationToken cancellationToken)
+public async Task<IActionResult> SendMessage(
+    SendMessageRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        if (string.IsNullOrWhiteSpace(request.Body))
-            return BadRequest("Message body is required.");
-
-        var isMember = await _dbContext.ConversationMembers
-            .AnyAsync(x =>
-                x.ConversationId == request.ConversationId &&
-                x.UserId == request.SenderUserId,
-                cancellationToken);
-
-        if (!isMember)
-            return BadRequest("Sender is not a member of this conversation.");
-
-        var duplicateMessage = await _dbContext.Messages
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == request.ConversationId &&
-                x.ClientMessageId == request.ClientMessageId,
-                cancellationToken);
-
-        if (duplicateMessage is not null)
-        {
-            return Ok(new
-            {
-                duplicateMessage.Id,
-                duplicateMessage.ConversationId,
-                duplicateMessage.SequenceNumber,
-                duplicateMessage.SenderUserId,
-                duplicateMessage.ClientMessageId,
-                duplicateMessage.Body,
-                duplicateMessage.CreatedAtUtc,
-                IsDuplicate = true
-            });
-        }
-
-        long? replyToSequenceNumber = null;
-
-        if (request.ReplyToMessageId is not null)
-        {
-            var replyToMessage = await _dbContext.Messages
-                .Where(x =>
-                    x.Id == request.ReplyToMessageId &&
-                    x.ConversationId == request.ConversationId)
-                .Select(x => new
-                {
-                    x.Id,
-                    x.SequenceNumber
-                })
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (replyToMessage is null)
-                return BadRequest("Reply target message not found.");
-
-            replyToSequenceNumber = replyToMessage.SequenceNumber;
-        }
-
-        var counter = await _dbContext.ConversationCounters
-            .FirstOrDefaultAsync(x => x.ConversationId == request.ConversationId, cancellationToken);
-
-        if (counter is null)
-            return BadRequest("Conversation counter not found.");
-
-        var nextSequenceNumber = counter.GetNextSequenceNumber();
-
-        var message = new Message(
+        var command = new SendMessageCommand(
             request.ConversationId,
-            nextSequenceNumber,
             request.SenderUserId,
             request.ClientMessageId,
             request.Body,
             request.ReplyToMessageId,
-            replyToSequenceNumber);
+            request.Attachments?.Select(x =>
+                new SendMessageAttachmentCommand(
+                    x.FileName,
+                    x.ContentType,
+                    x.Size,
+                    x.StoragePath)).ToList());
 
-        _dbContext.Messages.Add(message);
-
-        if (request.Attachments is not null && request.Attachments.Count > 0)
-        {
-            foreach (var attachment in request.Attachments)
-            {
-                _dbContext.Attachments.Add(
-                    new Messenger.Domain.Attachments.Attachment(
-                        message.Id,
-                        attachment.FileName,
-                        attachment.ContentType,
-                        attachment.Size,
-                        attachment.StoragePath));
-            }
-        }
-
-        var conversation = await _dbContext.Conversations
-            .FirstAsync(x => x.Id == request.ConversationId, cancellationToken);
-
-        conversation.UpdateLastMessage(message.Id, message.CreatedAtUtc);
-
-
-        var memberUserIds = await _dbContext.ConversationMembers
-            .Where(x => x.ConversationId == request.ConversationId)
-            .Select(x => x.UserId)
-            .ToListAsync(cancellationToken);
-
-        foreach (var memberUserId in memberUserIds)
-        {
-            _dbContext.MessageDeliveries.Add(
-                new MessageDelivery(message.Id, memberUserId));
-        }
-
-
-        await AddSyncEventForConversationMembers(
-           message.ConversationId,
-           message.Id,
-           "MessageCreated",
-           new
-           {
-               MessageId = message.Id,
-               message.ConversationId,
-               message.SequenceNumber,
-               message.SenderUserId,
-               message.Body,
-               message.ReplyToMessageId,
-               message.ReplyToSequenceNumber,
-               message.CreatedAtUtc,
-               Attachments = request.Attachments?.Select(x => new
-               {
-                   x.FileName,
-                   x.ContentType,
-                   x.Size,
-                   x.StoragePath
-               })
-           },
-           cancellationToken);
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-
-        var response = new
-        {
-            message.Id,
-            message.ConversationId,
-            message.SequenceNumber,
-            message.SenderUserId,
-            message.ClientMessageId,
-            message.Body,
-            message.ReplyToMessageId,
-            message.ReplyToSequenceNumber,
-            message.CreatedAtUtc,
-            Attachments = request.Attachments?.Select(x => new
-            {
-                x.FileName,
-                x.ContentType,
-                x.Size,
-                x.StoragePath
-            }),
-            IsDuplicate = false,
-        };
+        var result = await _messageSender.SendAsync(command, cancellationToken);
 
         await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync("message.received", response, cancellationToken);
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync("message.received", result, cancellationToken);
 
+        if (!result.IsDuplicate)
+        {
+            await _hubContext.Clients
+                .Group($"conversation:{result.ConversationId}")
+                .SendAsync("conversation.updated", new
+                {
+                    ConversationId = result.ConversationId,
+                    LastMessageId = result.Id,
+                    LastMessageBody = result.Body,
+                    LastMessageAtUtc = result.CreatedAtUtc,
+                    LastMessageSenderUserId = result.SenderUserId,
+                    LastMessageSequenceNumber = result.SequenceNumber
+                }, cancellationToken);
+        }
 
-        await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync("conversation.updated", new
-            {
-                ConversationId = message.ConversationId,
-                LastMessageId = message.Id,
-                LastMessageBody = message.Body,
-                LastMessageAtUtc = message.CreatedAtUtc,
-                LastMessageSenderUserId = message.SenderUserId,
-                LastMessageSequenceNumber = message.SequenceNumber
-            }, cancellationToken);
-
-
-
-
-        return Ok(response);
-
-
+        return Ok(result);
     }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+
 
     [HttpGet("conversation/{conversationId:guid}")]
     public async Task<IActionResult> GetMessages(
@@ -470,99 +349,66 @@ public sealed class MessagesController : ControllerBase
             SeenMessagesCount = deliveries.Count
         });
     }
-
+ 
     [HttpPut("{messageId:guid}")]
-    public async Task<IActionResult> EditMessage(
-        Guid messageId,
-        EditMessageRequest request,
-        CancellationToken cancellationToken)
+public async Task<IActionResult> EditMessage(
+    Guid messageId,
+    EditMessageRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var message = await _dbContext.Messages
-            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken);
-
-        if (message is null)
-            return NotFound("Message not found.");
-
-        if (message.SenderUserId != request.UserId)
-            return StatusCode(StatusCodes.Status403Forbidden, "You can only edit your own messages.");
-
-        message.Edit(request.Body);
-        await AddSyncEventForConversationMembers(
-            message.ConversationId,
-            message.Id,
-            "MessageEdited",
-            new
-            {
-                MessageId = message.Id,
-                message.ConversationId,
-                message.SequenceNumber,
-                message.Body,
-                message.EditedAtUtc
-            },
+        var result = await _messageEditor.EditAsync(
+            new EditMessageCommand(
+                messageId,
+                request.UserId,
+                request.Body),
             cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var response = new
-        {
-            message.Id,
-            message.ConversationId,
-            message.SequenceNumber,
-            message.SenderUserId,
-            message.Body,
-            message.EditedAtUtc
-        };
 
         await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync("message.edited", response, cancellationToken);
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync("message.edited", result, cancellationToken);
 
-        return Ok(response);
+        return Ok(result);
     }
-    [HttpDelete("{messageId:guid}")]
-    public async Task<IActionResult> DeleteMessage(
-        Guid messageId,
-        Guid userId,
-        CancellationToken cancellationToken)
+    catch (UnauthorizedAccessException ex)
     {
-        var message = await _dbContext.Messages
-            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken);
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+ 
 
-        if (message is null)
-            return NotFound("Message not found.");
-
-        if (message.SenderUserId != userId)
-            return StatusCode(StatusCodes.Status403Forbidden, "You can only delete your own messages.");
-
-        message.Delete();
-        await AddSyncEventForConversationMembers(
-            message.ConversationId,
-            message.Id,
-            "MessageDeleted",
-            new
-            {
-                MessageId = message.Id,
-                message.ConversationId,
-                message.SequenceNumber,
-                message.DeletedAtUtc
-            },
+[HttpDelete("{messageId:guid}")]
+public async Task<IActionResult> DeleteMessage(
+    Guid messageId,
+    Guid userId,
+    CancellationToken cancellationToken)
+{
+    try
+    {
+        var result = await _messageDeleter.DeleteAsync(
+            new DeleteMessageCommand(messageId, userId),
             cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var response = new
-        {
-            message.Id,
-            message.ConversationId,
-            message.SequenceNumber,
-            message.DeletedAtUtc
-        };
 
         await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync("message.deleted", response, cancellationToken);
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync("message.deleted", result, cancellationToken);
 
-        return Ok(response);
+        return Ok(result);
     }
-
+    catch (UnauthorizedAccessException ex)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
 
     private async Task AddSyncEventForConversationMembers(
         Guid conversationId,
