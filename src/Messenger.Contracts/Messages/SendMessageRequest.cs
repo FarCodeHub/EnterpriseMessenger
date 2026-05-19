@@ -5,5 +5,13 @@ public sealed record SendMessageRequest(
     Guid SenderUserId,
     Guid ClientMessageId,
     string Body,
-    Guid? ReplyToMessageId = null
+    Guid? ReplyToMessageId = null,
+    List<SendMessageAttachmentRequest>? Attachments = null
+);
+
+public sealed record SendMessageAttachmentRequest(
+    string FileName,
+    string ContentType,
+    long Size,
+    string StoragePath
 );

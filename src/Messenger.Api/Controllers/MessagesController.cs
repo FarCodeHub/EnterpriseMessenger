@@ -100,7 +100,19 @@ public sealed class MessagesController : ControllerBase
 
         _dbContext.Messages.Add(message);
 
-
+        if (request.Attachments is not null && request.Attachments.Count > 0)
+        {
+            foreach (var attachment in request.Attachments)
+            {
+                _dbContext.Attachments.Add(
+                    new Messenger.Domain.Attachments.Attachment(
+                        message.Id,
+                        attachment.FileName,
+                        attachment.ContentType,
+                        attachment.Size,
+                        attachment.StoragePath));
+            }
+        }
 
         var conversation = await _dbContext.Conversations
             .FirstAsync(x => x.Id == request.ConversationId, cancellationToken);
@@ -174,7 +186,14 @@ public sealed class MessagesController : ControllerBase
             message.ReplyToMessageId,
             message.ReplyToSequenceNumber,
             message.CreatedAtUtc,
-            IsDuplicate = false
+            Attachments = request.Attachments?.Select(x => new
+            {
+                x.FileName,
+                x.ContentType,
+                x.Size,
+                x.StoragePath
+            }),
+            IsDuplicate = false,
         };
 
         await _hubContext.Clients
@@ -232,7 +251,18 @@ public sealed class MessagesController : ControllerBase
                 x.Body,
                 x.ReplyToMessageId,
                 x.ReplyToSequenceNumber,
-                x.CreatedAtUtc
+                x.CreatedAtUtc,
+                Attachments = _dbContext.Attachments
+        .Where(a => a.MessageId == x.Id)
+        .Select(a => new
+        {
+            a.Id,
+            a.FileName,
+            a.ContentType,
+            a.Size,
+            a.StoragePath
+        })
+        .ToList()
             })
             .ToListAsync(cancellationToken);
 
@@ -266,7 +296,18 @@ public sealed class MessagesController : ControllerBase
                 x.Body,
                 x.ReplyToMessageId,
                 x.ReplyToSequenceNumber,
-                x.CreatedAtUtc
+                x.CreatedAtUtc,
+                Attachments = _dbContext.Attachments
+        .Where(a => a.MessageId == x.Id)
+        .Select(a => new
+        {
+            a.Id,
+            a.FileName,
+            a.ContentType,
+            a.Size,
+            a.StoragePath
+        })
+        .ToList()
             })
             .ToListAsync(cancellationToken);
 
@@ -318,6 +359,17 @@ public sealed class MessagesController : ControllerBase
                 x.ReplyToMessageId,
                 x.ReplyToSequenceNumber,
                 x.CreatedAtUtc,
+                Attachments = _dbContext.Attachments
+        .Where(a => a.MessageId == x.Id)
+        .Select(a => new
+        {
+            a.Id,
+            a.FileName,
+            a.ContentType,
+            a.Size,
+            a.StoragePath
+        })
+        .ToList(),
                 IsTarget = x.Id == message.ReplyToMessageId
             })
             .ToListAsync(cancellationToken);
