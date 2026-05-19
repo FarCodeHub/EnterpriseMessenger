@@ -1,6 +1,6 @@
-using Messenger.Infrastructure.Persistence;
+using Messenger.Application.Sync.CommitSync;
+using Messenger.Application.Sync.GetSyncEvents;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Messenger.Api.Controllers;
 
@@ -8,11 +8,15 @@ namespace Messenger.Api.Controllers;
 [Route("api/v1/[controller]")]
 public sealed class SyncController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
+    private readonly ISyncEventReader _syncEventReader;
+    private readonly ISyncCommitter _syncCommitter;
 
-    public SyncController(MessengerDbContext dbContext)
+    public SyncController(
+        ISyncEventReader syncEventReader,
+        ISyncCommitter syncCommitter)
     {
-        _dbContext = dbContext;
+        _syncEventReader = syncEventReader;
+        _syncCommitter = syncCommitter;
     }
 
     [HttpGet("{userId:guid}/{deviceId}")]
@@ -23,46 +27,22 @@ public sealed class SyncController : ControllerBase
         int take = 100,
         CancellationToken cancellationToken = default)
     {
-        take = Math.Clamp(take, 1, 500);
-
-        var device = await _dbContext.UserDevices
-            .FirstOrDefaultAsync(
-                x => x.UserId == userId && x.DeviceId == deviceId,
+        try
+        {
+            var result = await _syncEventReader.GetAsync(
+                new GetSyncEventsQuery(
+                    userId,
+                    deviceId,
+                    afterEventId,
+                    take),
                 cancellationToken);
 
-        if (device is null)
-            return NotFound("Device not found.");
-
-        var events = await _dbContext.UserSyncEvents
-            .Where(x =>
-                x.UserId == userId &&
-                x.EventId > afterEventId)
-            .OrderBy(x => x.EventId)
-            .Take(take)
-            .Select(x => new
-            {
-                x.EventId,
-                x.EventType,
-                x.ConversationId,
-                x.MessageId,
-                x.PayloadJson,
-                x.CreatedAtUtc
-            })
-            .ToListAsync(cancellationToken);
-
-        var latestEventId = events.Count == 0
-            ? afterEventId
-            : events[^1].EventId;
-
-        return Ok(new
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
         {
-            UserId = userId,
-            DeviceId = deviceId,
-            AfterEventId = afterEventId,
-            LatestEventId = latestEventId,
-            HasMore = events.Count == take,
-            Events = events
-        });
+            return NotFound(ex.Message);
+        }
     }
 
     [HttpPost("{userId:guid}/{deviceId}/commit")]
@@ -72,26 +52,20 @@ public sealed class SyncController : ControllerBase
         long lastSyncedEventId,
         CancellationToken cancellationToken)
     {
-        var device = await _dbContext.UserDevices
-            .FirstOrDefaultAsync(
-                x => x.UserId == userId && x.DeviceId == deviceId,
+        try
+        {
+            var result = await _syncCommitter.CommitAsync(
+                new CommitSyncCommand(
+                    userId,
+                    deviceId,
+                    lastSyncedEventId),
                 cancellationToken);
 
-        if (device is null)
-            return NotFound("Device not found.");
-
-        if (lastSyncedEventId < device.LastSyncedEventId)
-            return BadRequest("lastSyncedEventId cannot move backward.");
-
-        device.UpdateLastSyncedEventId(lastSyncedEventId);
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
         {
-            device.UserId,
-            device.DeviceId,
-            device.LastSyncedEventId
-        });
+            return BadRequest(ex.Message);
+        }
     }
 }
