@@ -18,6 +18,8 @@ using Messenger.Application.Conversations.MarkConversationRead;
 using Messenger.Application.Users.CreateUser;
 using Messenger.Application.Users.RegisterDevice;
 using Messenger.Infrastructure.Users;
+using Messenger.Application.Sync.GetSyncEvents;
+using Messenger.Application.Sync.CommitSync;
 namespace Messenger.Infrastructure;
 
 
@@ -46,6 +48,8 @@ public static class DependencyInjection
         services.AddScoped<IConversationReadMarker, ConversationReadMarker>();
         services.AddScoped<IUserCreator, UserCreator>();
         services.AddScoped<IUserDeviceRegistrar, UserDeviceRegistrar>();
+        services.AddScoped<ISyncEventReader, SyncEventReader>();
+        services.AddScoped<ISyncCommitter, SyncCommitter>();
         return services;
     }
 }
