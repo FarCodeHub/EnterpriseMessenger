@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Messenger.Application.Messages.SendMessage;
 using Messenger.Infrastructure.Messages;
-
+using Messenger.Application.Messages.EditMessage;
 namespace Messenger.Infrastructure;
 
 public static class DependencyInjection
@@ -21,7 +21,7 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IMessageSender, MessageSender>();
-
+        services.AddScoped<IMessageEditor, MessageEditor>();
         return services;
     }
 }

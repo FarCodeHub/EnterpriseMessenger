@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Messenger.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Messenger.Application.Messages.SendMessage;
+using Messenger.Application.Messages.EditMessage;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -15,15 +16,18 @@ public sealed class MessagesController : ControllerBase
 private readonly MessengerDbContext _dbContext;
 private readonly IHubContext<ChatHub> _hubContext;
 private readonly IMessageSender _messageSender;
+private readonly IMessageEditor _messageEditor;
 
 public MessagesController(
     MessengerDbContext dbContext,
     IHubContext<ChatHub> hubContext,
-    IMessageSender messageSender)
+    IMessageSender messageSender,
+    IMessageEditor messageEditor)
 {
     _dbContext = dbContext;
     _hubContext = hubContext;
     _messageSender = messageSender;
+    _messageEditor = messageEditor;
 }
 
    [HttpPost]
@@ -341,54 +345,38 @@ public async Task<IActionResult> SendMessage(
             SeenMessagesCount = deliveries.Count
         });
     }
-
+ 
     [HttpPut("{messageId:guid}")]
-    public async Task<IActionResult> EditMessage(
-        Guid messageId,
-        EditMessageRequest request,
-        CancellationToken cancellationToken)
+public async Task<IActionResult> EditMessage(
+    Guid messageId,
+    EditMessageRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var message = await _dbContext.Messages
-            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken);
-
-        if (message is null)
-            return NotFound("Message not found.");
-
-        if (message.SenderUserId != request.UserId)
-            return StatusCode(StatusCodes.Status403Forbidden, "You can only edit your own messages.");
-
-        message.Edit(request.Body);
-        await AddSyncEventForConversationMembers(
-            message.ConversationId,
-            message.Id,
-            "MessageEdited",
-            new
-            {
-                MessageId = message.Id,
-                message.ConversationId,
-                message.SequenceNumber,
-                message.Body,
-                message.EditedAtUtc
-            },
+        var result = await _messageEditor.EditAsync(
+            new EditMessageCommand(
+                messageId,
+                request.UserId,
+                request.Body),
             cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        var response = new
-        {
-            message.Id,
-            message.ConversationId,
-            message.SequenceNumber,
-            message.SenderUserId,
-            message.Body,
-            message.EditedAtUtc
-        };
 
         await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync("message.edited", response, cancellationToken);
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync("message.edited", result, cancellationToken);
 
-        return Ok(response);
+        return Ok(result);
     }
+    catch (UnauthorizedAccessException ex)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+    
     [HttpDelete("{messageId:guid}")]
     public async Task<IActionResult> DeleteMessage(
         Guid messageId,
