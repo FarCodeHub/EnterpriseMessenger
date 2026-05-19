@@ -6,4 +6,7 @@
     <Project Path="src/Messenger.Domain/Messenger.Domain.csproj" />
     <Project Path="src/Messenger.Infrastructure/Messenger.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Messenger.IntegrationTests/Messenger.IntegrationTests.csproj" />
+  </Folder>
 </Solution>
