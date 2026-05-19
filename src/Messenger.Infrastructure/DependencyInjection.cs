@@ -20,6 +20,9 @@ using Messenger.Application.Users.RegisterDevice;
 using Messenger.Infrastructure.Users;
 using Messenger.Application.Sync.GetSyncEvents;
 using Messenger.Application.Sync.CommitSync;
+using Messenger.Application.Files.UploadFile;
+using Messenger.Application.Files.DownloadFile;
+using Messenger.Infrastructure.Files;
 namespace Messenger.Infrastructure;
 
 
@@ -50,6 +53,8 @@ public static class DependencyInjection
         services.AddScoped<IUserDeviceRegistrar, UserDeviceRegistrar>();
         services.AddScoped<ISyncEventReader, SyncEventReader>();
         services.AddScoped<ISyncCommitter, SyncCommitter>();
+        services.AddScoped<IFileUploader, LocalFileUploader>();
+        services.AddScoped<IAttachmentDownloader, AttachmentDownloader>();
         return services;
     }
 }
