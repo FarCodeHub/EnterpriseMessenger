@@ -132,29 +132,29 @@ public sealed class MessagesController : ControllerBase
         }
 
 
- await AddSyncEventForConversationMembers(
-    message.ConversationId,
-    message.Id,
-    "MessageCreated",
-    new
-    {
-        MessageId = message.Id,
-        message.ConversationId,
-        message.SequenceNumber,
-        message.SenderUserId,
-        message.Body,
-        message.ReplyToMessageId,
-        message.ReplyToSequenceNumber,
-        message.CreatedAtUtc,
-        Attachments = request.Attachments?.Select(x => new
-        {
-            x.FileName,
-            x.ContentType,
-            x.Size,
-            x.StoragePath
-        })
-    },
-    cancellationToken);
+        await AddSyncEventForConversationMembers(
+           message.ConversationId,
+           message.Id,
+           "MessageCreated",
+           new
+           {
+               MessageId = message.Id,
+               message.ConversationId,
+               message.SequenceNumber,
+               message.SenderUserId,
+               message.Body,
+               message.ReplyToMessageId,
+               message.ReplyToSequenceNumber,
+               message.CreatedAtUtc,
+               Attachments = request.Attachments?.Select(x => new
+               {
+                   x.FileName,
+                   x.ContentType,
+                   x.Size,
+                   x.StoragePath
+               })
+           },
+           cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
