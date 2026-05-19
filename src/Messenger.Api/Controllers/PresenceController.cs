@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
-[Route("api/presence")]
+[Route("api/v1/[controller]")]
 public sealed class PresenceController : ControllerBase
 {
     private readonly InMemoryConnectionTracker _connectionTracker;
