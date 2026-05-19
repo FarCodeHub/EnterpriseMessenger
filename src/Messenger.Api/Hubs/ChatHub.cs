@@ -179,4 +179,42 @@ public sealed class ChatHub : Hub
     }
 
 
+    public async Task StartTyping(string conversationId, string userId)
+    {
+        if (!Guid.TryParse(conversationId, out var parsedConversationId))
+            throw new HubException("Invalid conversationId.");
+
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            throw new HubException("Invalid userId.");
+
+        await Clients
+            .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
+            .SendAsync("typing.started", new
+            {
+                ConversationId = parsedConversationId,
+                UserId = parsedUserId,
+                StartedAtUtc = DateTime.UtcNow
+            });
+    }
+
+    public async Task StopTyping(string conversationId, string userId)
+    {
+        if (!Guid.TryParse(conversationId, out var parsedConversationId))
+            throw new HubException("Invalid conversationId.");
+
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            throw new HubException("Invalid userId.");
+
+        await Clients
+            .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
+            .SendAsync("typing.stopped", new
+            {
+                ConversationId = parsedConversationId,
+                UserId = parsedUserId,
+                StoppedAtUtc = DateTime.UtcNow
+            });
+    }
+
+
+
 }
