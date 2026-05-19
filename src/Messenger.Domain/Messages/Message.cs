@@ -17,7 +17,8 @@ public class Message : BaseEntity
     public long? ReplyToSequenceNumber { get; private set; }
 
     public string Body { get; private set; }
-
+    public DateTime? EditedAtUtc { get; private set; }
+    public DateTime? DeletedAtUtc { get; private set; }
     private Message()
     {
     }
@@ -40,4 +41,19 @@ public class Message : BaseEntity
         ReplyToMessageId = replyToMessageId;
         ReplyToSequenceNumber = replyToSequenceNumber;
     }
+    public void Edit(string newBody)
+    {
+        if (string.IsNullOrWhiteSpace(newBody))
+            throw new ArgumentException("Message body cannot be empty.", nameof(newBody));
+
+        Body = newBody;
+        EditedAtUtc = DateTime.UtcNow;
+    }
+
+
+    public void Delete()
+{
+    DeletedAtUtc = DateTime.UtcNow;
+    Body = string.Empty;
+}
 }
