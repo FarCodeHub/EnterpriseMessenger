@@ -10,22 +10,22 @@ using Microsoft.AspNetCore.Authorization;
 [Authorize]
 public sealed class ChatHub : Hub
 {
-    private readonly InMemoryConnectionTracker _connectionTracker;
+    private readonly IConnectionTracker _connectionTracker;
     private readonly MessengerDbContext _dbContext;
 
-    public ChatHub(
-        InMemoryConnectionTracker connectionTracker,
-        MessengerDbContext dbContext)
-    {
-        _connectionTracker = connectionTracker;
-        _dbContext = dbContext;
-    }
+public ChatHub(
+    IConnectionTracker connectionTracker,
+    MessengerDbContext dbContext)
+{
+    _connectionTracker = connectionTracker;
+    _dbContext = dbContext;
+}
 
 public async Task RegisterUser()
 {
     var userId = GetCurrentUserId();
 
-    _connectionTracker.AddConnection(userId, Context.ConnectionId);
+    await _connectionTracker.AddConnectionAsync(userId, Context.ConnectionId);
 
     await Clients.Caller.SendAsync("presence.registered", new
     {
@@ -64,7 +64,7 @@ public async Task JoinConversation(string conversationId)
 }
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = _connectionTracker.RemoveConnection(Context.ConnectionId);
+      var userId = await _connectionTracker.RemoveConnectionAsync(Context.ConnectionId);
 
         if (userId is not null)
         {

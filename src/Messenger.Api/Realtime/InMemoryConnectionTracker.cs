@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Messenger.Api.Realtime;
 
-public sealed class InMemoryConnectionTracker
+public sealed class InMemoryConnectionTracker : IConnectionTracker
 {
     private readonly ConcurrentDictionary<Guid, HashSet<string>> _userConnections = new();
     private readonly ConcurrentDictionary<string, Guid> _connectionUsers = new();
@@ -57,5 +57,33 @@ public sealed class InMemoryConnectionTracker
     public IReadOnlyCollection<Guid> GetOnlineUsers()
     {
         return _userConnections.Keys.ToArray();
+    }
+
+
+
+public Task<Guid?> RemoveConnectionAsync(string connectionId)
+{
+    return Task.FromResult(RemoveConnection(connectionId));
+}
+
+public Task<bool> IsOnlineAsync(Guid userId)
+{
+    return Task.FromResult(IsOnline(userId));
+}
+
+public Task<IReadOnlyCollection<string>> GetConnectionsAsync(Guid userId)
+{
+    return Task.FromResult(GetConnections(userId));
+}
+
+public Task<IReadOnlyCollection<Guid>> GetOnlineUsersAsync()
+{
+    return Task.FromResult(GetOnlineUsers());
+}
+
+    public Task AddConnectionAsync(Guid userId, string connectionId)
+    {
+        AddConnection(userId, connectionId);
+        return Task.CompletedTask;
     }
 }

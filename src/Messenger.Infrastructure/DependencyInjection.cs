@@ -23,6 +23,7 @@ using Messenger.Application.Sync.CommitSync;
 using Messenger.Application.Files.UploadFile;
 using Messenger.Application.Files.DownloadFile;
 using Messenger.Infrastructure.Files;
+using StackExchange.Redis;
 namespace Messenger.Infrastructure;
 
 
@@ -55,6 +56,13 @@ public static class DependencyInjection
         services.AddScoped<ISyncCommitter, SyncCommitter>();
         services.AddScoped<IFileUploader, LocalFileUploader>();
         services.AddScoped<IAttachmentDownloader, AttachmentDownloader>();
+        var redisConnectionString = configuration["Redis:ConnectionString"];
+
+        if (!string.IsNullOrWhiteSpace(redisConnectionString))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(
+                ConnectionMultiplexer.Connect(redisConnectionString));
+        }
         return services;
     }
 }
