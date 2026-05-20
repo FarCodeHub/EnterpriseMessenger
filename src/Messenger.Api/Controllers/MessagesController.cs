@@ -11,8 +11,11 @@ using Messenger.Application.Messages.DeleteMessage;
 using Messenger.Application.Messages.GetMessages;
 using Messenger.Application.Messages.SearchMessages;
 using Messenger.Application.Conversations.MarkConversationRead;
-namespace Messenger.Api.Controllers;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
+namespace Messenger.Api.Controllers;
+[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class MessagesController : ControllerBase
@@ -53,9 +56,11 @@ public sealed class MessagesController : ControllerBase
     {
         try
         {
+
+            var currentUserId = GetCurrentUserId();
             var command = new SendMessageCommand(
                 request.ConversationId,
-                request.SenderUserId,
+                currentUserId,
                 request.ClientMessageId,
                 request.Body,
                 request.ReplyToMessageId,
@@ -178,10 +183,11 @@ public async Task<IActionResult> MarkConversationAsRead(
 {
     try
     {
+        var currentUserId = GetCurrentUserId();
         var result = await _conversationReadMarker.MarkAsReadAsync(
             new MarkConversationReadCommand(
                 conversationId,
-                request.UserId,
+                currentUserId,
                 request.LastReadSequenceNumber),
             cancellationToken);
 
@@ -208,10 +214,11 @@ public async Task<IActionResult> MarkConversationAsRead(
     {
         try
         {
+            var currentUserId = GetCurrentUserId();
             var result = await _messageEditor.EditAsync(
                 new EditMessageCommand(
                     messageId,
-                    request.UserId,
+                    currentUserId,
                     request.Body),
                 cancellationToken);
 
@@ -235,13 +242,13 @@ public async Task<IActionResult> MarkConversationAsRead(
     [HttpDelete("{messageId:guid}")]
     public async Task<IActionResult> DeleteMessage(
         Guid messageId,
-        Guid userId,
         CancellationToken cancellationToken)
     {
         try
         {
+            var currentUserId = GetCurrentUserId();
             var result = await _messageDeleter.DeleteAsync(
-                new DeleteMessageCommand(messageId, userId),
+                new DeleteMessageCommand(messageId, currentUserId),
                 cancellationToken);
 
             await _hubContext.Clients
@@ -298,8 +305,15 @@ public async Task<IActionResult> MarkConversationAsRead(
         }
     }
 
+private Guid GetCurrentUserId()
+{
+    var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+    if (string.IsNullOrWhiteSpace(userIdValue))
+        throw new UnauthorizedAccessException("UserId not found in token.");
 
+    return Guid.Parse(userIdValue);
+}
 
 
 }

@@ -1,8 +1,9 @@
 using Messenger.Api.Realtime;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Messenger.Api.Controllers;
-
+[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class PresenceController : ControllerBase
