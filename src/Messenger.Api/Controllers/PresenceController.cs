@@ -3,22 +3,23 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Messenger.Api.Controllers;
+
 [Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class PresenceController : ControllerBase
 {
-    private readonly InMemoryConnectionTracker _connectionTracker;
+    private readonly IConnectionTracker _connectionTracker;
 
-    public PresenceController(InMemoryConnectionTracker connectionTracker)
+    public PresenceController(IConnectionTracker connectionTracker)
     {
         _connectionTracker = connectionTracker;
     }
 
     [HttpGet("users/{userId:guid}")]
-    public IActionResult IsUserOnline(Guid userId)
+    public async Task<IActionResult> IsUserOnline(Guid userId)
     {
-        var connections = _connectionTracker.GetConnections(userId);
+        var connections = await _connectionTracker.GetConnectionsAsync(userId);
 
         return Ok(new
         {
@@ -29,9 +30,9 @@ public sealed class PresenceController : ControllerBase
     }
 
     [HttpGet("online-users")]
-    public IActionResult GetOnlineUsers()
+    public async Task<IActionResult> GetOnlineUsers()
     {
-        var onlineUsers = _connectionTracker.GetOnlineUsers();
+        var onlineUsers = await _connectionTracker.GetOnlineUsersAsync();
 
         return Ok(new
         {

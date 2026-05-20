@@ -54,7 +54,7 @@ builder.Services.AddCors(options =>
     });
 });
 builder.Services.AddSignalR();
-builder.Services.AddSingleton<InMemoryConnectionTracker>();
+builder.Services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
 
 builder.Services.AddScoped<JwtTokenService>();
 
