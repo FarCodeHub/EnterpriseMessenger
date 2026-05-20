@@ -3,19 +3,26 @@ using Messenger.Application.Sync;
 using Messenger.Domain.Messages;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using MassTransit;
+using Messenger.Contracts.IntegrationEvents;
 
 namespace Messenger.Infrastructure.Messages;
 
 public sealed class MessageSender : IMessageSender
 {
-    private readonly MessengerDbContext _dbContext;
-    private readonly IUserSyncEventWriter _syncEventWriter;
+private readonly MessengerDbContext _dbContext;
+private readonly IUserSyncEventWriter _syncEventWriter;
+private readonly IPublishEndpoint _publishEndpoint;
 
-    public MessageSender(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter)
-    {
-        _dbContext = dbContext;
-        _syncEventWriter = syncEventWriter;
-    }
+public MessageSender(
+    MessengerDbContext dbContext,
+    IUserSyncEventWriter syncEventWriter,
+    IPublishEndpoint publishEndpoint)
+{
+    _dbContext = dbContext;
+    _syncEventWriter = syncEventWriter;
+    _publishEndpoint = publishEndpoint;
+}
 
     public async Task<SendMessageResult> SendAsync(
         SendMessageCommand command,
@@ -145,7 +152,15 @@ public sealed class MessageSender : IMessageSender
     cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-
+await _publishEndpoint.Publish(
+    new MessageCreatedIntegrationEvent(
+        message.Id,
+        message.ConversationId,
+        message.SequenceNumber,
+        message.SenderUserId,
+        message.Body,
+        message.CreatedAtUtc),
+    cancellationToken);
         return new SendMessageResult(
             message.Id,
             message.ConversationId,
