@@ -1,6 +1,10 @@
 using Messenger.Infrastructure;
 using Messenger.Api.Hubs;
 using Messenger.Api.Realtime;
+using System.Text;
+using Messenger.Api.Auth;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,9 +27,43 @@ builder.Services.AddCors(options =>
 });
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<InMemoryConnectionTracker>();
+
+builder.Services.AddScoped<JwtTokenService>();
+
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
+
+if (string.IsNullOrWhiteSpace(jwtSecretKey))
+    throw new InvalidOperationException("JWT secret key is not configured.");
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtSecretKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+
+
 var app = builder.Build();
 
 app.UseCors("AllowLocalTest");
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
