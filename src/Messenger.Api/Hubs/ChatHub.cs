@@ -4,7 +4,10 @@ using Messenger.Infrastructure.Persistence;
 using Messenger.Domain.Messages;
 using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Hubs;
+using Microsoft.AspNetCore.Authorization;
 
+
+[Authorize]
 public sealed class ChatHub : Hub
 {
     private readonly InMemoryConnectionTracker _connectionTracker;
@@ -18,19 +21,18 @@ public sealed class ChatHub : Hub
         _dbContext = dbContext;
     }
 
-    public async Task RegisterUser(string userId)
+public async Task RegisterUser()
+{
+    var userId = GetCurrentUserId();
+
+    _connectionTracker.AddConnection(userId, Context.ConnectionId);
+
+    await Clients.Caller.SendAsync("presence.registered", new
     {
-        if (!Guid.TryParse(userId, out var parsedUserId))
-            throw new HubException("Invalid userId.");
-
-        _connectionTracker.AddConnection(parsedUserId, Context.ConnectionId);
-
-        await Clients.Caller.SendAsync("presence.registered", new
-        {
-            UserId = parsedUserId,
-            Context.ConnectionId
-        });
-    }
+        UserId = userId,
+        Context.ConnectionId
+    });
+}
 
     public async Task JoinConversation(string conversationId)
     {
@@ -179,42 +181,48 @@ public sealed class ChatHub : Hub
     }
 
 
-    public async Task StartTyping(string conversationId, string userId)
-    {
-        if (!Guid.TryParse(conversationId, out var parsedConversationId))
-            throw new HubException("Invalid conversationId.");
+public async Task StartTyping(string conversationId)
+{
+    if (!Guid.TryParse(conversationId, out var parsedConversationId))
+        throw new HubException("Invalid conversationId.");
 
-        if (!Guid.TryParse(userId, out var parsedUserId))
-            throw new HubException("Invalid userId.");
+    var userId = GetCurrentUserId();
 
-        await Clients
-            .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
-            .SendAsync("typing.started", new
-            {
-                ConversationId = parsedConversationId,
-                UserId = parsedUserId,
-                StartedAtUtc = DateTime.UtcNow
-            });
-    }
+    await Clients
+        .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
+        .SendAsync("typing.started", new
+        {
+            ConversationId = parsedConversationId,
+            UserId = userId,
+            StartedAtUtc = DateTime.UtcNow
+        });
+}
 
-    public async Task StopTyping(string conversationId, string userId)
-    {
-        if (!Guid.TryParse(conversationId, out var parsedConversationId))
-            throw new HubException("Invalid conversationId.");
+public async Task StopTyping(string conversationId)
+{
+    if (!Guid.TryParse(conversationId, out var parsedConversationId))
+        throw new HubException("Invalid conversationId.");
 
-        if (!Guid.TryParse(userId, out var parsedUserId))
-            throw new HubException("Invalid userId.");
+    var userId = GetCurrentUserId();
 
-        await Clients
-            .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
-            .SendAsync("typing.stopped", new
-            {
-                ConversationId = parsedConversationId,
-                UserId = parsedUserId,
-                StoppedAtUtc = DateTime.UtcNow
-            });
-    }
+    await Clients
+        .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
+        .SendAsync("typing.stopped", new
+        {
+            ConversationId = parsedConversationId,
+            UserId = userId,
+            StoppedAtUtc = DateTime.UtcNow
+        });
+}
 
+private Guid GetCurrentUserId()
+{
+    var userIdValue = Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
+    if (string.IsNullOrWhiteSpace(userIdValue))
+        throw new HubException("UserId not found in token.");
+
+    return Guid.Parse(userIdValue);
+}
 
 }

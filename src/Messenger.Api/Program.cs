@@ -13,20 +13,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
- builder.Services.AddSwaggerGen(options =>
+builder.Services.AddSwaggerGen(options =>
 {
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter JWT token like this: Bearer {your token}"
-    });
+   options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+   {
+       Name = "Authorization",
+       Type = SecuritySchemeType.Http,
+       Scheme = "Bearer",
+       BearerFormat = "JWT",
+       In = ParameterLocation.Header,
+       Description = "Enter JWT token like this: Bearer {your token}"
+   });
 
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
+   options.AddSecurityRequirement(new OpenApiSecurityRequirement
+   {
         {
             new OpenApiSecurityScheme
             {
@@ -38,7 +38,7 @@ builder.Services.AddEndpointsApiExplorer();
             },
             []
         }
-    });
+   });
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -78,6 +78,23 @@ builder.Services
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(jwtSecretKey))
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrWhiteSpace(accessToken) &&
+                    path.StartsWithSegments("/hubs/chat"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -98,7 +115,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
- 
+
 // app.UseHttpsRedirection();
 
 app.MapControllers();
