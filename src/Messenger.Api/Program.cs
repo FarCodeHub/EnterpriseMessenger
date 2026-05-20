@@ -53,7 +53,22 @@ builder.Services.AddCors(options =>
             .AllowCredentials();
     });
 });
-builder.Services.AddSignalR();
+
+
+
+ var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
+
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    builder.Services
+        .AddSignalR()
+        .AddStackExchangeRedis(redisConnectionString);
+}
+else
+{
+    builder.Services.AddSignalR();
+}
+
 builder.Services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
 
 builder.Services.AddScoped<JwtTokenService>();
