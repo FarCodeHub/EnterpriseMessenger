@@ -4,18 +4,21 @@ using Microsoft.Extensions.Logging;
 
 namespace Messenger.Infrastructure.Consumers;
 
-public sealed class MessageCreatedIntegrationEventConsumer 
+public sealed class MessageCreatedIntegrationEventConsumer
     : IConsumer<MessageCreatedIntegrationEvent>
 {
     private readonly ILogger<MessageCreatedIntegrationEventConsumer> _logger;
+    private readonly IPublishEndpoint _publishEndpoint;
 
     public MessageCreatedIntegrationEventConsumer(
-        ILogger<MessageCreatedIntegrationEventConsumer> logger)
+        ILogger<MessageCreatedIntegrationEventConsumer> logger,
+        IPublishEndpoint publishEndpoint)
     {
         _logger = logger;
+        _publishEndpoint = publishEndpoint;
     }
 
-    public Task Consume(ConsumeContext<MessageCreatedIntegrationEvent> context)
+    public async Task Consume(ConsumeContext<MessageCreatedIntegrationEvent> context)
     {
         _logger.LogInformation(
             "MessageCreatedIntegrationEvent consumed. MessageId: {MessageId}, ConversationId: {ConversationId}, SequenceNumber: {SequenceNumber}",
@@ -23,6 +26,14 @@ public sealed class MessageCreatedIntegrationEventConsumer
             context.Message.ConversationId,
             context.Message.SequenceNumber);
 
-        return Task.CompletedTask;
+        await _publishEndpoint.Publish(
+            new NotificationRequestedIntegrationEvent(
+                Guid.NewGuid(),
+                context.Message.MessageId,
+                context.Message.ConversationId,
+                context.Message.SequenceNumber,
+                context.Message.SenderUserId,
+                DateTime.UtcNow),
+            context.CancellationToken);
     }
 }

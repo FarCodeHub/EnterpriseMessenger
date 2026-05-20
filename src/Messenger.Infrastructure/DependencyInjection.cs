@@ -86,6 +86,7 @@ public static class DependencyInjection
         
        
         options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
+        options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
         });
 
         return services;
