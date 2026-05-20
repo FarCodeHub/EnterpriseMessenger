@@ -7,9 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Conversations.CreatePrivateConversation;
 using Messenger.Application.Conversations.CreateGroupConversation;
 using Messenger.Application.Conversations.GetUserConversations;
-
+using Microsoft.AspNetCore.Authorization;
 namespace Messenger.Api.Controllers;
-
+[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class ConversationsController : ControllerBase

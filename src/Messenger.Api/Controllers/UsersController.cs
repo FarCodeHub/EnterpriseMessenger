@@ -5,9 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Users.CreateUser;
 using Messenger.Application.Users.RegisterDevice;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Messenger.Api.Controllers;
-
+[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class UsersController : ControllerBase

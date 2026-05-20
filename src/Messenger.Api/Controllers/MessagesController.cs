@@ -11,8 +11,9 @@ using Messenger.Application.Messages.DeleteMessage;
 using Messenger.Application.Messages.GetMessages;
 using Messenger.Application.Messages.SearchMessages;
 using Messenger.Application.Conversations.MarkConversationRead;
+using Microsoft.AspNetCore.Authorization;
 namespace Messenger.Api.Controllers;
-
+[Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class MessagesController : ControllerBase

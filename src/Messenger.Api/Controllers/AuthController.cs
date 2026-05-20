@@ -3,6 +3,8 @@ using Messenger.Contracts.Auth;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Messenger.Api.Controllers;
 
@@ -50,4 +52,23 @@ public sealed class AuthController : ControllerBase
             }
         });
     }
+
+
+    [Authorize]
+    [HttpGet("me")]
+    public IActionResult Me()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userName = User.Identity?.Name;
+        var displayName = User.FindFirstValue("display_name");
+
+        return Ok(new
+        {
+            UserId = userId,
+            UserName = userName,
+            DisplayName = displayName
+        });
+    }
+
+
 }
