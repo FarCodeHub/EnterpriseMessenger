@@ -139,6 +139,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsPinned")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime>("JoinedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<long>("LastReadSequenceNumber")
                         .HasColumnType("bigint");
 

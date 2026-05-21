@@ -13,6 +13,7 @@ public class ConversationMember : BaseEntity
     public bool IsPinned { get; private set; }
     public bool IsArchived { get; private set; }
     public DateTime? LeftAtUtc { get; private set; }
+    public DateTime JoinedAtUtc { get; private set; } = DateTime.UtcNow;
     private ConversationMember()
     {
     }

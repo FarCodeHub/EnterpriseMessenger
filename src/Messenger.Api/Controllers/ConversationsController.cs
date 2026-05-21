@@ -336,4 +336,46 @@ public async Task<IActionResult> RemoveMember(
     });
 }
 
+
+[HttpGet("{conversationId:guid}/members")]
+public async Task<IActionResult> GetMembers(
+    Guid conversationId,
+    CancellationToken cancellationToken)
+{
+    var currentUserId = GetCurrentUserId();
+
+    var isCurrentUserMember = await _dbContext.ConversationMembers
+        .AnyAsync(x =>
+            x.ConversationId == conversationId &&
+            x.UserId == currentUserId &&
+            x.LeftAtUtc == null,
+            cancellationToken);
+
+    if (!isCurrentUserMember)
+        return StatusCode(StatusCodes.Status403Forbidden, "You are not a member of this conversation.");
+
+    var members = await _dbContext.ConversationMembers
+        .Where(x =>
+            x.ConversationId == conversationId &&
+            x.LeftAtUtc == null)
+        .Join(
+            _dbContext.Users,
+            member => member.UserId,
+            user => user.Id,
+            (member, user) => new
+            {
+                user.Id,
+                user.DisplayName,
+                user.UserName,
+                member.JoinedAtUtc,
+                member.IsMuted,
+                member.IsPinned,
+                member.IsArchived
+            })
+        .OrderBy(x => x.DisplayName)
+        .ToListAsync(cancellationToken);
+
+    return Ok(members);
+}
+
 }
