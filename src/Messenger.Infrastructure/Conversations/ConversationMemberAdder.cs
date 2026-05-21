@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Conversations.AddMember;
 using Messenger.Domain.Conversations;
 using Messenger.Domain.Enums;
@@ -9,10 +10,12 @@ namespace Messenger.Infrastructure.Conversations;
 public sealed class ConversationMemberAdder : IConversationMemberAdder
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IAuditLogWriter _auditLogWriter;
 
-    public ConversationMemberAdder(MessengerDbContext dbContext)
+    public ConversationMemberAdder(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<AddConversationMemberResult> AddAsync(
@@ -49,6 +52,18 @@ public sealed class ConversationMemberAdder : IConversationMemberAdder
         {
             existingMember.Rejoin();
 
+            await _auditLogWriter.WriteAsync(
+    "MemberAdded",
+    command.CurrentUserId,
+    "Conversation",
+    command.ConversationId.ToString(),
+    new
+    {
+        command.UserIdToAdd,
+        Rejoined = existingMember is not null
+    },
+    cancellationToken);
+
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             return new AddConversationMemberResult(
@@ -62,6 +77,19 @@ public sealed class ConversationMemberAdder : IConversationMemberAdder
                 command.ConversationId,
                 command.UserIdToAdd,
                 ConversationMemberRole.Member));
+
+
+                await _auditLogWriter.WriteAsync(
+    "MemberAdded",
+    command.CurrentUserId,
+    "Conversation",
+    command.ConversationId.ToString(),
+    new
+    {
+        command.UserIdToAdd,
+        Rejoined = existingMember is not null
+    },
+    cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

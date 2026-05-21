@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Conversations.SetMemberRole;
 using Messenger.Domain.Enums;
 using Messenger.Infrastructure.Persistence;
@@ -8,10 +9,12 @@ namespace Messenger.Infrastructure.Conversations;
 public sealed class ConversationMemberRoleSetter : IConversationMemberRoleSetter
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IAuditLogWriter _auditLogWriter;
 
-    public ConversationMemberRoleSetter(MessengerDbContext dbContext)
+    public ConversationMemberRoleSetter(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<SetConversationMemberRoleResult> SetAsync(
@@ -55,6 +58,19 @@ public sealed class ConversationMemberRoleSetter : IConversationMemberRoleSetter
             targetMember.DemoteToMember();
         else
             throw new InvalidOperationException("Invalid role.");
+
+
+            await _auditLogWriter.WriteAsync(
+    "MemberRoleChanged",
+    command.CurrentUserId,
+    "Conversation",
+    command.ConversationId.ToString(),
+    new
+    {
+        command.TargetUserId,
+        NewRole = targetMember.Role.ToString()
+    },
+    cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
