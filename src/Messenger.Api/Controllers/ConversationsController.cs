@@ -10,6 +10,11 @@ using Messenger.Application.Conversations.CreateGroupConversation;
 using Messenger.Application.Conversations.GetUserConversations;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Messenger.Application.Conversations.RemoveMember;
+using Messenger.Application.Conversations.SetMemberRole;
+using Messenger.Application.Conversations.LeaveConversation;
+using Messenger.Application.Conversations.UpdateConversationMemberSettings;
+using Messenger.Application.Conversations.GetMembers;
 namespace Messenger.Api.Controllers;
 
 [Authorize]
@@ -22,7 +27,12 @@ public sealed class ConversationsController : ControllerBase
     private readonly IPrivateConversationCreator _privateConversationCreator;
     private readonly IUserConversationReader _userConversationReader;
     private readonly IConversationMemberAdder _conversationMemberAdder;
-    public ConversationsController(MessengerDbContext dbContext, IPrivateConversationCreator privateConversationCreator, IGroupConversationCreator groupConversationCreator, IUserConversationReader userConversationReader, IConversationMemberAdder conversationMemberAdder)
+    private readonly IConversationMemberRemover _conversationMemberRemover;
+    private readonly IConversationMemberRoleSetter _conversationMemberRoleSetter;
+    private readonly IConversationLeaver _conversationLeaver;
+    private readonly IConversationMemberSettingsUpdater _memberSettingsUpdater;
+    private readonly IConversationMemberReader _conversationMemberReader;
+    public ConversationsController(MessengerDbContext dbContext, IPrivateConversationCreator privateConversationCreator, IGroupConversationCreator groupConversationCreator, IUserConversationReader userConversationReader, IConversationMemberAdder conversationMemberAdder, IConversationMemberRemover conversationMemberRemover, IConversationMemberRoleSetter conversationMemberRoleSetter, IConversationLeaver conversationLeaver, IConversationMemberSettingsUpdater memberSettingsUpdater, IConversationMemberReader conversationMemberReader)
     {
         _dbContext = dbContext;
         _privateConversationCreator = privateConversationCreator;
@@ -30,11 +40,16 @@ public sealed class ConversationsController : ControllerBase
         _privateConversationCreator = privateConversationCreator;
         _userConversationReader = userConversationReader;
         _conversationMemberAdder = conversationMemberAdder;
+        _conversationMemberRemover = conversationMemberRemover;
+        _conversationMemberRoleSetter = conversationMemberRoleSetter;
+        _conversationLeaver = conversationLeaver;
+        _memberSettingsUpdater = memberSettingsUpdater;
+        _conversationMemberReader = conversationMemberReader;
     }
 
 
 
- [HttpPost("{conversationId:guid}/members")]
+    [HttpPost("{conversationId:guid}/members")]
 public async Task<IActionResult> AddMember(
     Guid conversationId,
     AddConversationMemberRequest request,
@@ -116,37 +131,32 @@ public async Task<IActionResult> AddMember(
 
         return Ok(result);
     }
+ 
     [HttpPost("{conversationId:guid}/mute")]
-    public async Task<IActionResult> SetMute(
-        Guid conversationId,
-        SetConversationMuteRequest request,
-        CancellationToken cancellationToken)
+public async Task<IActionResult> SetMute(
+    Guid conversationId,
+    SetConversationMuteRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var currentUserId = GetCurrentUserId();
+        var result = await _memberSettingsUpdater.UpdateAsync(
+            new UpdateConversationMemberSettingsCommand(
+                conversationId,
+                GetCurrentUserId(),
+                request.IsMuted,
+                null,
+                null),
+            cancellationToken);
 
-        var member = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == conversationId &&
-                x.UserId == currentUserId,
-                cancellationToken);
-
-        if (member is null)
-            return BadRequest("User is not a member of this conversation.");
-
-        if (request.IsMuted)
-            member.Mute();
-        else
-            member.Unmute();
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            ConversationId = conversationId,
-            UserId = currentUserId,
-            request.IsMuted
-        });
+        return Ok(result);
     }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
+    
     private Guid GetCurrentUserId()
     {
         var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -156,73 +166,55 @@ public async Task<IActionResult> AddMember(
 
         return Guid.Parse(userIdValue);
     }
-    [HttpPost("{conversationId:guid}/pin")]
-    public async Task<IActionResult> SetPin(
-        Guid conversationId,
-        SetConversationPinRequest request,
-        CancellationToken cancellationToken)
+ [HttpPost("{conversationId:guid}/pin")]
+public async Task<IActionResult> SetPin(
+    Guid conversationId,
+    SetConversationPinRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var currentUserId = GetCurrentUserId();
+        var result = await _memberSettingsUpdater.UpdateAsync(
+            new UpdateConversationMemberSettingsCommand(
+                conversationId,
+                GetCurrentUserId(),
+                null,
+                request.IsPinned,
+                null),
+            cancellationToken);
 
-        var member = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == conversationId &&
-                x.UserId == currentUserId,
-                cancellationToken);
-
-        if (member is null)
-            return BadRequest("User is not a member of this conversation.");
-
-        if (request.IsPinned)
-            member.Pin();
-        else
-            member.Unpin();
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            ConversationId = conversationId,
-            UserId = currentUserId,
-            request.IsPinned
-        });
+        return Ok(result);
     }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
 
-
-
-
-    [HttpPost("{conversationId:guid}/archive")]
-    public async Task<IActionResult> SetArchive(
+ [HttpPost("{conversationId:guid}/archive")]
+public async Task<IActionResult> SetArchive(
     Guid conversationId,
     SetConversationArchiveRequest request,
     CancellationToken cancellationToken)
+{
+    try
     {
-        var currentUserId = GetCurrentUserId();
+        var result = await _memberSettingsUpdater.UpdateAsync(
+            new UpdateConversationMemberSettingsCommand(
+                conversationId,
+                GetCurrentUserId(),
+                null,
+                null,
+                request.IsArchived),
+            cancellationToken);
 
-        var member = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == conversationId &&
-                x.UserId == currentUserId,
-                cancellationToken);
-
-        if (member is null)
-            return BadRequest("User is not a member of this conversation.");
-
-        if (request.IsArchived)
-            member.Archive();
-        else
-            member.Unarchive();
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            ConversationId = conversationId,
-            UserId = currentUserId,
-            request.IsArchived
-        });
+        return Ok(result);
     }
-
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
 
     [HttpGet("archived")]
     public async Task<IActionResult> GetArchivedConversations(
@@ -237,183 +229,103 @@ public async Task<IActionResult> AddMember(
         return Ok(result);
     }
 
-
-
-    [HttpPost("{conversationId:guid}/leave")]
-    public async Task<IActionResult> LeaveConversation(
+ [HttpPost("{conversationId:guid}/leave")]
+public async Task<IActionResult> LeaveConversation(
     Guid conversationId,
     CancellationToken cancellationToken)
+{
+    try
     {
-        var currentUserId = GetCurrentUserId();
+        var result = await _conversationLeaver.LeaveAsync(
+            new LeaveConversationCommand(
+                conversationId,
+                GetCurrentUserId()),
+            cancellationToken);
 
-        var member = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == conversationId &&
-                x.UserId == currentUserId,
-                cancellationToken);
-
-        if (member is null)
-            return BadRequest("User is not a member of this conversation.");
-
-      member.Leave();
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            ConversationId = conversationId,
-            UserId = currentUserId,
-            LeftAtUtc = DateTime.UtcNow
-        });
+        return Ok(result);
     }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
  
-[HttpDelete("{conversationId:guid}/members/{userId:guid}")]
+ 
+ 
+ [HttpDelete("{conversationId:guid}/members/{userId:guid}")]
 public async Task<IActionResult> RemoveMember(
     Guid conversationId,
     Guid userId,
     CancellationToken cancellationToken)
 {
-    var currentUserId = GetCurrentUserId();
-
-    var conversation = await _dbContext.Conversations
-        .FirstOrDefaultAsync(x => x.Id == conversationId, cancellationToken);
-
-    if (conversation is null)
-        return NotFound("Conversation not found.");
-
-   var currentMember = await _dbContext.ConversationMembers
-    .FirstOrDefaultAsync(x =>
-        x.ConversationId == conversationId &&
-        x.UserId == currentUserId &&
-        x.LeftAtUtc == null,
-        cancellationToken);
-
-if (currentMember is null ||
-    (currentMember.Role != ConversationMemberRole.Owner &&
-     currentMember.Role != ConversationMemberRole.Admin))
-{
-    return StatusCode(StatusCodes.Status403Forbidden, "Only owner or admin can manage members.");
-}
-
-    if (userId == conversation.CreatedByUserId)
-        return BadRequest("Conversation creator cannot be removed.");
-
-    var member = await _dbContext.ConversationMembers
-        .FirstOrDefaultAsync(x =>
-            x.ConversationId == conversationId &&
-            x.UserId == userId,
+    try
+    {
+        var result = await _conversationMemberRemover.RemoveAsync(
+            new RemoveConversationMemberCommand(
+                conversationId,
+                GetCurrentUserId(),
+                userId),
             cancellationToken);
 
-    if (member is null)
-        return NotFound("Member not found.");
-
-    member.Leave();
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
+        return Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
     {
-        ConversationId = conversationId,
-        UserId = userId,
-        RemovedAtUtc = DateTime.UtcNow
-    });
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
 }
-
-
-[HttpGet("{conversationId:guid}/members")]
+ [HttpGet("{conversationId:guid}/members")]
 public async Task<IActionResult> GetMembers(
     Guid conversationId,
     CancellationToken cancellationToken)
 {
-    var currentUserId = GetCurrentUserId();
-
-    var isCurrentUserMember = await _dbContext.ConversationMembers
-        .AnyAsync(x =>
-            x.ConversationId == conversationId &&
-            x.UserId == currentUserId &&
-            x.LeftAtUtc == null,
+    try
+    {
+        var result = await _conversationMemberReader.GetAsync(
+            new GetConversationMembersQuery(
+                conversationId,
+                GetCurrentUserId()),
             cancellationToken);
 
-    if (!isCurrentUserMember)
-        return StatusCode(StatusCodes.Status403Forbidden, "You are not a member of this conversation.");
-
-    var members = await _dbContext.ConversationMembers
-        .Where(x =>
-            x.ConversationId == conversationId &&
-            x.LeftAtUtc == null)
-        .Join(
-            _dbContext.Users,
-            member => member.UserId,
-            user => user.Id,
-            (member, user) => new
-            {
-                user.Id,
-                user.DisplayName,
-                user.UserName,
-                member.JoinedAtUtc,
-                member.IsMuted,
-                member.IsPinned,
-                member.IsArchived
-            })
-        .OrderBy(x => x.DisplayName)
-        .ToListAsync(cancellationToken);
-
-    return Ok(members);
+        return Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
 }
-[HttpPut("{conversationId:guid}/members/{userId:guid}/role")]
+ [HttpPut("{conversationId:guid}/members/{userId:guid}/role")]
 public async Task<IActionResult> SetMemberRole(
     Guid conversationId,
     Guid userId,
     SetConversationMemberRoleRequest request,
     CancellationToken cancellationToken)
 {
-    var currentUserId = GetCurrentUserId();
-
-    var currentMember = await _dbContext.ConversationMembers
-        .FirstOrDefaultAsync(x =>
-            x.ConversationId == conversationId &&
-            x.UserId == currentUserId &&
-            x.LeftAtUtc == null,
-            cancellationToken);
-
-    if (currentMember is null || currentMember.Role != ConversationMemberRole.Owner)
-        return StatusCode(StatusCodes.Status403Forbidden, "Only owner can change member roles.");
-
-    var targetMember = await _dbContext.ConversationMembers
-        .FirstOrDefaultAsync(x =>
-            x.ConversationId == conversationId &&
-            x.UserId == userId &&
-            x.LeftAtUtc == null,
-            cancellationToken);
-
-    if (targetMember is null)
-        return NotFound("Member not found.");
-
-    if (targetMember.Role == ConversationMemberRole.Owner)
-        return BadRequest("Owner role cannot be changed.");
-
-    if (!Enum.IsDefined(typeof(ConversationMemberRole), request.Role))
-        return BadRequest("Invalid role.");
-
-    var newRole = (ConversationMemberRole)request.Role;
-
-    if (newRole == ConversationMemberRole.Owner)
-        return BadRequest("Cannot promote another member to owner.");
-
-    if (newRole == ConversationMemberRole.Admin)
-        targetMember.PromoteToAdmin();
-    else if (newRole == ConversationMemberRole.Member)
-        targetMember.DemoteToMember();
-    else
-        return BadRequest("Invalid role.");
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
+    try
     {
-        ConversationId = conversationId,
-        UserId = userId,
-        Role = targetMember.Role.ToString()
-    });
+        var result = await _conversationMemberRoleSetter.SetAsync(
+            new SetConversationMemberRoleCommand(
+                conversationId,
+                GetCurrentUserId(),
+                userId,
+                request.Role),
+            cancellationToken);
+
+        return Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
 }
+
+
 }
