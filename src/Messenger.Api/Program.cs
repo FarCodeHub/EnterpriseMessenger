@@ -168,6 +168,11 @@ builder.Services
 
 var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate =
+        "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+});
 
 app.UseCors("AllowLocalTest");
 
