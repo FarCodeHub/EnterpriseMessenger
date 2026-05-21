@@ -11,7 +11,7 @@ public class ConversationMember : BaseEntity
     public long LastReadSequenceNumber { get; private set; }
     public bool IsMuted { get; private set; }
     public bool IsPinned { get; private set; }
-
+  public bool IsArchived { get; private set; }
     private ConversationMember()
     {
     }
@@ -46,4 +46,16 @@ public void Unpin()
 {
     IsPinned = false;
 }
+
+
+    public void Archive()
+    {
+        IsArchived = true;
+    }
+
+    public void Unarchive()
+    {
+        IsArchived = false;
+    }
+
 }

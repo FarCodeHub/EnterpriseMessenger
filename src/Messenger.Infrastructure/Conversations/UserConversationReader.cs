@@ -18,7 +18,7 @@ public sealed class UserConversationReader : IUserConversationReader
         CancellationToken cancellationToken)
     {
         var conversations = await _dbContext.ConversationMembers
-            .Where(member => member.UserId == query.UserId)
+            .Where(member => member.UserId == query.UserId && !member.IsArchived)
             .Join(
                 _dbContext.Conversations,
                 member => member.ConversationId,
