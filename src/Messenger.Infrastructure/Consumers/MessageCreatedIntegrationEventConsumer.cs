@@ -34,10 +34,11 @@ public sealed class MessageCreatedIntegrationEventConsumer
             .Where(x =>
                 x.ConversationId == context.Message.ConversationId &&
                 x.UserId != context.Message.SenderUserId &&
-                !x.IsMuted)
+                !x.IsMuted &&
+                !x.IsArchived)
             .Select(x => x.UserId)
             .ToListAsync(context.CancellationToken);
-
+            
         await _publishEndpoint.Publish(
            new NotificationRequestedIntegrationEvent(
                Guid.NewGuid(),

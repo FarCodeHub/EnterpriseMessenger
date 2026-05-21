@@ -192,4 +192,18 @@ public sealed class ConversationsController : ControllerBase
             request.IsArchived
         });
     }
+
+
+    [HttpGet("archived")]
+    public async Task<IActionResult> GetArchivedConversations(
+    CancellationToken cancellationToken)
+    {
+        var currentUserId = GetCurrentUserId();
+
+        var result = await _userConversationReader.GetArchivedAsync(
+            new GetUserConversationsQuery(currentUserId),
+            cancellationToken);
+
+        return Ok(result);
+    }
 }
