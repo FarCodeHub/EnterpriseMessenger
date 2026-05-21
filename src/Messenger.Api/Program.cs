@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Messenger.Api.BackgroundServices;
+using Messenger.Application.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,7 +72,7 @@ else
 
  
 
-builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<ITokenService, JwtTokenService>();
 
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
 

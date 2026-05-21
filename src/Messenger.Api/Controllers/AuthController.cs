@@ -5,54 +5,56 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-
+using Messenger.Domain.Users;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Messenger.Application.Auth.Login;
+using Messenger.Application.Auth.Refresh;
+using Messenger.Application.Auth.RevokeSession;
+using Messenger.Application.Auth.GetSessions;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class AuthController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
-    private readonly JwtTokenService _jwtTokenService;
+private readonly MessengerDbContext _dbContext;
+private readonly IUserLoginService _userLoginService;
+private readonly IRefreshTokenService _refreshTokenService;
+private readonly IUserSessionReader _userSessionReader;
+private readonly ISessionRevoker _sessionRevoker;
 
     public AuthController(
         MessengerDbContext dbContext,
-        JwtTokenService jwtTokenService)
+        IUserLoginService userLoginService,
+        IRefreshTokenService refreshTokenService,
+        ISessionRevoker sessionRevoker,
+        IUserSessionReader userSessionReader)
     {
         _dbContext = dbContext;
-        _jwtTokenService = jwtTokenService;
+        _userLoginService = userLoginService;
+        _refreshTokenService = refreshTokenService;
+        _sessionRevoker = sessionRevoker;
+        _userSessionReader = userSessionReader;
     }
-
     [HttpPost("login")]
-    public async Task<IActionResult> Login(
-        LoginRequest request,
-        CancellationToken cancellationToken)
+public async Task<IActionResult> Login(
+    LoginRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        var user = await _dbContext.Users
-            .FirstOrDefaultAsync(x => x.UserName == request.UserName, cancellationToken);
+        var result = await _userLoginService.LoginAsync(
+            new LoginCommand(request.UserName, request.DeviceId),
+            cancellationToken);
 
-        if (user is null)
-            return Unauthorized("Invalid username.");
-
-        var token = _jwtTokenService.CreateToken(
-            user.Id,
-            user.UserName,
-            user.DisplayName);
-
-        return Ok(new
-        {
-            AccessToken = token,
-            TokenType = "Bearer",
-            ExpiresInSeconds = 8 * 60 * 60,
-            User = new
-            {
-                user.Id,
-                user.DisplayName,
-                user.UserName
-            }
-        });
+        return Ok(result);
     }
-
+    catch (UnauthorizedAccessException ex)
+    {
+        return Unauthorized(ex.Message);
+    }
+}
 
     [Authorize]
     [HttpGet("me")]
@@ -69,6 +71,99 @@ public sealed class AuthController : ControllerBase
             DisplayName = displayName
         });
     }
+ 
 
 
+[HttpPost("refresh")]
+public async Task<IActionResult> Refresh(
+    RefreshTokenRequest request,
+    CancellationToken cancellationToken)
+{
+    try
+    {
+        var result = await _refreshTokenService.RefreshAsync(
+            new RefreshTokenCommand(
+                request.RefreshToken,
+                request.DeviceId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return Unauthorized(ex.Message);
+    }
+}
+
+
+
+[Authorize]
+[HttpPost("logout")]
+public async Task<IActionResult> Logout(
+    LogoutRequest request,
+    CancellationToken cancellationToken)
+{
+    var result = await _sessionRevoker.RevokeAsync(
+        new RevokeSessionCommand(
+            GetCurrentUserId(),
+            request.DeviceId),
+        cancellationToken);
+
+    return Ok(result);
+}
+
+
+
+ private Guid GetCurrentUserId()
+{
+    var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    if (string.IsNullOrWhiteSpace(userIdValue))
+        throw new UnauthorizedAccessException("UserId not found in token.");
+
+    return Guid.Parse(userIdValue);
+}
+
+[Authorize]
+[HttpPost("logout-all")]
+public async Task<IActionResult> LogoutAll(
+    CancellationToken cancellationToken)
+{
+    var result = await _sessionRevoker.RevokeAsync(
+        new RevokeSessionCommand(
+            GetCurrentUserId(),
+            DeviceId: null),
+        cancellationToken);
+
+    return Ok(result);
+}
+ 
+
+[Authorize]
+[HttpGet("sessions")]
+public async Task<IActionResult> GetSessions(
+    CancellationToken cancellationToken)
+{
+    var result = await _userSessionReader.GetAsync(
+        new GetSessionsQuery(GetCurrentUserId()),
+        cancellationToken);
+
+    return Ok(result);
+}
+
+
+ [Authorize]
+[HttpDelete("sessions/{deviceId}")]
+public async Task<IActionResult> RevokeSession(
+    string deviceId,
+    CancellationToken cancellationToken)
+{
+    var result = await _sessionRevoker.RevokeAsync(
+        new RevokeSessionCommand(
+            GetCurrentUserId(),
+            deviceId),
+        cancellationToken);
+
+    return Ok(result);
+}
 }

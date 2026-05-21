@@ -26,6 +26,7 @@ public sealed class MessengerDbContext : DbContext
     public DbSet<UserSyncCounter> UserSyncCounters => Set<UserSyncCounter>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MessengerDbContext).Assembly);
