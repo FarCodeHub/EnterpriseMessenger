@@ -6,5 +6,6 @@ public sealed record NotificationRequestedIntegrationEvent(
     Guid ConversationId,
     long SequenceNumber,
     Guid SenderUserId,
+    IReadOnlyCollection<Guid> RecipientUserIds,
     DateTime RequestedAtUtc
 );

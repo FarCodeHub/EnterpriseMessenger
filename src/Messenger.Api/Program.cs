@@ -1,6 +1,6 @@
 using Messenger.Infrastructure;
 using Messenger.Api.Hubs;
-using Messenger.Api.Realtime;
+ 
 using System.Text;
 using Messenger.Api.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -69,7 +69,7 @@ else
     builder.Services.AddSignalR();
 }
 
-builder.Services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+ 
 
 builder.Services.AddScoped<JwtTokenService>();
 

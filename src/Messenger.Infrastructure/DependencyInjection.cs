@@ -26,6 +26,9 @@ using Messenger.Infrastructure.Files;
 using StackExchange.Redis;
 using MassTransit;
 using Messenger.Infrastructure.Consumers;
+ 
+using Messenger.Application.Realtime;
+using Messenger.Infrastructure.Realtime;
 namespace Messenger.Infrastructure;
 
 
@@ -88,7 +91,7 @@ public static class DependencyInjection
         options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
         options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
         });
-
+services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
         return services;
     }
 }

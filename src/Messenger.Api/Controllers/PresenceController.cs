@@ -1,4 +1,5 @@
-using Messenger.Api.Realtime;
+ 
+using Messenger.Application.Realtime;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
