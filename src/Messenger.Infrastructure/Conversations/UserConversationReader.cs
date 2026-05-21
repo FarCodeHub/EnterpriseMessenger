@@ -31,9 +31,11 @@ public sealed class UserConversationReader : IUserConversationReader
                     conversation.CreatedAtUtc,
                     conversation.LastMessageId,
                     conversation.LastMessageAtUtc,
-                    member.LastReadSequenceNumber
+                    member.LastReadSequenceNumber,
+                    member.IsPinned,
                 })
-            .OrderByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
+            .OrderByDescending(x => x.IsPinned)
+.ThenByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         var conversationIds = conversations
@@ -73,7 +75,8 @@ public sealed class UserConversationReader : IUserConversationReader
                 x.LastMessageId,
                 x.LastMessageAtUtc,
                 x.LastReadSequenceNumber,
-                unreadCounts.TryGetValue(x.Id, out var count) ? count : 0))
+                unreadCounts.TryGetValue(x.Id, out var count) ? count : 0,
+                x.IsPinned))
             .ToList();
     }
 }

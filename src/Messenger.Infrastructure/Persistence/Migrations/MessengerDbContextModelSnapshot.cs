@@ -133,6 +133,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsMuted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean");
+
                     b.Property<long>("LastReadSequenceNumber")
                         .HasColumnType("bigint");
 

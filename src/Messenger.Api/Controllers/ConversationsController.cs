@@ -126,5 +126,35 @@ public sealed class ConversationsController : ControllerBase
 
         return Guid.Parse(userIdValue);
     }
+    [HttpPost("{conversationId:guid}/pin")]
+    public async Task<IActionResult> SetPin(
+        Guid conversationId,
+        SetConversationPinRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = GetCurrentUserId();
 
+        var member = await _dbContext.ConversationMembers
+            .FirstOrDefaultAsync(x =>
+                x.ConversationId == conversationId &&
+                x.UserId == currentUserId,
+                cancellationToken);
+
+        if (member is null)
+            return BadRequest("User is not a member of this conversation.");
+
+        if (request.IsPinned)
+            member.Pin();
+        else
+            member.Unpin();
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            ConversationId = conversationId,
+            UserId = currentUserId,
+            request.IsPinned
+        });
+    }
 }
