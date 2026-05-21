@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Auth.RevokeSession;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -7,10 +8,12 @@ namespace Messenger.Infrastructure.Auth;
 public sealed class SessionRevoker : ISessionRevoker
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IAuditLogWriter _auditLogWriter;
 
-    public SessionRevoker(MessengerDbContext dbContext)
+    public SessionRevoker(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<RevokeSessionResult> RevokeAsync(
@@ -33,6 +36,17 @@ public sealed class SessionRevoker : ISessionRevoker
         {
             token.Revoke();
         }
+        await _auditLogWriter.WriteAsync(
+    string.IsNullOrWhiteSpace(command.DeviceId) ? "LogoutAll" : "LogoutDevice",
+    command.UserId,
+    "User",
+    command.UserId.ToString(),
+    new
+    {
+        command.DeviceId,
+        RevokedTokensCount = activeTokens.Count
+    },
+    cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

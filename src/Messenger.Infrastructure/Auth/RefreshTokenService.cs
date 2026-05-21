@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Auth;
 using Messenger.Application.Auth.Login;
 using Messenger.Application.Auth.Refresh;
@@ -11,13 +12,16 @@ public sealed class RefreshTokenService : IRefreshTokenService
 {
     private readonly MessengerDbContext _dbContext;
     private readonly ITokenService _tokenService;
+    private readonly IAuditLogWriter _auditLogWriter;
 
     public RefreshTokenService(
         MessengerDbContext dbContext,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
         _tokenService = tokenService;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<AuthTokenResult> RefreshAsync(
@@ -48,6 +52,16 @@ public sealed class RefreshTokenService : IRefreshTokenService
             throw new UnauthorizedAccessException("User is not active.");
 
         refreshToken.Revoke();
+        await _auditLogWriter.WriteAsync(
+    "UserLogin",
+    user.Id,
+    "User",
+    user.Id.ToString(),
+    new
+    {
+        command.DeviceId
+    },
+    cancellationToken);
 
         var newRefreshToken = _tokenService.GenerateRefreshToken();
         var newRefreshTokenHash = _tokenService.HashRefreshToken(newRefreshToken);
@@ -63,6 +77,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
             user.Id,
             user.UserName,
             user.DisplayName);
+
+            
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
