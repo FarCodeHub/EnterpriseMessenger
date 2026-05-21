@@ -1,4 +1,5 @@
 using Messenger.Contracts.Conversations;
+using Messenger.Application.Conversations.AddMember;
 using Messenger.Domain.Conversations;
 using Messenger.Domain.Enums;
 using Messenger.Infrastructure.Persistence;
@@ -20,16 +21,45 @@ public sealed class ConversationsController : ControllerBase
     private readonly IGroupConversationCreator _groupConversationCreator;
     private readonly IPrivateConversationCreator _privateConversationCreator;
     private readonly IUserConversationReader _userConversationReader;
-
-    public ConversationsController(MessengerDbContext dbContext, IPrivateConversationCreator privateConversationCreator, IGroupConversationCreator groupConversationCreator, IUserConversationReader userConversationReader)
+    private readonly IConversationMemberAdder _conversationMemberAdder;
+    public ConversationsController(MessengerDbContext dbContext, IPrivateConversationCreator privateConversationCreator, IGroupConversationCreator groupConversationCreator, IUserConversationReader userConversationReader, IConversationMemberAdder conversationMemberAdder)
     {
         _dbContext = dbContext;
         _privateConversationCreator = privateConversationCreator;
         _groupConversationCreator = groupConversationCreator;
         _privateConversationCreator = privateConversationCreator;
         _userConversationReader = userConversationReader;
+        _conversationMemberAdder = conversationMemberAdder;
     }
 
+
+
+ [HttpPost("{conversationId:guid}/members")]
+public async Task<IActionResult> AddMember(
+    Guid conversationId,
+    AddConversationMemberRequest request,
+    CancellationToken cancellationToken)
+{
+    try
+    {
+        var result = await _conversationMemberAdder.AddAsync(
+            new AddConversationMemberCommand(
+                conversationId,
+                GetCurrentUserId(),
+                request.UserId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(ex.Message);
+    }
+}
 
     [HttpPost("private")]
     public async Task<IActionResult> CreatePrivateConversation(
@@ -236,76 +266,7 @@ public sealed class ConversationsController : ControllerBase
             LeftAtUtc = DateTime.UtcNow
         });
     }
-
-
-    [HttpPost("{conversationId:guid}/members")]
-public async Task<IActionResult> AddMember(
-    Guid conversationId,
-    AddConversationMemberRequest request,
-    CancellationToken cancellationToken)
-{
-    var currentUserId = GetCurrentUserId();
-
-    var conversation = await _dbContext.Conversations
-        .FirstOrDefaultAsync(x => x.Id == conversationId, cancellationToken);
-
-    if (conversation is null)
-        return NotFound("Conversation not found.");
-
-   var currentMember = await _dbContext.ConversationMembers
-    .FirstOrDefaultAsync(x =>
-        x.ConversationId == conversationId &&
-        x.UserId == currentUserId &&
-        x.LeftAtUtc == null,
-        cancellationToken);
-
-if (currentMember is null ||
-    (currentMember.Role != ConversationMemberRole.Owner &&
-     currentMember.Role != ConversationMemberRole.Admin))
-{
-    return StatusCode(StatusCodes.Status403Forbidden, "Only owner or admin can manage members.");
-}
-
-    var userExists = await _dbContext.Users
-        .AnyAsync(x => x.Id == request.UserId, cancellationToken);
-
-    if (!userExists)
-        return BadRequest("User not found.");
-
-    var existingMember = await _dbContext.ConversationMembers
-        .FirstOrDefaultAsync(x =>
-            x.ConversationId == conversationId &&
-            x.UserId == request.UserId,
-            cancellationToken);
-
-    if (existingMember is not null)
-    {
-        existingMember.Rejoin();
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            ConversationId = conversationId,
-            request.UserId,
-            Rejoined = true
-        });
-    }
-
-    _dbContext.ConversationMembers.Add(
-        new ConversationMember(conversationId, request.UserId));
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
-    {
-        ConversationId = conversationId,
-        request.UserId,
-        Rejoined = false
-    });
-}
-
-
+ 
 [HttpDelete("{conversationId:guid}/members/{userId:guid}")]
 public async Task<IActionResult> RemoveMember(
     Guid conversationId,

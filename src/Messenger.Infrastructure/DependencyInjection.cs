@@ -26,7 +26,7 @@ using Messenger.Infrastructure.Files;
 using StackExchange.Redis;
 using MassTransit;
 using Messenger.Infrastructure.Consumers;
- 
+using Messenger.Application.Conversations.AddMember;
 using Messenger.Application.Realtime;
 using Messenger.Infrastructure.Realtime;
 namespace Messenger.Infrastructure;
@@ -86,12 +86,13 @@ public static class DependencyInjection
 
                 cfg.ConfigureEndpoints(context);
             });
-        
-       
-        options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
-        options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
+
+
+            options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
+            options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
         });
-services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+        services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+        services.AddScoped<IConversationMemberAdder, ConversationMemberAdder>();
         return services;
     }
 }
