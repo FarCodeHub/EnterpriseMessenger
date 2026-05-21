@@ -5,24 +5,28 @@ using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using MassTransit;
 using Messenger.Contracts.IntegrationEvents;
+using Messenger.Application.Auditing;
 
 namespace Messenger.Infrastructure.Messages;
 
 public sealed class MessageSender : IMessageSender
 {
-private readonly MessengerDbContext _dbContext;
-private readonly IUserSyncEventWriter _syncEventWriter;
-private readonly IPublishEndpoint _publishEndpoint;
+    private readonly MessengerDbContext _dbContext;
+    private readonly IUserSyncEventWriter _syncEventWriter;
+    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IAuditLogWriter _auditLogWriter;
 
-public MessageSender(
-    MessengerDbContext dbContext,
-    IUserSyncEventWriter syncEventWriter,
-    IPublishEndpoint publishEndpoint)
-{
-    _dbContext = dbContext;
-    _syncEventWriter = syncEventWriter;
-    _publishEndpoint = publishEndpoint;
-}
+    public MessageSender(
+        MessengerDbContext dbContext,
+        IUserSyncEventWriter syncEventWriter,
+        IPublishEndpoint publishEndpoint,
+        IAuditLogWriter auditLogWriter)
+    {
+        _dbContext = dbContext;
+        _syncEventWriter = syncEventWriter;
+        _publishEndpoint = publishEndpoint;
+        _auditLogWriter = auditLogWriter;
+    }
 
     public async Task<SendMessageResult> SendAsync(
         SendMessageCommand command,
@@ -134,33 +138,48 @@ public MessageSender(
                 new MessageDelivery(message.Id, memberUserId));
         }
 
- await _syncEventWriter.AddForConversationMembersAsync(
-    message.ConversationId,
-    message.Id,
-    "MessageCreated",
-    new
-    {
-        MessageId = message.Id,
-        message.ConversationId,
-        message.SequenceNumber,
-        message.SenderUserId,
-        message.Body,
-        message.ReplyToMessageId,
-        message.ReplyToSequenceNumber,
-        message.CreatedAtUtc
-    },
-    cancellationToken);
+        await _syncEventWriter.AddForConversationMembersAsync(
+           message.ConversationId,
+           message.Id,
+           "MessageCreated",
+           new
+           {
+               MessageId = message.Id,
+               message.ConversationId,
+               message.SequenceNumber,
+               message.SenderUserId,
+               message.Body,
+               message.ReplyToMessageId,
+               message.ReplyToSequenceNumber,
+               message.CreatedAtUtc
+           },
+           cancellationToken);
+
+
+        await _auditLogWriter.WriteAsync(
+            "MessageSent",
+            message.SenderUserId,
+            "Message",
+            message.Id.ToString(),
+            new
+            {
+                message.ConversationId,
+                message.SequenceNumber,
+                message.ClientMessageId
+            },
+            cancellationToken);
+
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-await _publishEndpoint.Publish(
-    new MessageCreatedIntegrationEvent(
-        message.Id,
-        message.ConversationId,
-        message.SequenceNumber,
-        message.SenderUserId,
-        message.Body,
-        message.CreatedAtUtc),
-    cancellationToken);
+        await _publishEndpoint.Publish(
+            new MessageCreatedIntegrationEvent(
+                message.Id,
+                message.ConversationId,
+                message.SequenceNumber,
+                message.SenderUserId,
+                message.Body,
+                message.CreatedAtUtc),
+            cancellationToken);
         return new SendMessageResult(
             message.Id,
             message.ConversationId,
@@ -181,7 +200,7 @@ await _publishEndpoint.Publish(
     }
 
 
- 
+
 
 
 

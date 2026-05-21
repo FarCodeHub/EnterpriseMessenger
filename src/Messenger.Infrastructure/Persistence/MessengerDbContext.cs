@@ -5,6 +5,7 @@ using Messenger.Domain.Notifications;
 using Messenger.Domain.Sync;
 using Messenger.Domain.Users;
 using Microsoft.EntityFrameworkCore;
+using Messenger.Domain.Auditing;
 
 namespace Messenger.Infrastructure.Persistence;
 
@@ -27,6 +28,7 @@ public sealed class MessengerDbContext : DbContext
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MessengerDbContext).Assembly);
