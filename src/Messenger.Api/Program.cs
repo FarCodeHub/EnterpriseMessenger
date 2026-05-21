@@ -11,8 +11,20 @@ using Messenger.Application.Auth;
 using Messenger.Api.Middleware;
 using HealthChecks.RabbitMQ;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File(
+        "logs/enterprise-messenger-.log",
+        rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 
@@ -184,4 +196,15 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapHub<ChatHub>("/hubs/chat");
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly.");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
