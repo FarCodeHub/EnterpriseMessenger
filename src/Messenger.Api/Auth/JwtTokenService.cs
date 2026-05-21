@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography;
 
 namespace Messenger.Api.Auth;
 
@@ -47,4 +48,15 @@ public sealed class JwtTokenService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+    public static string GenerateRefreshToken()
+{
+    var bytes = RandomNumberGenerator.GetBytes(64);
+    return Convert.ToBase64String(bytes);
+}
+
+public static string HashRefreshToken(string refreshToken)
+{
+    var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
+    return Convert.ToBase64String(bytes);
+}
 }

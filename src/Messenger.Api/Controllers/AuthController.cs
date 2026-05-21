@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Messenger.Domain.Users;
 
 namespace Messenger.Api.Controllers;
 
@@ -39,9 +40,25 @@ public sealed class AuthController : ControllerBase
             user.UserName,
             user.DisplayName);
 
+
+
+        var refreshToken = JwtTokenService.GenerateRefreshToken();
+        var refreshTokenHash = JwtTokenService.HashRefreshToken(refreshToken);
+
+        var refreshTokenEntity = new RefreshToken(
+            user.Id,
+            refreshTokenHash,
+            request.DeviceId,
+            DateTime.UtcNow.AddDays(30));
+
+        _dbContext.RefreshTokens.Add(refreshTokenEntity);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
         return Ok(new
         {
             AccessToken = token,
+            RefreshToken = refreshToken,
             TokenType = "Bearer",
             ExpiresInSeconds = 8 * 60 * 60,
             User = new
