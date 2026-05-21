@@ -38,4 +38,10 @@ public class Notification : BaseEntity
         Status = "Sent";
         SentAtUtc = DateTime.UtcNow;
     }
+
+
+    public void MarkAsFailed()
+{
+    Status = "Failed";
+}
 }
