@@ -9,6 +9,7 @@ public class ConversationMember : BaseEntity
     public Guid UserId { get; private set; }
 
     public long LastReadSequenceNumber { get; private set; }
+    public bool IsMuted { get; private set; }
 
     private ConversationMember()
     {
@@ -25,5 +26,14 @@ public class ConversationMember : BaseEntity
     public void UpdateLastReadSequenceNumber(long sequenceNumber)
     {
         LastReadSequenceNumber = sequenceNumber;
+    }
+    public void Mute()
+    {
+        IsMuted = true;
+    }
+
+    public void Unmute()
+    {
+        IsMuted = false;
     }
 }
