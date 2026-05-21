@@ -3,10 +3,11 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
+using Messenger.Application.Auth;
 
 namespace Messenger.Api.Auth;
 
-public sealed class JwtTokenService
+public sealed class JwtTokenService : ITokenService
 {
     private readonly IConfiguration _configuration;
 
@@ -15,7 +16,7 @@ public sealed class JwtTokenService
         _configuration = configuration;
     }
 
-    public string CreateToken(Guid userId, string userName, string displayName)
+    public string CreateAccessToken(Guid userId, string userName, string displayName)
     {
         var issuer = _configuration["Jwt:Issuer"];
         var audience = _configuration["Jwt:Audience"];
@@ -48,13 +49,13 @@ public sealed class JwtTokenService
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-    public static string GenerateRefreshToken()
+    public string GenerateRefreshToken()
 {
     var bytes = RandomNumberGenerator.GetBytes(64);
     return Convert.ToBase64String(bytes);
 }
 
-public static string HashRefreshToken(string refreshToken)
+public string HashRefreshToken(string refreshToken)
 {
     var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(refreshToken));
     return Convert.ToBase64String(bytes);

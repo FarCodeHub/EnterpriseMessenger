@@ -8,69 +8,45 @@ using Microsoft.AspNetCore.Authorization;
 using Messenger.Domain.Users;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Messenger.Application.Auth.Login;
+using Messenger.Application.Auth.Refresh;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class AuthController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
-    private readonly JwtTokenService _jwtTokenService;
+private readonly MessengerDbContext _dbContext;
+private readonly IUserLoginService _userLoginService;
+private readonly IRefreshTokenService _refreshTokenService;
 
-    public AuthController(
-        MessengerDbContext dbContext,
-        JwtTokenService jwtTokenService)
+public AuthController(
+    MessengerDbContext dbContext,
+    IUserLoginService userLoginService,
+    IRefreshTokenService refreshTokenService)
+{
+    _dbContext = dbContext;
+    _userLoginService = userLoginService;
+    _refreshTokenService = refreshTokenService;
+}
+ [HttpPost("login")]
+public async Task<IActionResult> Login(
+    LoginRequest request,
+    CancellationToken cancellationToken)
+{
+    try
     {
-        _dbContext = dbContext;
-        _jwtTokenService = jwtTokenService;
-    }
+        var result = await _userLoginService.LoginAsync(
+            new LoginCommand(request.UserName, request.DeviceId),
+            cancellationToken);
 
-    [HttpPost("login")]
-    public async Task<IActionResult> Login(
-        LoginRequest request,
-        CancellationToken cancellationToken)
+        return Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
     {
-        var user = await _dbContext.Users
-            .FirstOrDefaultAsync(x => x.UserName == request.UserName, cancellationToken);
-
-        if (user is null)
-            return Unauthorized("Invalid username.");
-
-        var token = _jwtTokenService.CreateToken(
-            user.Id,
-            user.UserName,
-            user.DisplayName);
-
-
-
-        var refreshToken = JwtTokenService.GenerateRefreshToken();
-        var refreshTokenHash = JwtTokenService.HashRefreshToken(refreshToken);
-
-        var refreshTokenEntity = new RefreshToken(
-            user.Id,
-            refreshTokenHash,
-            request.DeviceId,
-            DateTime.UtcNow.AddDays(30));
-
-        _dbContext.RefreshTokens.Add(refreshTokenEntity);
-
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            AccessToken = token,
-            RefreshToken = refreshToken,
-            TokenType = "Bearer",
-            ExpiresInSeconds = 8 * 60 * 60,
-            User = new
-            {
-                user.Id,
-                user.DisplayName,
-                user.UserName
-            }
-        });
+        return Unauthorized(ex.Message);
     }
-
+}
 
     [Authorize]
     [HttpGet("me")]
@@ -87,68 +63,30 @@ public sealed class AuthController : ControllerBase
             DisplayName = displayName
         });
     }
+ 
+
 
 [HttpPost("refresh")]
 public async Task<IActionResult> Refresh(
     RefreshTokenRequest request,
     CancellationToken cancellationToken)
 {
-    var refreshTokenHash = JwtTokenService.HashRefreshToken(request.RefreshToken);
-
-    var refreshToken = await _dbContext.RefreshTokens
-        .FirstOrDefaultAsync(x =>
-            x.TokenHash == refreshTokenHash &&
-            x.DeviceId == request.DeviceId,
+    try
+    {
+        var result = await _refreshTokenService.RefreshAsync(
+            new RefreshTokenCommand(
+                request.RefreshToken,
+                request.DeviceId),
             cancellationToken);
 
-    if (refreshToken is null)
-        return Unauthorized("Invalid refresh token.");
-
-    if (refreshToken.IsRevoked)
-        return Unauthorized("Refresh token is revoked.");
-
-    if (refreshToken.ExpiresAtUtc <= DateTime.UtcNow)
-        return Unauthorized("Refresh token is expired.");
-
-    var user = await _dbContext.Users
-        .FirstOrDefaultAsync(x => x.Id == refreshToken.UserId, cancellationToken);
-
-    if (user is null || !user.IsActive)
-        return Unauthorized("User is not active.");
-
-    refreshToken.Revoke();
-
-    var newRefreshToken = JwtTokenService.GenerateRefreshToken();
-    var newRefreshTokenHash = JwtTokenService.HashRefreshToken(newRefreshToken);
-
-    _dbContext.RefreshTokens.Add(
-        new RefreshToken(
-            user.Id,
-            newRefreshTokenHash,
-            request.DeviceId,
-            DateTime.UtcNow.AddDays(30)));
-
-    var newAccessToken = _jwtTokenService.CreateToken(
-        user.Id,
-        user.UserName,
-        user.DisplayName);
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
+        return Ok(result);
+    }
+    catch (UnauthorizedAccessException ex)
     {
-        AccessToken = newAccessToken,
-        RefreshToken = newRefreshToken,
-        TokenType = "Bearer",
-        ExpiresInSeconds = 8 * 60 * 60,
-        User = new
-        {
-            user.Id,
-            user.DisplayName,
-            user.UserName
-        }
-    });
+        return Unauthorized(ex.Message);
+    }
 }
+
 
 [Authorize]
 [HttpPost("logout")]

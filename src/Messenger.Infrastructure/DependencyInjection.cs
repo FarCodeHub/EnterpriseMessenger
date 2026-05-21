@@ -34,6 +34,9 @@ using Messenger.Application.Conversations.SetMemberRole;
 using Messenger.Application.Conversations.LeaveConversation;
 using Messenger.Application.Conversations.UpdateConversationMemberSettings;
 using Messenger.Application.Conversations.GetMembers;
+using Messenger.Application.Auth.Login;
+using Messenger.Application.Auth.Refresh;
+using Messenger.Infrastructure.Auth;
 namespace Messenger.Infrastructure;
 
 
@@ -103,6 +106,8 @@ public static class DependencyInjection
         services.AddScoped<IConversationLeaver, ConversationLeaver>();
         services.AddScoped<IConversationMemberSettingsUpdater, ConversationMemberSettingsUpdater>();
         services.AddScoped<IConversationMemberReader, ConversationMemberReader>();
+        services.AddScoped<IUserLoginService, UserLoginService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         return services;
     }
 }
