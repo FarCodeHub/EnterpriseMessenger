@@ -399,5 +399,60 @@ public async Task<IActionResult> GetMembers(
 
     return Ok(members);
 }
+[HttpPut("{conversationId:guid}/members/{userId:guid}/role")]
+public async Task<IActionResult> SetMemberRole(
+    Guid conversationId,
+    Guid userId,
+    SetConversationMemberRoleRequest request,
+    CancellationToken cancellationToken)
+{
+    var currentUserId = GetCurrentUserId();
 
+    var currentMember = await _dbContext.ConversationMembers
+        .FirstOrDefaultAsync(x =>
+            x.ConversationId == conversationId &&
+            x.UserId == currentUserId &&
+            x.LeftAtUtc == null,
+            cancellationToken);
+
+    if (currentMember is null || currentMember.Role != ConversationMemberRole.Owner)
+        return StatusCode(StatusCodes.Status403Forbidden, "Only owner can change member roles.");
+
+    var targetMember = await _dbContext.ConversationMembers
+        .FirstOrDefaultAsync(x =>
+            x.ConversationId == conversationId &&
+            x.UserId == userId &&
+            x.LeftAtUtc == null,
+            cancellationToken);
+
+    if (targetMember is null)
+        return NotFound("Member not found.");
+
+    if (targetMember.Role == ConversationMemberRole.Owner)
+        return BadRequest("Owner role cannot be changed.");
+
+    if (!Enum.IsDefined(typeof(ConversationMemberRole), request.Role))
+        return BadRequest("Invalid role.");
+
+    var newRole = (ConversationMemberRole)request.Role;
+
+    if (newRole == ConversationMemberRole.Owner)
+        return BadRequest("Cannot promote another member to owner.");
+
+    if (newRole == ConversationMemberRole.Admin)
+        targetMember.PromoteToAdmin();
+    else if (newRole == ConversationMemberRole.Member)
+        targetMember.DemoteToMember();
+    else
+        return BadRequest("Invalid role.");
+
+    await _dbContext.SaveChangesAsync(cancellationToken);
+
+    return Ok(new
+    {
+        ConversationId = conversationId,
+        UserId = userId,
+        Role = targetMember.Role.ToString()
+    });
+}
 }
