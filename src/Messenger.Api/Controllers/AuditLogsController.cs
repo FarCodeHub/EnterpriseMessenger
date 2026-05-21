@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Messenger.Api.Controllers;
 
-[Authorize]
+[Authorize(Roles = "Admin")]
 [ApiController]
 [Route("api/v1/[controller]")]
 public sealed class AuditLogsController : ControllerBase

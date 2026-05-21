@@ -76,7 +76,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
         var newAccessToken = _tokenService.CreateAccessToken(
             user.Id,
             user.UserName,
-            user.DisplayName);
+            user.DisplayName,
+             user.IsAdmin);
 
             
 

@@ -36,7 +36,8 @@ public sealed class UserLoginService : IUserLoginService
         var accessToken = _tokenService.CreateAccessToken(
             user.Id,
             user.UserName,
-            user.DisplayName);
+            user.DisplayName,
+             user.IsAdmin);
 
         var refreshToken = _tokenService.GenerateRefreshToken();
         var refreshTokenHash = _tokenService.HashRefreshToken(refreshToken);
