@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Users.CreateUser;
 using Messenger.Application.Users.RegisterDevice;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Messenger.Api.Controllers;
 [Authorize]
@@ -23,6 +24,32 @@ public sealed class UsersController : ControllerBase
         _userDeviceRegistrar = userDeviceRegistrar;
         _userCreator = userCreator;
     }
+
+
+[Authorize(Roles = "Admin")]
+[HttpPost("{userId:guid}/make-admin")]
+public async Task<IActionResult> MakeAdmin(
+    Guid userId,
+    CancellationToken cancellationToken)
+{
+    var user = await _dbContext.Users
+        .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+
+    if (user is null)
+        return NotFound("User not found.");
+
+    user.MakeAdmin();
+
+    await _dbContext.SaveChangesAsync(cancellationToken);
+
+    return Ok(new
+    {
+        user.Id,
+        user.DisplayName,
+        user.UserName,
+        user.IsAdmin
+    });
+}
 
   [HttpPost]
 public async Task<IActionResult> CreateUser(

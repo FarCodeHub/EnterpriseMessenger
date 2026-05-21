@@ -9,6 +9,9 @@ public class User : BaseEntity
     public string UserName { get; private set; }
 
     public bool IsActive { get; private set; } = true;
+    public bool IsAdmin { get; private set; }
+
+
 
     private User()
     {
@@ -19,4 +22,10 @@ public class User : BaseEntity
         DisplayName = displayName;
         UserName = userName;
     }
+
+    public void MakeAdmin()
+{
+    IsAdmin = true;
+}
+    
 }

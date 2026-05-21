@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Conversations.RemoveMember;
 using Messenger.Domain.Enums;
 using Messenger.Infrastructure.Persistence;
@@ -8,10 +9,12 @@ namespace Messenger.Infrastructure.Conversations;
 public sealed class ConversationMemberRemover : IConversationMemberRemover
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IAuditLogWriter _auditLogWriter;
 
-    public ConversationMemberRemover(MessengerDbContext dbContext)
+    public ConversationMemberRemover(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<RemoveConversationMemberResult> RemoveAsync(
@@ -50,6 +53,17 @@ public sealed class ConversationMemberRemover : IConversationMemberRemover
             throw new UnauthorizedAccessException("Admin cannot remove another admin.");
 
         targetMember.Leave();
+        await _auditLogWriter.WriteAsync(
+    "MemberRemoved",
+    command.CurrentUserId,
+    "Conversation",
+    command.ConversationId.ToString(),
+    new
+    {
+        command.UserIdToRemove,
+        targetMember.LeftAtUtc
+    },
+    cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

@@ -11,8 +11,24 @@ using Messenger.Application.Auth;
 using Messenger.Api.Middleware;
 using HealthChecks.RabbitMQ;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Serilog;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .Enrich.FromLogContext()
+    .WriteTo.Console(
+        outputTemplate:
+        "[{Timestamp:HH:mm:ss} {Level:u3}] [{CorrelationId}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.File(
+        "logs/enterprise-messenger-.log",
+        rollingInterval: RollingInterval.Day,
+        outputTemplate:
+        "[{Timestamp:yyyy-MM-dd HH:mm:ss} {Level:u3}] [{CorrelationId}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 
@@ -156,6 +172,12 @@ builder.Services
 
 var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<CorrelationIdMiddleware>();
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate =
+        "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+});
 
 app.UseCors("AllowLocalTest");
 
@@ -184,4 +206,15 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapHub<ChatHub>("/hubs/chat");
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly.");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

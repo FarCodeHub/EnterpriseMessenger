@@ -16,7 +16,7 @@ public sealed class JwtTokenService : ITokenService
         _configuration = configuration;
     }
 
-    public string CreateAccessToken(Guid userId, string userName, string displayName)
+    public string CreateAccessToken(Guid userId, string userName, string displayName, bool isAdmin)
     {
         var issuer = _configuration["Jwt:Issuer"];
         var audience = _configuration["Jwt:Audience"];
@@ -30,6 +30,7 @@ public sealed class JwtTokenService : ITokenService
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Name, userName),
+            new(ClaimTypes.Role, isAdmin ? "Admin" : "User"),
             new("display_name", displayName)
         };
 

@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Auth;
 using Messenger.Application.Auth.Login;
 using Messenger.Domain.Users;
@@ -10,13 +11,16 @@ public sealed class UserLoginService : IUserLoginService
 {
     private readonly MessengerDbContext _dbContext;
     private readonly ITokenService _tokenService;
+    private readonly IAuditLogWriter _auditLogWriter;
 
     public UserLoginService(
         MessengerDbContext dbContext,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
         _tokenService = tokenService;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<AuthTokenResult> LoginAsync(
@@ -32,7 +36,8 @@ public sealed class UserLoginService : IUserLoginService
         var accessToken = _tokenService.CreateAccessToken(
             user.Id,
             user.UserName,
-            user.DisplayName);
+            user.DisplayName,
+             user.IsAdmin);
 
         var refreshToken = _tokenService.GenerateRefreshToken();
         var refreshTokenHash = _tokenService.HashRefreshToken(refreshToken);
@@ -43,6 +48,17 @@ public sealed class UserLoginService : IUserLoginService
                 refreshTokenHash,
                 command.DeviceId,
                 DateTime.UtcNow.AddDays(30)));
+
+        await _auditLogWriter.WriteAsync(
+"UserLogin",
+user.Id,
+"User",
+user.Id.ToString(),
+new
+{
+    command.DeviceId
+},
+cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

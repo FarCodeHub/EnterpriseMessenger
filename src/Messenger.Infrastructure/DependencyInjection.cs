@@ -39,6 +39,8 @@ using Messenger.Application.Auth.Refresh;
 using Messenger.Infrastructure.Auth;
 using Messenger.Application.Auth.RevokeSession;
 using Messenger.Application.Auth.GetSessions;
+using Messenger.Application.Auditing;
+using Messenger.Infrastructure.Auditing;
 namespace Messenger.Infrastructure;
 
 
@@ -112,6 +114,7 @@ public static class DependencyInjection
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ISessionRevoker, SessionRevoker>();
         services.AddScoped<IUserSessionReader, UserSessionReader>();
+        services.AddScoped<IAuditLogWriter, AuditLogWriter>();
         return services;
     }
 }
