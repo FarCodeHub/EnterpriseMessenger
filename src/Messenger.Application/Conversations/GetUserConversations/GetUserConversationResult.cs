@@ -8,5 +8,6 @@ public sealed record GetUserConversationResult(
     Guid? LastMessageId,
     DateTime? LastMessageAtUtc,
     long LastReadSequenceNumber,
-    int UnreadCount
+    int UnreadCount,
+    bool IsPinned
 );

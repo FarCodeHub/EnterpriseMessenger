@@ -13,12 +13,35 @@ public sealed class UserConversationReader : IUserConversationReader
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyCollection<GetUserConversationResult>> GetAsync(
+    public Task<IReadOnlyCollection<GetUserConversationResult>> GetAsync(
         GetUserConversationsQuery query,
         CancellationToken cancellationToken)
     {
+        return GetConversationsAsync(
+            query.UserId,
+            isArchived: false,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyCollection<GetUserConversationResult>> GetArchivedAsync(
+        GetUserConversationsQuery query,
+        CancellationToken cancellationToken)
+    {
+        return GetConversationsAsync(
+            query.UserId,
+            isArchived: true,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyCollection<GetUserConversationResult>> GetConversationsAsync(
+        Guid userId,
+        bool isArchived,
+        CancellationToken cancellationToken)
+    {
         var conversations = await _dbContext.ConversationMembers
-            .Where(member => member.UserId == query.UserId)
+            .Where(member =>
+                member.UserId == userId &&
+                member.IsArchived == isArchived)
             .Join(
                 _dbContext.Conversations,
                 member => member.ConversationId,
@@ -31,9 +54,11 @@ public sealed class UserConversationReader : IUserConversationReader
                     conversation.CreatedAtUtc,
                     conversation.LastMessageId,
                     conversation.LastMessageAtUtc,
-                    member.LastReadSequenceNumber
+                    member.LastReadSequenceNumber,
+                    member.IsPinned
                 })
-            .OrderByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
+            .OrderByDescending(x => x.IsPinned)
+            .ThenByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
         var conversationIds = conversations
@@ -41,10 +66,9 @@ public sealed class UserConversationReader : IUserConversationReader
             .ToList();
 
         var unreadCounts = await _dbContext.Messages
-            .Where(message =>
-                conversationIds.Contains(message.ConversationId))
+            .Where(message => conversationIds.Contains(message.ConversationId))
             .GroupJoin(
-                _dbContext.ConversationMembers.Where(member => member.UserId == query.UserId),
+                _dbContext.ConversationMembers.Where(member => member.UserId == userId),
                 message => message.ConversationId,
                 member => member.ConversationId,
                 (message, members) => new
@@ -55,14 +79,17 @@ public sealed class UserConversationReader : IUserConversationReader
             .Where(x =>
                 x.Member != null &&
                 x.Message.SequenceNumber > x.Member.LastReadSequenceNumber &&
-                x.Message.SenderUserId != query.UserId)
+                x.Message.SenderUserId != userId)
             .GroupBy(x => x.Message.ConversationId)
             .Select(x => new
             {
                 ConversationId = x.Key,
                 Count = x.Count()
             })
-            .ToDictionaryAsync(x => x.ConversationId, x => x.Count, cancellationToken);
+            .ToDictionaryAsync(
+                x => x.ConversationId,
+                x => x.Count,
+                cancellationToken);
 
         return conversations
             .Select(x => new GetUserConversationResult(
@@ -73,7 +100,8 @@ public sealed class UserConversationReader : IUserConversationReader
                 x.LastMessageId,
                 x.LastMessageAtUtc,
                 x.LastReadSequenceNumber,
-                unreadCounts.TryGetValue(x.Id, out var count) ? count : 0))
+                unreadCounts.TryGetValue(x.Id, out var count) ? count : 0,
+                x.IsPinned))
             .ToList();
     }
 }
