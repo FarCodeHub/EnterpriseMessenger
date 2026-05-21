@@ -27,5 +27,15 @@ public class User : BaseEntity
 {
     IsAdmin = true;
 }
+
+public void Deactivate()
+{
+    IsActive = false;
+}
+
+public void Activate()
+{
+    IsActive = true;
+}
     
 }

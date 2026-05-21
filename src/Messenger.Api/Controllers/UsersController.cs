@@ -51,6 +51,48 @@ public async Task<IActionResult> MakeAdmin(
     });
 }
 
+
+
+
+[Authorize(Roles = "Admin")]
+[HttpPost("{userId:guid}/deactivate")]
+public async Task<IActionResult> DeactivateUser(
+    Guid userId,
+    CancellationToken cancellationToken)
+{
+    var user = await _dbContext.Users
+        .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+
+    if (user is null)
+        return NotFound("User not found.");
+
+    user.Deactivate();
+
+    var activeRefreshTokens = await _dbContext.RefreshTokens
+        .Where(x =>
+            x.UserId == userId &&
+            x.RevokedAtUtc == null)
+        .ToListAsync(cancellationToken);
+
+    foreach (var token in activeRefreshTokens)
+    {
+        token.Revoke();
+    }
+
+    await _dbContext.SaveChangesAsync(cancellationToken);
+
+    return Ok(new
+    {
+        user.Id,
+        user.DisplayName,
+        user.UserName,
+        user.IsActive,
+        RevokedTokensCount = activeRefreshTokens.Count
+    });
+}
+
+
+
   [HttpPost]
 public async Task<IActionResult> CreateUser(
     CreateUserRequest request,
