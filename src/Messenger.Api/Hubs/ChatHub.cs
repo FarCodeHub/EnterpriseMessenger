@@ -241,8 +241,8 @@ private async Task EnsureConversationMemberAsync(
 {
     var isMember = await _dbContext.ConversationMembers
         .AnyAsync(x =>
-            x.ConversationId == conversationId &&
-            x.UserId == userId);
+            x.ConversationId == conversationId && x.LeftAtUtc == null&&
+            x.UserId == userId && x.LeftAtUtc == null);
 
     if (!isMember)
         throw new HubException("You are not a member of this conversation.");

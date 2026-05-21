@@ -30,14 +30,14 @@ public sealed class MessageCreatedIntegrationEventConsumer
             context.Message.ConversationId,
             context.Message.SequenceNumber);
 
-        var recipientUserIds = await _dbContext.ConversationMembers
-            .Where(x =>
-                x.ConversationId == context.Message.ConversationId &&
-                x.UserId != context.Message.SenderUserId &&
-                !x.IsMuted &&
-                !x.IsArchived)
-            .Select(x => x.UserId)
-            .ToListAsync(context.CancellationToken);
+var recipientUserIds = await _dbContext.ConversationMembers
+    .Where(x =>
+        x.ConversationId == context.Message.ConversationId &&
+        x.UserId != context.Message.SenderUserId &&
+        !x.IsMuted &&
+        !x.IsArchived)
+    .Select(x => x.UserId)
+    .ToListAsync(context.CancellationToken);
             
         await _publishEndpoint.Publish(
            new NotificationRequestedIntegrationEvent(

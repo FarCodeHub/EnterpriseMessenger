@@ -206,4 +206,91 @@ public sealed class ConversationsController : ControllerBase
 
         return Ok(result);
     }
+
+
+
+    [HttpPost("{conversationId:guid}/leave")]
+    public async Task<IActionResult> LeaveConversation(
+    Guid conversationId,
+    CancellationToken cancellationToken)
+    {
+        var currentUserId = GetCurrentUserId();
+
+        var member = await _dbContext.ConversationMembers
+            .FirstOrDefaultAsync(x =>
+                x.ConversationId == conversationId &&
+                x.UserId == currentUserId,
+                cancellationToken);
+
+        if (member is null)
+            return BadRequest("User is not a member of this conversation.");
+
+      member.Leave();
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            ConversationId = conversationId,
+            UserId = currentUserId,
+            LeftAtUtc = DateTime.UtcNow
+        });
+    }
+
+
+    [HttpPost("{conversationId:guid}/members")]
+public async Task<IActionResult> AddMember(
+    Guid conversationId,
+    AddConversationMemberRequest request,
+    CancellationToken cancellationToken)
+{
+    var currentUserId = GetCurrentUserId();
+
+    var conversation = await _dbContext.Conversations
+        .FirstOrDefaultAsync(x => x.Id == conversationId, cancellationToken);
+
+    if (conversation is null)
+        return NotFound("Conversation not found.");
+
+    if (conversation.CreatedByUserId != currentUserId)
+        return StatusCode(StatusCodes.Status403Forbidden, "Only conversation creator can add members for now.");
+
+    var userExists = await _dbContext.Users
+        .AnyAsync(x => x.Id == request.UserId, cancellationToken);
+
+    if (!userExists)
+        return BadRequest("User not found.");
+
+    var existingMember = await _dbContext.ConversationMembers
+        .FirstOrDefaultAsync(x =>
+            x.ConversationId == conversationId &&
+            x.UserId == request.UserId,
+            cancellationToken);
+
+    if (existingMember is not null)
+    {
+        existingMember.Rejoin();
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            ConversationId = conversationId,
+            request.UserId,
+            Rejoined = true
+        });
+    }
+
+    _dbContext.ConversationMembers.Add(
+        new ConversationMember(conversationId, request.UserId));
+
+    await _dbContext.SaveChangesAsync(cancellationToken);
+
+    return Ok(new
+    {
+        ConversationId = conversationId,
+        request.UserId,
+        Rejoined = false
+    });
+}
 }

@@ -11,7 +11,8 @@ public class ConversationMember : BaseEntity
     public long LastReadSequenceNumber { get; private set; }
     public bool IsMuted { get; private set; }
     public bool IsPinned { get; private set; }
-  public bool IsArchived { get; private set; }
+    public bool IsArchived { get; private set; }
+    public DateTime? LeftAtUtc { get; private set; }
     private ConversationMember()
     {
     }
@@ -38,14 +39,14 @@ public class ConversationMember : BaseEntity
         IsMuted = false;
     }
     public void Pin()
-{
-    IsPinned = true;
-}
+    {
+        IsPinned = true;
+    }
 
-public void Unpin()
-{
-    IsPinned = false;
-}
+    public void Unpin()
+    {
+        IsPinned = false;
+    }
 
 
     public void Archive()
@@ -56,6 +57,15 @@ public void Unpin()
     public void Unarchive()
     {
         IsArchived = false;
+    }
+    public void Leave()
+    {
+        LeftAtUtc = DateTime.UtcNow;
+    }
+
+    public void Rejoin()
+    {
+        LeftAtUtc = null;
     }
 
 }

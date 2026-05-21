@@ -142,6 +142,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<long>("LastReadSequenceNumber")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTime?>("LeftAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 

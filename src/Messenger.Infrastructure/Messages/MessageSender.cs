@@ -33,7 +33,7 @@ public MessageSender(
 
         var isMember = await _dbContext.ConversationMembers
             .AnyAsync(x =>
-                x.ConversationId == command.ConversationId &&
+                x.ConversationId == command.ConversationId && x.LeftAtUtc == null &&
                 x.UserId == command.SenderUserId,
                 cancellationToken);
 
