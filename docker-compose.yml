@@ -15,5 +15,19 @@ services:
     container_name: enterprise-messenger-redis
     ports:
       - "6379:6379"  
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: enterprise-messenger-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - enterprise_messenger_rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
 volumes:
   enterprise_messenger_postgres_data:
+  enterprise_messenger_redis_data:
+  enterprise_messenger_rabbitmq_data:

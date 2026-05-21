@@ -1,9 +1,11 @@
-using Messenger.Api.Realtime;
+ 
 using Microsoft.AspNetCore.SignalR;
 using Messenger.Infrastructure.Persistence;
 using Messenger.Domain.Messages;
 using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Hubs;
+
+using Messenger.Application.Realtime;
 using Microsoft.AspNetCore.Authorization;
 
 

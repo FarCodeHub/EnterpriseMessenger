@@ -24,6 +24,11 @@ using Messenger.Application.Files.UploadFile;
 using Messenger.Application.Files.DownloadFile;
 using Messenger.Infrastructure.Files;
 using StackExchange.Redis;
+using MassTransit;
+using Messenger.Infrastructure.Consumers;
+ 
+using Messenger.Application.Realtime;
+using Messenger.Infrastructure.Realtime;
 namespace Messenger.Infrastructure;
 
 
@@ -63,6 +68,30 @@ public static class DependencyInjection
             services.AddSingleton<IConnectionMultiplexer>(
                 ConnectionMultiplexer.Connect(redisConnectionString));
         }
+
+
+        services.AddMassTransit(options =>
+        {
+            options.UsingRabbitMq((context, cfg) =>
+            {
+                var host = configuration["RabbitMq:Host"] ?? "localhost";
+                var username = configuration["RabbitMq:Username"] ?? "guest";
+                var password = configuration["RabbitMq:Password"] ?? "guest";
+
+                cfg.Host(host, "/", h =>
+                {
+                    h.Username(username);
+                    h.Password(password);
+                });
+
+                cfg.ConfigureEndpoints(context);
+            });
+        
+       
+        options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
+        options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
+        });
+services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
         return services;
     }
 }

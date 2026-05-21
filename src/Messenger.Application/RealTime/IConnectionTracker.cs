@@ -1,4 +1,4 @@
-namespace Messenger.Api.Realtime;
+namespace Messenger.Application.Realtime;
 
 public interface IConnectionTracker
 {

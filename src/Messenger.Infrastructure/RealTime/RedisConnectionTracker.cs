@@ -1,6 +1,8 @@
 using StackExchange.Redis;
+using Messenger.Application.Realtime;
+using StackExchange.Redis;
 
-namespace Messenger.Api.Realtime;
+namespace Messenger.Infrastructure.Realtime;
 
 public sealed class RedisConnectionTracker : IConnectionTracker
 {

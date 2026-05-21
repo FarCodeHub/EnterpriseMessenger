@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
-
-namespace Messenger.Api.Realtime;
+using Messenger.Application.Realtime;
+namespace Messenger.Infrastructure.Realtime;
 
 public sealed class InMemoryConnectionTracker : IConnectionTracker
 {
