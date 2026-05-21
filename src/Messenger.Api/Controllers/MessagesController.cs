@@ -54,8 +54,7 @@ public sealed class MessagesController : ControllerBase
     SendMessageRequest request,
     CancellationToken cancellationToken)
     {
-        try
-        {
+      
 
             var currentUserId = GetCurrentUserId();
             var command = new SendMessageCommand(
@@ -93,11 +92,8 @@ public sealed class MessagesController : ControllerBase
             }
 
             return Ok(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+      
+    
     }
     [HttpGet("conversation/{conversationId:guid}")]
     public async Task<IActionResult> GetMessages(
@@ -139,19 +135,14 @@ public sealed class MessagesController : ControllerBase
        int radius = 100,
        CancellationToken cancellationToken = default)
     {
-        try
-        {
+       
             var result = await _messageReader.GetReplyContextAsync(
                 messageId,
                 radius,
                 cancellationToken);
 
             return Ok(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+      
     }
 
 [HttpGet("conversation/{conversationId:guid}/search")]
@@ -161,18 +152,13 @@ public async Task<IActionResult> SearchMessages(
     int take = 20,
     CancellationToken cancellationToken = default)
 {
-    try
-    {
+   
         var result = await _messageSearchService.SearchAsync(
             new SearchMessagesQuery(conversationId, query, take),
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+   
 }
  
  [HttpPost("conversation/{conversationId:guid}/read")]
@@ -181,8 +167,7 @@ public async Task<IActionResult> MarkConversationAsRead(
     MarkConversationReadRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+   
         var currentUserId = GetCurrentUserId();
         var result = await _conversationReadMarker.MarkAsReadAsync(
             new MarkConversationReadCommand(
@@ -196,56 +181,37 @@ public async Task<IActionResult> MarkConversationAsRead(
             .SendAsync("conversation.read", result, cancellationToken);
 
         return Ok(result);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+   
 }
    
-   
-   
-   
-    [HttpPut("{messageId:guid}")]
-    public async Task<IActionResult> EditMessage(
+   [HttpPut("{messageId:guid}")]
+public async Task<IActionResult> EditMessage(
     Guid messageId,
     EditMessageRequest request,
     CancellationToken cancellationToken)
-    {
-        try
-        {
-            var currentUserId = GetCurrentUserId();
-            var result = await _messageEditor.EditAsync(
-                new EditMessageCommand(
-                    messageId,
-                    currentUserId,
-                    request.Body),
-                cancellationToken);
+{
+    var result = await _messageEditor.EditAsync(
+        new EditMessageCommand(
+            messageId,
+            GetCurrentUserId(),
+            request.Body),
+        cancellationToken);
 
-            await _hubContext.Clients
-                .Group($"conversation:{result.ConversationId}")
-                .SendAsync("message.edited", result, cancellationToken);
+    await _hubContext.Clients
+        .Group($"conversation:{result.ConversationId}")
+        .SendAsync("message.edited", result, cancellationToken);
 
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
-    }
-
+    return Ok(result);
+}
+   
+ 
 
     [HttpDelete("{messageId:guid}")]
     public async Task<IActionResult> DeleteMessage(
         Guid messageId,
         CancellationToken cancellationToken)
     {
-        try
-        {
+       
             var currentUserId = GetCurrentUserId();
             var result = await _messageDeleter.DeleteAsync(
                 new DeleteMessageCommand(messageId, currentUserId),
@@ -256,15 +222,7 @@ public async Task<IActionResult> MarkConversationAsRead(
                 .SendAsync("message.deleted", result, cancellationToken);
 
             return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+  
     }
 
     private async Task AddSyncEventForConversationMembers(

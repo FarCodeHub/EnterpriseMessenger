@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Messenger.Api.BackgroundServices;
 using Messenger.Application.Auth;
+using Messenger.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -118,6 +119,7 @@ builder.Services.AddHostedService<NotificationDispatchWorker>();
 
 
 var app = builder.Build();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseCors("AllowLocalTest");
 

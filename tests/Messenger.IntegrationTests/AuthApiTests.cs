@@ -57,7 +57,7 @@ public sealed class AuthApiTests : IClassFixture<CustomWebApplicationFactory>
         var secondRefreshResponse = await _client.PostAsJsonAsync("/api/v1/auth/refresh",
             new RefreshTokenRequest(loginResult.RefreshToken, "web-001"));
 
-        secondRefreshResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        secondRefreshResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     private sealed record AuthResponse(

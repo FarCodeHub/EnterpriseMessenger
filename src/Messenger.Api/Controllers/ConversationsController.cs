@@ -55,8 +55,7 @@ public async Task<IActionResult> AddMember(
     AddConversationMemberRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+   
         var result = await _conversationMemberAdder.AddAsync(
             new AddConversationMemberCommand(
                 conversationId,
@@ -65,15 +64,7 @@ public async Task<IActionResult> AddMember(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+   
 }
 
     [HttpPost("private")]
@@ -138,8 +129,7 @@ public async Task<IActionResult> SetMute(
     SetConversationMuteRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+   
         var result = await _memberSettingsUpdater.UpdateAsync(
             new UpdateConversationMemberSettingsCommand(
                 conversationId,
@@ -150,11 +140,7 @@ public async Task<IActionResult> SetMute(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+ 
 }
     
     private Guid GetCurrentUserId()
@@ -172,8 +158,7 @@ public async Task<IActionResult> SetPin(
     SetConversationPinRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+    
         var result = await _memberSettingsUpdater.UpdateAsync(
             new UpdateConversationMemberSettingsCommand(
                 conversationId,
@@ -184,11 +169,7 @@ public async Task<IActionResult> SetPin(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+ 
 }
 
  [HttpPost("{conversationId:guid}/archive")]
@@ -197,8 +178,7 @@ public async Task<IActionResult> SetArchive(
     SetConversationArchiveRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+   
         var result = await _memberSettingsUpdater.UpdateAsync(
             new UpdateConversationMemberSettingsCommand(
                 conversationId,
@@ -209,11 +189,7 @@ public async Task<IActionResult> SetArchive(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+   
 }
 
     [HttpGet("archived")]
@@ -234,8 +210,7 @@ public async Task<IActionResult> LeaveConversation(
     Guid conversationId,
     CancellationToken cancellationToken)
 {
-    try
-    {
+   
         var result = await _conversationLeaver.LeaveAsync(
             new LeaveConversationCommand(
                 conversationId,
@@ -243,11 +218,7 @@ public async Task<IActionResult> LeaveConversation(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+   
 }
  
  
@@ -258,8 +229,7 @@ public async Task<IActionResult> RemoveMember(
     Guid userId,
     CancellationToken cancellationToken)
 {
-    try
-    {
+   
         var result = await _conversationMemberRemover.RemoveAsync(
             new RemoveConversationMemberCommand(
                 conversationId,
@@ -268,23 +238,14 @@ public async Task<IActionResult> RemoveMember(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+ 
 }
  [HttpGet("{conversationId:guid}/members")]
 public async Task<IActionResult> GetMembers(
     Guid conversationId,
     CancellationToken cancellationToken)
 {
-    try
-    {
+    
         var result = await _conversationMemberReader.GetAsync(
             new GetConversationMembersQuery(
                 conversationId,
@@ -292,11 +253,7 @@ public async Task<IActionResult> GetMembers(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
-    }
+  
 }
  [HttpPut("{conversationId:guid}/members/{userId:guid}/role")]
 public async Task<IActionResult> SetMemberRole(
@@ -305,8 +262,7 @@ public async Task<IActionResult> SetMemberRole(
     SetConversationMemberRoleRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+    
         var result = await _conversationMemberRoleSetter.SetAsync(
             new SetConversationMemberRoleCommand(
                 conversationId,
@@ -316,15 +272,7 @@ public async Task<IActionResult> SetMemberRole(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
-    }
-    catch (InvalidOperationException ex)
-    {
-        return BadRequest(ex.Message);
-    }
+   
 }
 
 
