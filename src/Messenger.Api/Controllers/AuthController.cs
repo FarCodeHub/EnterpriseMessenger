@@ -42,18 +42,13 @@ public async Task<IActionResult> Login(
     LoginRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+    
         var result = await _userLoginService.LoginAsync(
             new LoginCommand(request.UserName, request.DeviceId),
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        return Unauthorized(ex.Message);
-    }
+    
 }
 
     [Authorize]
@@ -79,8 +74,7 @@ public async Task<IActionResult> Refresh(
     RefreshTokenRequest request,
     CancellationToken cancellationToken)
 {
-    try
-    {
+    
         var result = await _refreshTokenService.RefreshAsync(
             new RefreshTokenCommand(
                 request.RefreshToken,
@@ -88,11 +82,7 @@ public async Task<IActionResult> Refresh(
             cancellationToken);
 
         return Ok(result);
-    }
-    catch (UnauthorizedAccessException ex)
-    {
-        return Unauthorized(ex.Message);
-    }
+   
 }
 
 
