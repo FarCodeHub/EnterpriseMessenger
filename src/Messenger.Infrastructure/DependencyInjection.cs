@@ -37,6 +37,8 @@ using Messenger.Application.Conversations.GetMembers;
 using Messenger.Application.Auth.Login;
 using Messenger.Application.Auth.Refresh;
 using Messenger.Infrastructure.Auth;
+using Messenger.Application.Auth.RevokeSession;
+using Messenger.Application.Auth.GetSessions;
 namespace Messenger.Infrastructure;
 
 
@@ -108,6 +110,8 @@ public static class DependencyInjection
         services.AddScoped<IConversationMemberReader, ConversationMemberReader>();
         services.AddScoped<IUserLoginService, UserLoginService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddScoped<ISessionRevoker, SessionRevoker>();
+        services.AddScoped<IUserSessionReader, UserSessionReader>();
         return services;
     }
 }

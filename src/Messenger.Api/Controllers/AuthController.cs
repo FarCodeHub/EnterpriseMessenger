@@ -10,6 +10,8 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Messenger.Application.Auth.Login;
 using Messenger.Application.Auth.Refresh;
+using Messenger.Application.Auth.RevokeSession;
+using Messenger.Application.Auth.GetSessions;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -19,17 +21,23 @@ public sealed class AuthController : ControllerBase
 private readonly MessengerDbContext _dbContext;
 private readonly IUserLoginService _userLoginService;
 private readonly IRefreshTokenService _refreshTokenService;
+private readonly IUserSessionReader _userSessionReader;
+private readonly ISessionRevoker _sessionRevoker;
 
-public AuthController(
-    MessengerDbContext dbContext,
-    IUserLoginService userLoginService,
-    IRefreshTokenService refreshTokenService)
-{
-    _dbContext = dbContext;
-    _userLoginService = userLoginService;
-    _refreshTokenService = refreshTokenService;
-}
- [HttpPost("login")]
+    public AuthController(
+        MessengerDbContext dbContext,
+        IUserLoginService userLoginService,
+        IRefreshTokenService refreshTokenService,
+        ISessionRevoker sessionRevoker,
+        IUserSessionReader userSessionReader)
+    {
+        _dbContext = dbContext;
+        _userLoginService = userLoginService;
+        _refreshTokenService = refreshTokenService;
+        _sessionRevoker = sessionRevoker;
+        _userSessionReader = userSessionReader;
+    }
+    [HttpPost("login")]
 public async Task<IActionResult> Login(
     LoginRequest request,
     CancellationToken cancellationToken)
@@ -88,38 +96,25 @@ public async Task<IActionResult> Refresh(
 }
 
 
+
 [Authorize]
 [HttpPost("logout")]
 public async Task<IActionResult> Logout(
     LogoutRequest request,
     CancellationToken cancellationToken)
 {
-    var currentUserId = GetCurrentUserId();
+    var result = await _sessionRevoker.RevokeAsync(
+        new RevokeSessionCommand(
+            GetCurrentUserId(),
+            request.DeviceId),
+        cancellationToken);
 
-    var activeRefreshTokens = await _dbContext.RefreshTokens
-        .Where(x =>
-            x.UserId == currentUserId &&
-            x.DeviceId == request.DeviceId &&
-            x.RevokedAtUtc == null)
-        .ToListAsync(cancellationToken);
-
-    foreach (var refreshToken in activeRefreshTokens)
-    {
-        refreshToken.Revoke();
-    }
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
-    {
-        UserId = currentUserId,
-        request.DeviceId,
-        RevokedTokensCount = activeRefreshTokens.Count,
-        LoggedOutAtUtc = DateTime.UtcNow
-    });
+    return Ok(result);
 }
 
-private Guid GetCurrentUserId()
+
+
+ private Guid GetCurrentUserId()
 {
     var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -129,91 +124,46 @@ private Guid GetCurrentUserId()
     return Guid.Parse(userIdValue);
 }
 
-
 [Authorize]
 [HttpPost("logout-all")]
 public async Task<IActionResult> LogoutAll(
     CancellationToken cancellationToken)
 {
-    var currentUserId = GetCurrentUserId();
+    var result = await _sessionRevoker.RevokeAsync(
+        new RevokeSessionCommand(
+            GetCurrentUserId(),
+            DeviceId: null),
+        cancellationToken);
 
-    var activeRefreshTokens = await _dbContext.RefreshTokens
-        .Where(x =>
-            x.UserId == currentUserId &&
-            x.RevokedAtUtc == null)
-        .ToListAsync(cancellationToken);
-
-    foreach (var refreshToken in activeRefreshTokens)
-    {
-        refreshToken.Revoke();
-    }
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
-    {
-        UserId = currentUserId,
-        RevokedTokensCount = activeRefreshTokens.Count,
-        LoggedOutAtUtc = DateTime.UtcNow
-    });
+    return Ok(result);
 }
-
+ 
 
 [Authorize]
 [HttpGet("sessions")]
 public async Task<IActionResult> GetSessions(
     CancellationToken cancellationToken)
 {
-    var currentUserId = GetCurrentUserId();
+    var result = await _userSessionReader.GetAsync(
+        new GetSessionsQuery(GetCurrentUserId()),
+        cancellationToken);
 
-    var sessions = await _dbContext.RefreshTokens
-        .Where(x =>
-            x.UserId == currentUserId &&
-            x.RevokedAtUtc == null &&
-            x.ExpiresAtUtc > DateTime.UtcNow)
-        .GroupBy(x => x.DeviceId)
-        .Select(x => new
-        {
-            DeviceId = x.Key,
-            ActiveRefreshTokensCount = x.Count(),
-            LatestExpiresAtUtc = x.Max(t => t.ExpiresAtUtc),
-            CreatedAtUtc = x.Min(t => t.CreatedAtUtc)
-        })
-        .OrderBy(x => x.DeviceId)
-        .ToListAsync(cancellationToken);
-
-    return Ok(sessions);
+    return Ok(result);
 }
 
-[Authorize]
+
+ [Authorize]
 [HttpDelete("sessions/{deviceId}")]
 public async Task<IActionResult> RevokeSession(
     string deviceId,
     CancellationToken cancellationToken)
 {
-    var currentUserId = GetCurrentUserId();
+    var result = await _sessionRevoker.RevokeAsync(
+        new RevokeSessionCommand(
+            GetCurrentUserId(),
+            deviceId),
+        cancellationToken);
 
-    var activeRefreshTokens = await _dbContext.RefreshTokens
-        .Where(x =>
-            x.UserId == currentUserId &&
-            x.DeviceId == deviceId &&
-            x.RevokedAtUtc == null)
-        .ToListAsync(cancellationToken);
-
-    foreach (var refreshToken in activeRefreshTokens)
-    {
-        refreshToken.Revoke();
-    }
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
-    {
-        UserId = currentUserId,
-        DeviceId = deviceId,
-        RevokedTokensCount = activeRefreshTokens.Count,
-        RevokedAtUtc = DateTime.UtcNow
-    });
+    return Ok(result);
 }
-
 }
