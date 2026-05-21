@@ -9,6 +9,8 @@ using Microsoft.OpenApi.Models;
 using Messenger.Api.BackgroundServices;
 using Messenger.Application.Auth;
 using Messenger.Api.Middleware;
+using HealthChecks.RabbitMQ;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -117,6 +119,40 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddHostedService<NotificationDispatchWorker>();
 
+var rabbitMqHost =
+    builder.Configuration["RabbitMq:Host"] ?? "localhost";
+
+var rabbitMqUsername =
+    builder.Configuration["RabbitMq:Username"] ?? "guest";
+
+var rabbitMqPassword =
+    builder.Configuration["RabbitMq:Password"] ?? "guest";
+
+
+builder.Services
+    .AddHealthChecks()
+    .AddNpgSql(
+        builder.Configuration.GetConnectionString("MessengerDb")!,
+        tags: ["ready"])
+    .AddRedis(
+        builder.Configuration["Redis:ConnectionString"]!,
+        tags: ["ready"])
+    .AddRabbitMQ(
+        sp =>
+        {
+            var factory = new RabbitMQ.Client.ConnectionFactory
+            {
+                HostName = rabbitMqHost,
+                UserName = rabbitMqUsername,
+                Password = rabbitMqPassword
+            };
+
+            return factory.CreateConnectionAsync();
+        },
+        tags: ["ready"]);
+
+
+
 
 var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -137,5 +173,15 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 
 app.MapControllers();
+ app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = healthCheck => healthCheck.Tags.Contains("ready")
+});
+
 app.MapHub<ChatHub>("/hubs/chat");
 app.Run();
