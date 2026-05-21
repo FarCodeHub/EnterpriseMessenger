@@ -1,6 +1,7 @@
 using Messenger.Domain.Attachments;
 using Messenger.Domain.Conversations;
 using Messenger.Domain.Messages;
+using Messenger.Domain.Notifications;
 using Messenger.Domain.Sync;
 using Messenger.Domain.Users;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,7 @@ public sealed class MessengerDbContext : DbContext
     public DbSet<MessageDelivery> MessageDeliveries => Set<MessageDelivery>();
     public DbSet<UserSyncCounter> UserSyncCounters => Set<UserSyncCounter>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<Notification> Notifications => Set<Notification>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MessengerDbContext).Assembly);

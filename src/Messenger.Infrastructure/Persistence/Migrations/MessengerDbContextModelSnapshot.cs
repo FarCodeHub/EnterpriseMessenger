@@ -130,6 +130,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsMuted")
+                        .HasColumnType("boolean");
+
                     b.Property<long>("LastReadSequenceNumber")
                         .HasColumnType("bigint");
 
@@ -234,6 +237,49 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId", "SeenAtUtc");
 
                     b.ToTable("MessageDeliveries", (string)null);
+                });
+
+            modelBuilder.Entity("Messenger.Domain.Notifications.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("RequestedAtUtc");
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("Messenger.Domain.Sync.UserSyncCounter", b =>

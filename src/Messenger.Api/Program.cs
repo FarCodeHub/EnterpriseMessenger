@@ -6,7 +6,7 @@ using Messenger.Api.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-
+using Messenger.Api.BackgroundServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -113,7 +113,7 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-
+builder.Services.AddHostedService<NotificationDispatchWorker>();
 
 
 var app = builder.Build();

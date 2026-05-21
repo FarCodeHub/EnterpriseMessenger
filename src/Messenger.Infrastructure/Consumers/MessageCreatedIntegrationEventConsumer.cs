@@ -11,7 +11,7 @@ public sealed class MessageCreatedIntegrationEventConsumer
 {
     private readonly ILogger<MessageCreatedIntegrationEventConsumer> _logger;
     private readonly IPublishEndpoint _publishEndpoint;
-private readonly MessengerDbContext _dbContext;
+    private readonly MessengerDbContext _dbContext;
     public MessageCreatedIntegrationEventConsumer(
         ILogger<MessageCreatedIntegrationEventConsumer> logger,
         IPublishEndpoint publishEndpoint,
@@ -30,22 +30,23 @@ private readonly MessengerDbContext _dbContext;
             context.Message.ConversationId,
             context.Message.SequenceNumber);
 
-            var recipientUserIds = await _dbContext.ConversationMembers
-    .Where(x =>
-        x.ConversationId == context.Message.ConversationId &&
-        x.UserId != context.Message.SenderUserId)
-    .Select(x => x.UserId)
-    .ToListAsync(context.CancellationToken);
+        var recipientUserIds = await _dbContext.ConversationMembers
+            .Where(x =>
+                x.ConversationId == context.Message.ConversationId &&
+                x.UserId != context.Message.SenderUserId &&
+                !x.IsMuted)
+            .Select(x => x.UserId)
+            .ToListAsync(context.CancellationToken);
 
- await _publishEndpoint.Publish(
-    new NotificationRequestedIntegrationEvent(
-        Guid.NewGuid(),
-        context.Message.MessageId,
-        context.Message.ConversationId,
-        context.Message.SequenceNumber,
-        context.Message.SenderUserId,
-        recipientUserIds,
-        DateTime.UtcNow),
-    context.CancellationToken);
+        await _publishEndpoint.Publish(
+           new NotificationRequestedIntegrationEvent(
+               Guid.NewGuid(),
+               context.Message.MessageId,
+               context.Message.ConversationId,
+               context.Message.SequenceNumber,
+               context.Message.SenderUserId,
+               recipientUserIds,
+               DateTime.UtcNow),
+           context.CancellationToken);
     }
 }
