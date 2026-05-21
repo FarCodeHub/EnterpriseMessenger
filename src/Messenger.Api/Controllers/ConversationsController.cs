@@ -293,4 +293,47 @@ public async Task<IActionResult> AddMember(
         Rejoined = false
     });
 }
+
+
+[HttpDelete("{conversationId:guid}/members/{userId:guid}")]
+public async Task<IActionResult> RemoveMember(
+    Guid conversationId,
+    Guid userId,
+    CancellationToken cancellationToken)
+{
+    var currentUserId = GetCurrentUserId();
+
+    var conversation = await _dbContext.Conversations
+        .FirstOrDefaultAsync(x => x.Id == conversationId, cancellationToken);
+
+    if (conversation is null)
+        return NotFound("Conversation not found.");
+
+    if (conversation.CreatedByUserId != currentUserId)
+        return StatusCode(StatusCodes.Status403Forbidden, "Only conversation creator can remove members for now.");
+
+    if (userId == conversation.CreatedByUserId)
+        return BadRequest("Conversation creator cannot be removed.");
+
+    var member = await _dbContext.ConversationMembers
+        .FirstOrDefaultAsync(x =>
+            x.ConversationId == conversationId &&
+            x.UserId == userId,
+            cancellationToken);
+
+    if (member is null)
+        return NotFound("Member not found.");
+
+    member.Leave();
+
+    await _dbContext.SaveChangesAsync(cancellationToken);
+
+    return Ok(new
+    {
+        ConversationId = conversationId,
+        UserId = userId,
+        RemovedAtUtc = DateTime.UtcNow
+    });
+}
+
 }
