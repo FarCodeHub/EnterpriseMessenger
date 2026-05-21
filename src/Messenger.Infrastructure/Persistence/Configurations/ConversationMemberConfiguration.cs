@@ -17,5 +17,10 @@ public sealed class ConversationMemberConfiguration : IEntityTypeConfiguration<C
 
         builder.HasIndex(x => x.UserId);
         builder.HasIndex(x => x.ConversationId);
+        builder.Property(x => x.Role)
+    .IsRequired()
+    .HasConversion<int>();
+
+builder.HasIndex(x => new { x.ConversationId, x.Role });
     }
 }

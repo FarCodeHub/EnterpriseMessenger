@@ -48,8 +48,13 @@ public sealed class GroupConversationCreator : IGroupConversationCreator
 
         foreach (var userId in memberUserIds)
         {
-            _dbContext.ConversationMembers.Add(
-                new ConversationMember(conversation.Id, userId));
+
+var role = userId == command.CreatedByUserId
+    ? ConversationMemberRole.Owner
+    : ConversationMemberRole.Member;
+
+         _dbContext.ConversationMembers.Add(
+    new ConversationMember(conversation.Id, userId, role));
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);

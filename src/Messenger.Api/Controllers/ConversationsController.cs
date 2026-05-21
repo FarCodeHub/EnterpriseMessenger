@@ -252,8 +252,19 @@ public async Task<IActionResult> AddMember(
     if (conversation is null)
         return NotFound("Conversation not found.");
 
-    if (conversation.CreatedByUserId != currentUserId)
-        return StatusCode(StatusCodes.Status403Forbidden, "Only conversation creator can add members for now.");
+   var currentMember = await _dbContext.ConversationMembers
+    .FirstOrDefaultAsync(x =>
+        x.ConversationId == conversationId &&
+        x.UserId == currentUserId &&
+        x.LeftAtUtc == null,
+        cancellationToken);
+
+if (currentMember is null ||
+    (currentMember.Role != ConversationMemberRole.Owner &&
+     currentMember.Role != ConversationMemberRole.Admin))
+{
+    return StatusCode(StatusCodes.Status403Forbidden, "Only owner or admin can manage members.");
+}
 
     var userExists = await _dbContext.Users
         .AnyAsync(x => x.Id == request.UserId, cancellationToken);
@@ -309,8 +320,19 @@ public async Task<IActionResult> RemoveMember(
     if (conversation is null)
         return NotFound("Conversation not found.");
 
-    if (conversation.CreatedByUserId != currentUserId)
-        return StatusCode(StatusCodes.Status403Forbidden, "Only conversation creator can remove members for now.");
+   var currentMember = await _dbContext.ConversationMembers
+    .FirstOrDefaultAsync(x =>
+        x.ConversationId == conversationId &&
+        x.UserId == currentUserId &&
+        x.LeftAtUtc == null,
+        cancellationToken);
+
+if (currentMember is null ||
+    (currentMember.Role != ConversationMemberRole.Owner &&
+     currentMember.Role != ConversationMemberRole.Admin))
+{
+    return StatusCode(StatusCodes.Status403Forbidden, "Only owner or admin can manage members.");
+}
 
     if (userId == conversation.CreatedByUserId)
         return BadRequest("Conversation creator cannot be removed.");

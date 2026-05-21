@@ -148,6 +148,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("LeftAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
@@ -156,6 +159,8 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.HasIndex("ConversationId");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("ConversationId", "Role");
 
                     b.HasIndex("ConversationId", "UserId")
                         .IsUnique();

@@ -1,4 +1,5 @@
 using Messenger.Domain.Common;
+using Messenger.Domain.Enums;
 
 namespace Messenger.Domain.Conversations;
 
@@ -14,17 +15,20 @@ public class ConversationMember : BaseEntity
     public bool IsArchived { get; private set; }
     public DateTime? LeftAtUtc { get; private set; }
     public DateTime JoinedAtUtc { get; private set; } = DateTime.UtcNow;
+    public ConversationMemberRole Role { get; private set; } = ConversationMemberRole.Member;
     private ConversationMember()
     {
     }
 
-    public ConversationMember(
-        Guid conversationId,
-        Guid userId)
-    {
-        ConversationId = conversationId;
-        UserId = userId;
-    }
+public ConversationMember(
+    Guid conversationId,
+    Guid userId,
+    ConversationMemberRole role = ConversationMemberRole.Member)
+{
+    ConversationId = conversationId;
+    UserId = userId;
+    Role = role;
+}
 
     public void UpdateLastReadSequenceNumber(long sequenceNumber)
     {
@@ -68,5 +72,15 @@ public class ConversationMember : BaseEntity
     {
         LeftAtUtc = null;
     }
+
+    public void PromoteToAdmin()
+{
+    Role = ConversationMemberRole.Admin;
+}
+
+public void DemoteToMember()
+{
+    Role = ConversationMemberRole.Member;
+}
 
 }
