@@ -15,6 +15,7 @@ public class Notification : BaseEntity
     public DateTime? SentAtUtc { get; private set; }
 
     public string Status { get; private set; } = null!;
+    public int RetryCount { get; private set; }
 
     private Notification()
     {
@@ -41,7 +42,12 @@ public class Notification : BaseEntity
 
 
     public void MarkAsFailed()
-{
-    Status = "Failed";
-}
+    {
+        RetryCount++;
+
+        if (RetryCount >= 3)
+            Status = "Failed";
+        else
+            Status = "Pending";
+    }
 }

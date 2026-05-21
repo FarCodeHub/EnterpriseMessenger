@@ -19,5 +19,7 @@ public sealed class NotificationConfiguration : IEntityTypeConfiguration<Notific
         builder.HasIndex(x => new { x.UserId, x.Status });
         builder.HasIndex(x => x.MessageId);
         builder.HasIndex(x => x.RequestedAtUtc);
+        builder.Property(x => x.RetryCount)
+    .IsRequired();
     }
 }

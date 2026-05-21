@@ -254,6 +254,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("RequestedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("SentAtUtc")
                         .HasColumnType("timestamp with time zone");
 
