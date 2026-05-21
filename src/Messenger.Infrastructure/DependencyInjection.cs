@@ -26,9 +26,14 @@ using Messenger.Infrastructure.Files;
 using StackExchange.Redis;
 using MassTransit;
 using Messenger.Infrastructure.Consumers;
- 
+using Messenger.Application.Conversations.AddMember;
 using Messenger.Application.Realtime;
 using Messenger.Infrastructure.Realtime;
+using Messenger.Application.Conversations.RemoveMember;
+using Messenger.Application.Conversations.SetMemberRole;
+using Messenger.Application.Conversations.LeaveConversation;
+using Messenger.Application.Conversations.UpdateConversationMemberSettings;
+using Messenger.Application.Conversations.GetMembers;
 namespace Messenger.Infrastructure;
 
 
@@ -86,12 +91,18 @@ public static class DependencyInjection
 
                 cfg.ConfigureEndpoints(context);
             });
-        
-       
-        options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
-        options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
+
+
+            options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
+            options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
         });
-services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+        services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+        services.AddScoped<IConversationMemberAdder, ConversationMemberAdder>();
+        services.AddScoped<IConversationMemberRemover, ConversationMemberRemover>();
+        services.AddScoped<IConversationMemberRoleSetter, ConversationMemberRoleSetter>();
+        services.AddScoped<IConversationLeaver, ConversationLeaver>();
+        services.AddScoped<IConversationMemberSettingsUpdater, ConversationMemberSettingsUpdater>();
+        services.AddScoped<IConversationMemberReader, ConversationMemberReader>();
         return services;
     }
 }

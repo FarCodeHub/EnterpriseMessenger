@@ -40,8 +40,9 @@ public sealed class PrivateConversationCreator : IPrivateConversationCreator
             new ConversationCounter(conversation.Id));
 
         _dbContext.ConversationMembers.AddRange(
-            new ConversationMember(conversation.Id, command.FirstUserId),
-            new ConversationMember(conversation.Id, command.SecondUserId));
+           new ConversationMember(conversation.Id, command.FirstUserId, ConversationMemberRole.Owner),
+
+           new ConversationMember(conversation.Id, command.SecondUserId, ConversationMemberRole.Member));
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
