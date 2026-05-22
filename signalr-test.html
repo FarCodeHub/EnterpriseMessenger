@@ -8,6 +8,10 @@
 <body>
     <h3>SignalR Test</h3>
 
+
+<input id="accessToken" placeholder="Access Token" style="width:800px" />
+<br />
+
     <input id="userId" placeholder="UserId" style="width:400px" />
     <br />
     <input id="conversationId" placeholder="ConversationId" style="width:400px" />
@@ -36,19 +40,23 @@
 
                 log("Connecting to hub...");
 
-                connection = new signalR.HubConnectionBuilder()
-                    .withUrl("http://localhost:5113/hubs/chat")
-                    .configureLogging(signalR.LogLevel.Information)
-                    .withAutomaticReconnect()
-                    .build();
+const accessToken = document.getElementById("accessToken").value;
+
+connection = new signalR.HubConnectionBuilder()
+    .withUrl("http://localhost:5113/hubs/chat", {
+        accessTokenFactory: () => accessToken
+    })
+    .configureLogging(signalR.LogLevel.Information)
+    .withAutomaticReconnect()
+    .build();
 
                 registerHandlers();
 
                 await connection.start();
                 log("Connected. ConnectionId: " + connection.connectionId);
 
-                await connection.invoke("RegisterUser", userId);
-                log("Registered user: " + userId);
+                await connection.invoke("RegisterUser");
+                log("Registered user: ");
 
                 await connection.invoke("JoinConversation", conversationId);
                 log("Joined conversation: " + conversationId);
@@ -92,10 +100,10 @@
 
                 const userId = document.getElementById("userId").value;
 
-                await connection.invoke("AcknowledgeDelivered", message.id, userId);
+                await connection.invoke("AcknowledgeDelivered", message.id);
                 log("Delivered ACK sent for message: " + message.id);
 
-                await connection.invoke("AcknowledgeSeen", message.id, userId);
+                await connection.invoke("AcknowledgeSeen", message.id);
                 log("Seen ACK sent for message: " + message.id);
             });
 
@@ -149,7 +157,7 @@
             const conversationId = document.getElementById("conversationId").value;
             const userId = document.getElementById("userId").value;
 
-            await connection.invoke("StartTyping", conversationId, userId);
+            await connection.invoke("StartTyping", conversationId);
             log("StartTyping sent");
         }
 
@@ -162,7 +170,7 @@
             const conversationId = document.getElementById("conversationId").value;
             const userId = document.getElementById("userId").value;
 
-            await connection.invoke("StopTyping", conversationId, userId);
+            await connection.invoke("StopTyping", conversationId);
             log("StopTyping sent");
         }
     </script>

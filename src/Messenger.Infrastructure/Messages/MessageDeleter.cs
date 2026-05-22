@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Messages.DeleteMessage;
 using Messenger.Application.Sync;
 using Messenger.Infrastructure.Persistence;
@@ -9,11 +10,13 @@ public sealed class MessageDeleter : IMessageDeleter
 {
     private readonly MessengerDbContext _dbContext;
     private readonly IUserSyncEventWriter _syncEventWriter;
+    private readonly IAuditLogWriter _auditLogWriter;
 
-    public MessageDeleter(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter)
+    public MessageDeleter(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<DeleteMessageResult> DeleteAsync(
@@ -30,6 +33,19 @@ public sealed class MessageDeleter : IMessageDeleter
             throw new UnauthorizedAccessException("You can only delete your own messages.");
 
         message.Delete();
+
+        await _auditLogWriter.WriteAsync(
+    "MessageDeleted",
+    command.UserId,
+    "Message",
+    message.Id.ToString(),
+    new
+    {
+        message.ConversationId,
+        message.SequenceNumber,
+        message.DeletedAtUtc
+    },
+    cancellationToken);
 
         await _syncEventWriter.AddForConversationMembersAsync(
           message.ConversationId,

@@ -12,6 +12,9 @@ public sealed class UsersApiTests : IClassFixture<CustomWebApplicationFactory>
     public UsersApiTests(CustomWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
+        _client.DefaultRequestHeaders.Add(
+    "X-Test-UserId",
+    Guid.NewGuid().ToString());
     }
 
     [Fact]

@@ -3,15 +3,19 @@
   <ItemGroup>
     <ProjectReference Include="..\Messenger.Domain\Messenger.Domain.csproj" />
     <ProjectReference Include="..\Messenger.Application\Messenger.Application.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\Messenger.Contracts\Messenger.Contracts.csproj" />
+   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="MassTransit" Version="8.4.1" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.4.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+    <PackageReference Include="StackExchange.Redis" Version="2.13.1" />
   </ItemGroup>
 
   <PropertyGroup>

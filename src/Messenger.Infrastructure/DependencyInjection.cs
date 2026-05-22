@@ -23,6 +23,29 @@ using Messenger.Application.Sync.CommitSync;
 using Messenger.Application.Files.UploadFile;
 using Messenger.Application.Files.DownloadFile;
 using Messenger.Infrastructure.Files;
+using StackExchange.Redis;
+using MassTransit;
+using Messenger.Infrastructure.Consumers;
+using Messenger.Application.Conversations.AddMember;
+using Messenger.Application.Realtime;
+using Messenger.Infrastructure.Realtime;
+using Messenger.Application.Conversations.RemoveMember;
+using Messenger.Application.Conversations.SetMemberRole;
+using Messenger.Application.Conversations.LeaveConversation;
+using Messenger.Application.Conversations.UpdateConversationMemberSettings;
+using Messenger.Application.Conversations.GetMembers;
+using Messenger.Application.Auth.Login;
+using Messenger.Application.Auth.Refresh;
+using Messenger.Infrastructure.Auth;
+using Messenger.Application.Auth.RevokeSession;
+using Messenger.Application.Auth.GetSessions;
+using Messenger.Application.Auditing;
+using Messenger.Infrastructure.Auditing;
+using Messenger.Application.Users.DeactivateUser;
+using Messenger.Application.Users.ActivateUser;
+using Messenger.Application.Users.MakeAdmin;
+using Messenger.Application.Outbox;
+using Messenger.Infrastructure.Outbox;
 namespace Messenger.Infrastructure;
 
 
@@ -55,6 +78,52 @@ public static class DependencyInjection
         services.AddScoped<ISyncCommitter, SyncCommitter>();
         services.AddScoped<IFileUploader, LocalFileUploader>();
         services.AddScoped<IAttachmentDownloader, AttachmentDownloader>();
+        var redisConnectionString = configuration["Redis:ConnectionString"];
+
+        if (!string.IsNullOrWhiteSpace(redisConnectionString))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(
+                ConnectionMultiplexer.Connect(redisConnectionString));
+        }
+
+
+        services.AddMassTransit(options =>
+        {
+            options.UsingRabbitMq((context, cfg) =>
+            {
+                var host = configuration["RabbitMq:Host"] ?? "localhost";
+                var username = configuration["RabbitMq:Username"] ?? "guest";
+                var password = configuration["RabbitMq:Password"] ?? "guest";
+
+                cfg.Host(host, "/", h =>
+                {
+                    h.Username(username);
+                    h.Password(password);
+                });
+
+                cfg.ConfigureEndpoints(context);
+            });
+
+
+            options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
+            options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
+        });
+        services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+        services.AddScoped<IConversationMemberAdder, ConversationMemberAdder>();
+        services.AddScoped<IConversationMemberRemover, ConversationMemberRemover>();
+        services.AddScoped<IConversationMemberRoleSetter, ConversationMemberRoleSetter>();
+        services.AddScoped<IConversationLeaver, ConversationLeaver>();
+        services.AddScoped<IConversationMemberSettingsUpdater, ConversationMemberSettingsUpdater>();
+        services.AddScoped<IConversationMemberReader, ConversationMemberReader>();
+        services.AddScoped<IUserLoginService, UserLoginService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddScoped<ISessionRevoker, SessionRevoker>();
+        services.AddScoped<IUserSessionReader, UserSessionReader>();
+        services.AddScoped<IAuditLogWriter, AuditLogWriter>();
+        services.AddScoped<IUserDeactivator, UserDeactivator>();
+        services.AddScoped<IUserActivator, UserActivator>();
+        services.AddScoped<IUserAdminMaker, UserAdminMaker>();
+        services.AddScoped<IOutboxWriter, OutboxWriter>();
         return services;
     }
 }

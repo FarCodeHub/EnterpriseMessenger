@@ -1,0 +1,78 @@
+using Messenger.Application.Auditing;
+using Messenger.Application.Auth;
+using Messenger.Application.Auth.Login;
+using Messenger.Domain.Users;
+using Messenger.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace Messenger.Infrastructure.Auth;
+
+public sealed class UserLoginService : IUserLoginService
+{
+    private readonly MessengerDbContext _dbContext;
+    private readonly ITokenService _tokenService;
+    private readonly IAuditLogWriter _auditLogWriter;
+
+    public UserLoginService(
+        MessengerDbContext dbContext,
+        ITokenService tokenService,
+        IAuditLogWriter auditLogWriter)
+    {
+        _dbContext = dbContext;
+        _tokenService = tokenService;
+        _auditLogWriter = auditLogWriter;
+    }
+
+    public async Task<AuthTokenResult> LoginAsync(
+        LoginCommand command,
+        CancellationToken cancellationToken)
+    {
+        var user = await _dbContext.Users
+            .FirstOrDefaultAsync(x => x.UserName == command.UserName, cancellationToken);
+
+            if (user is null)
+                throw new UnauthorizedAccessException("Invalid username.");
+
+            if (!user.IsActive)
+                throw new UnauthorizedAccessException("User is not active.");
+
+        var accessToken = _tokenService.CreateAccessToken(
+            user.Id,
+            user.UserName,
+            user.DisplayName,
+             user.IsAdmin);
+
+        var refreshToken = _tokenService.GenerateRefreshToken();
+        var refreshTokenHash = _tokenService.HashRefreshToken(refreshToken);
+
+        _dbContext.RefreshTokens.Add(
+            new RefreshToken(
+                user.Id,
+                refreshTokenHash,
+                command.DeviceId,
+                DateTime.UtcNow.AddDays(30)));
+
+        await _auditLogWriter.WriteAsync(
+"UserLogin",
+user.Id,
+"User",
+user.Id.ToString(),
+new
+{
+    command.DeviceId
+},
+cancellationToken);
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new AuthTokenResult(
+            accessToken,
+            refreshToken,
+            "Bearer",
+            8 * 60 * 60,
+            new AuthUserResult(
+                user.Id,
+                user.DisplayName,
+                user.UserName));
+    }
+}

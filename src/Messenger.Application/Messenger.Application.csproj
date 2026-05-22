@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Messenger.Domain\Messenger.Domain.csproj" />
+    
   </ItemGroup>
 
   <PropertyGroup>

@@ -15,7 +15,11 @@ public sealed class MessagingFlowTests : IClassFixture<CustomWebApplicationFacto
     {
         _client = factory.CreateClient();
     }
-
+private void SetCurrentUser(Guid userId)
+{
+    _client.DefaultRequestHeaders.Remove("X-Test-UserId");
+    _client.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
+}
     [Fact]
     public async Task SendMessages_Should_Generate_Sequential_SequenceNumbers()
     {
@@ -23,7 +27,7 @@ public sealed class MessagingFlowTests : IClassFixture<CustomWebApplicationFacto
         var user2Id = await CreateUserAsync("User 2");
 
         var conversationId = await CreatePrivateConversationAsync(user1Id, user2Id);
-
+SetCurrentUser(user1Id);
         var firstMessage = await SendMessageAsync(
             conversationId,
             user1Id,
@@ -31,7 +35,7 @@ public sealed class MessagingFlowTests : IClassFixture<CustomWebApplicationFacto
             "First message");
 
         firstMessage.SequenceNumber.Should().Be(1);
-
+SetCurrentUser(user2Id);
         var secondMessage = await SendMessageAsync(
             conversationId,
             user2Id,
@@ -51,7 +55,7 @@ public async Task SendMessage_Should_Return_Duplicate_When_ClientMessageId_Alrea
     var conversationId = await CreatePrivateConversationAsync(user1Id, user2Id);
 
     var clientMessageId = Guid.NewGuid().ToString();
-
+SetCurrentUser(user1Id);
     var firstMessage = await SendMessageAsync(
         conversationId,
         user1Id,
@@ -79,7 +83,7 @@ public async Task EditMessage_Should_Create_MessageEdited_SyncEvent()
     await RegisterDeviceAsync(user1Id, "tablet-001");
 
     var conversationId = await CreatePrivateConversationAsync(user1Id, user2Id);
-
+SetCurrentUser(user1Id);
     var message = await SendMessageAsync(
         conversationId,
         user1Id,
@@ -88,7 +92,7 @@ public async Task EditMessage_Should_Create_MessageEdited_SyncEvent()
 
     var editResponse = await _client.PutAsJsonAsync(
         $"/api/v1/messages/{message.Id}",
-        new EditMessageRequest(user1Id, "Edited message"));
+        new EditMessageRequest("Edited message"));
 
     editResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -109,7 +113,7 @@ public async Task DeleteMessage_Should_Create_MessageDeleted_SyncEvent()
     await RegisterDeviceAsync(user1Id, "tablet-001");
 
     var conversationId = await CreatePrivateConversationAsync(user1Id, user2Id);
-
+SetCurrentUser(user1Id);
     var message = await SendMessageAsync(
         conversationId,
         user1Id,
@@ -197,7 +201,7 @@ private async Task<SyncEventsResponse> GetSyncEventsAsync(
     {
         var request = new SendMessageRequest(
             conversationId,
-            senderUserId,
+          
             Guid.Parse(clientMessageId),
             body,
             null,

@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Hosting;
 
 namespace Messenger.IntegrationTests;
 
@@ -24,6 +26,16 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     d.ServiceType.FullName?.Contains("MessengerDbContext") == true)
                 .ToList();
 
+
+                var hostedServices = services
+    .Where(d => d.ServiceType == typeof(IHostedService))
+    .ToList();
+
+foreach (var hostedService in hostedServices)
+{
+    services.Remove(hostedService);
+}
+
             foreach (var descriptor in descriptorsToRemove)
             {
                 services.Remove(descriptor);
@@ -37,6 +49,17 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                     warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning);
                 });
             });
+
+            services.AddAuthentication(options =>
+     {
+         options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
+         options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
+     })
+     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+         TestAuthHandler.SchemeName,
+         _ => { });
+
+
         });
     }
 }
