@@ -49,6 +49,30 @@ public sealed class MinioFileUploader : IFileUploader
         var objectName =
             $"attachments/{DateTime.UtcNow:yyyy/MM/dd}/{fileId}{extension}";
 
+
+
+        var maxFileSize = long.TryParse(
+            _configuration["FileUpload:MaxFileSizeBytes"],
+            out var configuredMaxFileSize)
+            ? configuredMaxFileSize
+            : 50_000_000;
+
+        if (command.Size > maxFileSize)
+            throw new InvalidOperationException("File size exceeds the allowed limit.");
+
+        var allowedContentTypes = _configuration
+            .GetSection("FileUpload:AllowedContentTypes")
+            .Get<string[]>() ?? [];
+
+        if (allowedContentTypes.Length > 0 &&
+            !allowedContentTypes.Contains(command.ContentType))
+        {
+            throw new InvalidOperationException("File type is not allowed.");
+        }
+
+
+
+
         await _minioClient.PutObjectAsync(
             new PutObjectArgs()
                 .WithBucket(bucketName)

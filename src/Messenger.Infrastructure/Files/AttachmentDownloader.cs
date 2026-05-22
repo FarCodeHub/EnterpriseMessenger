@@ -1,16 +1,26 @@
 using Messenger.Application.Files.DownloadFile;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Minio;
+using Minio.DataModel.Args;
 
 namespace Messenger.Infrastructure.Files;
 
 public sealed class AttachmentDownloader : IAttachmentDownloader
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IMinioClient _minioClient;
+    private readonly IConfiguration _configuration;
 
-    public AttachmentDownloader(MessengerDbContext dbContext)
+    public AttachmentDownloader(
+        MessengerDbContext dbContext,
+        IMinioClient minioClient,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
+        _minioClient = minioClient;
+        _configuration = configuration;
     }
 
     public async Task<DownloadAttachmentResult> DownloadAsync(
@@ -23,13 +33,27 @@ public sealed class AttachmentDownloader : IAttachmentDownloader
         if (attachment is null)
             throw new InvalidOperationException("Attachment not found.");
 
-        if (!File.Exists(attachment.StoragePath))
-            throw new FileNotFoundException("File not found on storage.");
+        var bucketName = _configuration["Minio:BucketName"];
 
-        var fileStream = File.OpenRead(attachment.StoragePath);
+        if (string.IsNullOrWhiteSpace(bucketName))
+            throw new InvalidOperationException("MinIO bucket name is not configured.");
+
+        var memoryStream = new MemoryStream();
+
+        await _minioClient.GetObjectAsync(
+            new GetObjectArgs()
+                .WithBucket(bucketName)
+                .WithObject(attachment.StoragePath)
+                .WithCallbackStream(stream =>
+                {
+                    stream.CopyTo(memoryStream);
+                }),
+            cancellationToken);
+
+        memoryStream.Position = 0;
 
         return new DownloadAttachmentResult(
-            fileStream,
+            memoryStream,
             attachment.ContentType,
             attachment.FileName);
     }
