@@ -13,6 +13,7 @@ using Messenger.Application.Messages.SearchMessages;
 using Messenger.Application.Conversations.MarkConversationRead;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Messenger.Api.Controllers;
 [Authorize]
@@ -49,6 +50,8 @@ public sealed class MessagesController : ControllerBase
         _conversationReadMarker = conversationReadMarker;
     }
 
+
+[EnableRateLimiting("messages")]
     [HttpPost]
     public async Task<IActionResult> SendMessage(
     SendMessageRequest request,
