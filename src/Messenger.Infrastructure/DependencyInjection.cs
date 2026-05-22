@@ -44,6 +44,8 @@ using Messenger.Infrastructure.Auditing;
 using Messenger.Application.Users.DeactivateUser;
 using Messenger.Application.Users.ActivateUser;
 using Messenger.Application.Users.MakeAdmin;
+using Messenger.Application.Outbox;
+using Messenger.Infrastructure.Outbox;
 namespace Messenger.Infrastructure;
 
 
@@ -121,6 +123,7 @@ public static class DependencyInjection
         services.AddScoped<IUserDeactivator, UserDeactivator>();
         services.AddScoped<IUserActivator, UserActivator>();
         services.AddScoped<IUserAdminMaker, UserAdminMaker>();
+        services.AddScoped<IOutboxWriter, OutboxWriter>();
         return services;
     }
 }
