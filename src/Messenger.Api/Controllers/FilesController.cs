@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Messenger.Application.Files.DownloadFile;
 using Messenger.Application.Files.UploadFile;
 using Microsoft.AspNetCore.Authorization;
@@ -52,7 +53,9 @@ public sealed class FilesController : ControllerBase
         try
         {
             var result = await _attachmentDownloader.DownloadAsync(
-                new DownloadAttachmentQuery(attachmentId),
+                   new DownloadAttachmentQuery(
+            attachmentId,
+            GetCurrentUserId()),
                 cancellationToken);
 
             return File(
@@ -69,4 +72,17 @@ public sealed class FilesController : ControllerBase
             return NotFound(ex.Message);
         }
     }
+
+
+    private Guid GetCurrentUserId()
+    {
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userIdValue))
+            throw new UnauthorizedAccessException("UserId not found in token.");
+
+        return Guid.Parse(userIdValue);
+    }
+
+
 }

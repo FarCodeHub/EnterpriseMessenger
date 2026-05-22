@@ -1,16 +1,13 @@
 using Messenger.Contracts.Users;
-using Messenger.Domain.Users;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Users.CreateUser;
 using Messenger.Application.Users.RegisterDevice;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization;
 using Messenger.Application.Users.DeactivateUser;
 using Messenger.Application.Users.ActivateUser;
 using Messenger.Application.Users.MakeAdmin;
-using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
 namespace Messenger.Api.Controllers;

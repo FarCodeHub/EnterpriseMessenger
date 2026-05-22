@@ -33,6 +33,22 @@ public sealed class AttachmentDownloader : IAttachmentDownloader
         if (attachment is null)
             throw new InvalidOperationException("Attachment not found.");
 
+        var message = await _dbContext.Messages
+            .FirstOrDefaultAsync(x => x.Id == attachment.MessageId, cancellationToken);
+
+        if (message is null)
+            throw new InvalidOperationException("Message not found.");
+
+        var isMember = await _dbContext.ConversationMembers
+            .AnyAsync(x =>
+                x.ConversationId == message.ConversationId &&
+                x.UserId == query.CurrentUserId &&
+                x.LeftAtUtc == null,
+                cancellationToken);
+
+        if (!isMember)
+            throw new UnauthorizedAccessException("You do not have access to this attachment.");
+
         var bucketName = _configuration["Minio:BucketName"];
 
         if (string.IsNullOrWhiteSpace(bucketName))
