@@ -27,7 +27,21 @@ services:
     volumes:
       - enterprise_messenger_rabbitmq_data:/var/lib/rabbitmq
     restart: unless-stopped
+  minio:
+    image: minio/minio
+    container_name: enterprise-messenger-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - enterprise_messenger_minio_data:/data
+    restart: unless-stopped
 volumes:
   enterprise_messenger_postgres_data:
   enterprise_messenger_redis_data:
   enterprise_messenger_rabbitmq_data:
+  enterprise_messenger_minio_data:

@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Messenger.Application.Files.DownloadFile;
+using Messenger.Application.Files.GetDownloadUrl;
 using Messenger.Application.Files.UploadFile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,15 +13,36 @@ public sealed class FilesController : ControllerBase
 {
     private readonly IFileUploader _fileUploader;
     private readonly IAttachmentDownloader _attachmentDownloader;
+    private readonly IAttachmentDownloadUrlGenerator _downloadUrlGenerator;
 
     public FilesController(
         IFileUploader fileUploader,
-        IAttachmentDownloader attachmentDownloader)
+        IAttachmentDownloader attachmentDownloader,
+        IAttachmentDownloadUrlGenerator downloadUrlGenerator)
     {
         _fileUploader = fileUploader;
         _attachmentDownloader = attachmentDownloader;
+        _downloadUrlGenerator = downloadUrlGenerator;
     }
 
+
+
+
+
+[Authorize]
+[HttpGet("{attachmentId:guid}/download-url")]
+public async Task<IActionResult> GetDownloadUrl(
+    Guid attachmentId,
+    CancellationToken cancellationToken)
+{
+    var result = await _downloadUrlGenerator.GenerateAsync(
+        new GetAttachmentDownloadUrlQuery(
+            attachmentId,
+            GetCurrentUserId()),
+        cancellationToken);
+
+    return Ok(result);
+}
     [HttpPost("upload")]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> UploadFile(
@@ -52,7 +75,9 @@ public sealed class FilesController : ControllerBase
         try
         {
             var result = await _attachmentDownloader.DownloadAsync(
-                new DownloadAttachmentQuery(attachmentId),
+                   new DownloadAttachmentQuery(
+            attachmentId,
+            GetCurrentUserId()),
                 cancellationToken);
 
             return File(
@@ -69,4 +94,17 @@ public sealed class FilesController : ControllerBase
             return NotFound(ex.Message);
         }
     }
+
+
+    private Guid GetCurrentUserId()
+    {
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userIdValue))
+            throw new UnauthorizedAccessException("UserId not found in token.");
+
+        return Guid.Parse(userIdValue);
+    }
+
+
 }
