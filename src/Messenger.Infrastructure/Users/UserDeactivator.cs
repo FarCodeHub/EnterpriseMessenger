@@ -20,11 +20,27 @@ public sealed class UserDeactivator : IUserDeactivator
         DeactivateUserCommand command,
         CancellationToken cancellationToken)
     {
+
+
+          if (command.ActorUserId == command.TargetUserId)
+    throw new InvalidOperationException("You cannot deactivate yourself.");
+
         var user = await _dbContext.Users
       .FirstOrDefaultAsync(x => x.Id == command.TargetUserId, cancellationToken);
 
-        if (user is null)
+ if (user is null)
             throw new InvalidOperationException("User not found.");
+
+    if (user.IsAdmin)
+{
+    var activeAdminsCount = await _dbContext.Users
+        .CountAsync(x => x.IsAdmin && x.IsActive, cancellationToken);
+
+    if (activeAdminsCount <= 1)
+        throw new InvalidOperationException("Cannot deactivate the last active admin.");
+}
+
+       
 
         user.Deactivate();
 
