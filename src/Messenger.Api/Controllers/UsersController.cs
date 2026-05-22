@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Messenger.Application.Users.DeactivateUser;
 using Messenger.Application.Users.ActivateUser;
+using Messenger.Application.Users.MakeAdmin;
+
 
 namespace Messenger.Api.Controllers;
 [Authorize]
@@ -21,41 +23,32 @@ public sealed class UsersController : ControllerBase
     private readonly IUserDeviceRegistrar _userDeviceRegistrar;
     private readonly IUserDeactivator _userDeactivator;
     private readonly IUserActivator _userActivator;
+    private readonly IUserAdminMaker _userAdminMaker;
 
-    public UsersController(MessengerDbContext dbContext, IUserDeviceRegistrar userDeviceRegistrar, IUserCreator userCreator, IUserDeactivator userDeactivator, IUserActivator userActivator)
+    public UsersController(MessengerDbContext dbContext, IUserDeviceRegistrar userDeviceRegistrar, IUserCreator userCreator, IUserDeactivator userDeactivator, IUserActivator userActivator, IUserAdminMaker userAdminMaker)
     {
         _dbContext = dbContext;
         _userDeviceRegistrar = userDeviceRegistrar;
         _userCreator = userCreator;
         _userDeactivator = userDeactivator;
         _userActivator = userActivator;
+        _userAdminMaker = userAdminMaker;
     }
 
-
-    [Authorize(Roles = "Admin")]
+ [Authorize(Roles = "Admin")]
 [HttpPost("{userId:guid}/make-admin")]
 public async Task<IActionResult> MakeAdmin(
     Guid userId,
     CancellationToken cancellationToken)
 {
-    var user = await _dbContext.Users
-        .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+    var result = await _userAdminMaker.MakeAdminAsync(
+        new MakeUserAdminCommand(userId),
+        cancellationToken);
 
-    if (user is null)
-        return NotFound("User not found.");
-
-    user.MakeAdmin();
-
-    await _dbContext.SaveChangesAsync(cancellationToken);
-
-    return Ok(new
-    {
-        user.Id,
-        user.DisplayName,
-        user.UserName,
-        user.IsAdmin
-    });
+    return Ok(result);
 }
+
+
 
  [Authorize(Roles = "Admin")]
 [HttpPost("{userId:guid}/activate")]

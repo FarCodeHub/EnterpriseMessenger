@@ -43,6 +43,7 @@ using Messenger.Application.Auditing;
 using Messenger.Infrastructure.Auditing;
 using Messenger.Application.Users.DeactivateUser;
 using Messenger.Application.Users.ActivateUser;
+using Messenger.Application.Users.MakeAdmin;
 namespace Messenger.Infrastructure;
 
 
@@ -119,6 +120,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditLogWriter, AuditLogWriter>();
         services.AddScoped<IUserDeactivator, UserDeactivator>();
         services.AddScoped<IUserActivator, UserActivator>();
+        services.AddScoped<IUserAdminMaker, UserAdminMaker>();
         return services;
     }
 }
