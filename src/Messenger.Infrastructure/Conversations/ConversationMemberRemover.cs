@@ -1,4 +1,5 @@
 using Messenger.Application.Auditing;
+using Messenger.Application.Conversations;
 using Messenger.Application.Conversations.RemoveMember;
 using Messenger.Domain.Enums;
 using Messenger.Infrastructure.Persistence;
@@ -10,17 +11,26 @@ public sealed class ConversationMemberRemover : IConversationMemberRemover
 {
     private readonly MessengerDbContext _dbContext;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly IConversationPermissionChecker _permissionChecker;
 
-    public ConversationMemberRemover(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
+    public ConversationMemberRemover(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter, IConversationPermissionChecker permissionChecker)
     {
         _dbContext = dbContext;
         _auditLogWriter = auditLogWriter;
+        _permissionChecker = permissionChecker;
     }
 
     public async Task<RemoveConversationMemberResult> RemoveAsync(
         RemoveConversationMemberCommand command,
         CancellationToken cancellationToken)
     {
+
+await _permissionChecker.EnsureOwnerOrAdminAsync(
+    command.ConversationId,
+    command.CurrentUserId,
+    cancellationToken);
+
+
         var currentMember = await _dbContext.ConversationMembers
             .FirstOrDefaultAsync(x =>
                 x.ConversationId == command.ConversationId &&
