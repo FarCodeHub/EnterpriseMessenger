@@ -1,4 +1,5 @@
 using Messenger.Application.Auditing;
+using Messenger.Application.Conversations;
 using Messenger.Application.Conversations.AddMember;
 using Messenger.Domain.Conversations;
 using Messenger.Domain.Enums;
@@ -11,30 +12,29 @@ public sealed class ConversationMemberAdder : IConversationMemberAdder
 {
     private readonly MessengerDbContext _dbContext;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly IConversationPermissionChecker _permissionChecker;
 
-    public ConversationMemberAdder(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
+    public ConversationMemberAdder(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter, IConversationPermissionChecker permissionChecker)
     {
         _dbContext = dbContext;
         _auditLogWriter = auditLogWriter;
+        _permissionChecker = permissionChecker;
     }
 
     public async Task<AddConversationMemberResult> AddAsync(
         AddConversationMemberCommand command,
         CancellationToken cancellationToken)
     {
-        var currentMember = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == command.ConversationId &&
-                x.UserId == command.CurrentUserId &&
-                x.LeftAtUtc == null,
-                cancellationToken);
+ 
+ 
 
-        if (currentMember is null ||
-            (currentMember.Role != ConversationMemberRole.Owner &&
-             currentMember.Role != ConversationMemberRole.Admin))
-        {
-            throw new UnauthorizedAccessException("Only owner or admin can manage members.");
-        }
+
+await _permissionChecker.EnsureOwnerOrAdminAsync(
+    command.ConversationId,
+    command.CurrentUserId,
+    cancellationToken);
+
+
 
         var userExists = await _dbContext.Users
             .AnyAsync(x => x.Id == command.UserIdToAdd, cancellationToken);

@@ -1,3 +1,4 @@
+using Messenger.Application.Conversations;
 using Messenger.Application.Files.GetDownloadUrl;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -13,14 +14,18 @@ public sealed class MinioAttachmentDownloadUrlGenerator : IAttachmentDownloadUrl
     private readonly IMinioClient _minioClient;
     private readonly IConfiguration _configuration;
 
+    private readonly IConversationPermissionChecker _permissionChecker;
+
     public MinioAttachmentDownloadUrlGenerator(
         MessengerDbContext dbContext,
         IMinioClient minioClient,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IConversationPermissionChecker permissionChecker)
     {
         _dbContext = dbContext;
         _minioClient = minioClient;
         _configuration = configuration;
+        _permissionChecker = permissionChecker;
     }
 
     public async Task<GetAttachmentDownloadUrlResult> GenerateAsync(
@@ -39,15 +44,11 @@ public sealed class MinioAttachmentDownloadUrlGenerator : IAttachmentDownloadUrl
         if (message is null)
             throw new InvalidOperationException("Message not found.");
 
-        var isMember = await _dbContext.ConversationMembers
-            .AnyAsync(x =>
-                x.ConversationId == message.ConversationId &&
-                x.UserId == query.CurrentUserId &&
-                x.LeftAtUtc == null,
-                cancellationToken);
 
-        if (!isMember)
-            throw new UnauthorizedAccessException("You do not have access to this attachment.");
+        await _permissionChecker.EnsureActiveMemberAsync(
+    message.ConversationId,
+    query.CurrentUserId,
+    cancellationToken);
 
         var bucketName = _configuration["Minio:BucketName"];
 
