@@ -21,7 +21,7 @@ public sealed class UserDeactivator : IUserDeactivator
         CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users
-            .FirstOrDefaultAsync(x => x.Id == command.UserId, cancellationToken);
+      .FirstOrDefaultAsync(x => x.Id == command.TargetUserId, cancellationToken);
 
         if (user is null)
             throw new InvalidOperationException("User not found.");
@@ -30,7 +30,7 @@ public sealed class UserDeactivator : IUserDeactivator
 
         var activeRefreshTokens = await _dbContext.RefreshTokens
             .Where(x =>
-                x.UserId == command.UserId &&
+                x.UserId == command.TargetUserId &&
                 x.RevokedAtUtc == null)
             .ToListAsync(cancellationToken);
 
@@ -41,16 +41,17 @@ public sealed class UserDeactivator : IUserDeactivator
 
 
         await _auditLogWriter.WriteAsync(
-    "UserDeactivated",
-    command.UserId,
-    "User",
-    user.Id.ToString(),
-    new
-    {
-        user.UserName,
-        RevokedTokensCount = activeRefreshTokens.Count
-    },
-    cancellationToken);
+            "UserDeactivated",
+            command.ActorUserId,
+            "User",
+            user.Id.ToString(),
+            new
+            {
+                TargetUserId = user.Id,
+                user.UserName,
+                RevokedTokensCount = activeRefreshTokens.Count
+            },
+            cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 

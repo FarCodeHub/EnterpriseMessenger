@@ -10,9 +10,11 @@ using Microsoft.AspNetCore.Authorization;
 using Messenger.Application.Users.DeactivateUser;
 using Messenger.Application.Users.ActivateUser;
 using Messenger.Application.Users.MakeAdmin;
-
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Messenger.Api.Controllers;
+
 [Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
@@ -35,67 +37,81 @@ public sealed class UsersController : ControllerBase
         _userAdminMaker = userAdminMaker;
     }
 
- [Authorize(Roles = "Admin")]
-[HttpPost("{userId:guid}/make-admin")]
-public async Task<IActionResult> MakeAdmin(
-    Guid userId,
-    CancellationToken cancellationToken)
-{
-    var result = await _userAdminMaker.MakeAdminAsync(
-        new MakeUserAdminCommand(userId),
-        cancellationToken);
-
-    return Ok(result);
-}
-
-
-
- [Authorize(Roles = "Admin")]
-[HttpPost("{userId:guid}/activate")]
-public async Task<IActionResult> ActivateUser(
-    Guid userId,
-    CancellationToken cancellationToken)
-{
-    var result = await _userActivator.ActivateAsync(
-        new ActivateUserCommand(userId),
-        cancellationToken);
-
-    return Ok(result);
-}
-
- [Authorize(Roles = "Admin")]
-[HttpPost("{userId:guid}/deactivate")]
-public async Task<IActionResult> DeactivateUser(
-    Guid userId,
-    CancellationToken cancellationToken)
-{
-    var result = await _userDeactivator.DeactivateAsync(
-        new DeactivateUserCommand(userId),
-        cancellationToken);
-
-    return Ok(result);
-}
-
-  [HttpPost]
-public async Task<IActionResult> CreateUser(
-    CreateUserRequest request,
-    CancellationToken cancellationToken)
-{
-    try
+    private Guid GetCurrentUserId()
     {
-        var result = await _userCreator.CreateAsync(
-            new CreateUserCommand(
-                request.DisplayName,
-                request.UserName),
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(userIdValue))
+            throw new UnauthorizedAccessException("UserId not found in token.");
+
+        return Guid.Parse(userIdValue);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost("{userId:guid}/make-admin")]
+    public async Task<IActionResult> MakeAdmin(
+       Guid userId,
+       CancellationToken cancellationToken)
+    {
+        var result = await _userAdminMaker.MakeAdminAsync(
+          new MakeUserAdminCommand(
+    GetCurrentUserId(),
+    userId),
             cancellationToken);
 
         return Ok(result);
     }
-    catch (InvalidOperationException ex)
+
+
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost("{userId:guid}/activate")]
+    public async Task<IActionResult> ActivateUser(
+       Guid userId,
+       CancellationToken cancellationToken)
     {
-        return Conflict(ex.Message);
+        var result = await _userActivator.ActivateAsync(
+            new ActivateUserCommand(
+        GetCurrentUserId(),
+        userId),
+            cancellationToken);
+
+        return Ok(result);
     }
-}
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost("{userId:guid}/deactivate")]
+    public async Task<IActionResult> DeactivateUser(
+       Guid userId,
+       CancellationToken cancellationToken)
+    {
+        var result = await _userDeactivator.DeactivateAsync(
+            new DeactivateUserCommand(GetCurrentUserId(), userId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CreateUser(
+      CreateUserRequest request,
+      CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _userCreator.CreateAsync(
+                new CreateUserCommand(
+                    request.DisplayName,
+                    request.UserName),
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
+    }
     [HttpGet]
     public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
     {
@@ -114,28 +130,28 @@ public async Task<IActionResult> CreateUser(
         return Ok(users);
     }
 
- [HttpPost("{userId:guid}/devices")]
-public async Task<IActionResult> RegisterDevice(
-    Guid userId,
-    RegisterDeviceRequest request,
-    CancellationToken cancellationToken)
-{
-    try
+    [HttpPost("{userId:guid}/devices")]
+    public async Task<IActionResult> RegisterDevice(
+       Guid userId,
+       RegisterDeviceRequest request,
+       CancellationToken cancellationToken)
     {
-        var result = await _userDeviceRegistrar.RegisterAsync(
-            new RegisterDeviceCommand(
-                userId,
-                request.DeviceId,
-                request.DeviceName),
-            cancellationToken);
+        try
+        {
+            var result = await _userDeviceRegistrar.RegisterAsync(
+                new RegisterDeviceCommand(
+                    userId,
+                    request.DeviceId,
+                    request.DeviceName),
+                cancellationToken);
 
-        return Ok(result);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ex.Message);
+        }
     }
-    catch (InvalidOperationException ex)
-    {
-        return NotFound(ex.Message);
-    }
-}
 
 
 }

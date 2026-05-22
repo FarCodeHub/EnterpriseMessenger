@@ -1,11 +1,6 @@
-using Messenger.Api.Auth;
 using Messenger.Contracts.Auth;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
-using Messenger.Domain.Users;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Messenger.Application.Auth.Login;

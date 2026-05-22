@@ -21,7 +21,7 @@ public sealed class UserActivator : IUserActivator
         CancellationToken cancellationToken)
     {
         var user = await _dbContext.Users
-            .FirstOrDefaultAsync(x => x.Id == command.UserId, cancellationToken);
+     .FirstOrDefaultAsync(x => x.Id == command.TargetUserId, cancellationToken);
 
         if (user is null)
             throw new InvalidOperationException("User not found.");
@@ -29,15 +29,16 @@ public sealed class UserActivator : IUserActivator
         user.Activate();
 
         await _auditLogWriter.WriteAsync(
-    "UserActivated",
-    command.UserId,
-    "User",
-    user.Id.ToString(),
-    new
-    {
-        user.UserName
-    },
-    cancellationToken);
+            "UserActivated",
+            command.ActorUserId,
+            "User",
+            user.Id.ToString(),
+            new
+            {
+                TargetUserId = user.Id,
+                user.UserName
+            },
+            cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
