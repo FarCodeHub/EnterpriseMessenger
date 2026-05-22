@@ -134,6 +134,9 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddHostedService<NotificationDispatchWorker>();
+builder.Services.AddHostedService<OutboxPublisherWorker>();
+builder.Services.AddHostedService<OutboxCleanupWorker>();
+builder.Services.AddHostedService<DeadLetterOutboxMoverWorker>();
 
 var rabbitMqHost =
     builder.Configuration["RabbitMq:Host"] ?? "localhost";

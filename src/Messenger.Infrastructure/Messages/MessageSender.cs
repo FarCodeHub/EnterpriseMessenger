@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MassTransit;
 using Messenger.Contracts.IntegrationEvents;
 using Messenger.Application.Auditing;
+using Messenger.Application.Outbox;
 
 namespace Messenger.Infrastructure.Messages;
 
@@ -13,19 +14,21 @@ public sealed class MessageSender : IMessageSender
 {
     private readonly MessengerDbContext _dbContext;
     private readonly IUserSyncEventWriter _syncEventWriter;
-    private readonly IPublishEndpoint _publishEndpoint;
+   private readonly IOutboxWriter _outboxWriter;
     private readonly IAuditLogWriter _auditLogWriter;
 
     public MessageSender(
         MessengerDbContext dbContext,
         IUserSyncEventWriter syncEventWriter,
-        IPublishEndpoint publishEndpoint,
-        IAuditLogWriter auditLogWriter)
+       
+        IAuditLogWriter auditLogWriter,
+        IOutboxWriter outboxWriter)
     {
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
-        _publishEndpoint = publishEndpoint;
+       
         _auditLogWriter = auditLogWriter;
+        _outboxWriter = outboxWriter;
     }
 
     public async Task<SendMessageResult> SendAsync(
@@ -170,16 +173,23 @@ public sealed class MessageSender : IMessageSender
             cancellationToken);
 
 
+await _outboxWriter.AddAsync(
+    new MessageCreatedIntegrationEvent(
+        message.Id,
+        message.ConversationId,
+        message.SequenceNumber,
+        message.SenderUserId,
+        message.Body,
+        message.CreatedAtUtc),
+    cancellationToken);
+
+
+
         await _dbContext.SaveChangesAsync(cancellationToken);
-        await _publishEndpoint.Publish(
-            new MessageCreatedIntegrationEvent(
-                message.Id,
-                message.ConversationId,
-                message.SequenceNumber,
-                message.SenderUserId,
-                message.Body,
-                message.CreatedAtUtc),
-            cancellationToken);
+    
+    
+
+
         return new SendMessageResult(
             message.Id,
             message.ConversationId,
