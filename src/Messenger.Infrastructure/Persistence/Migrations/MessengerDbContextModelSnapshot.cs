@@ -341,6 +341,46 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.ToTable("Notifications", (string)null);
                 });
 
+            modelBuilder.Entity("Messenger.Domain.Outbox.DeadLetterOutboxMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("MovedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OriginalOutboxMessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MovedAtUtc");
+
+                    b.HasIndex("OriginalOutboxMessageId");
+
+                    b.ToTable("DeadLetterOutboxMessages", (string)null);
+                });
+
             modelBuilder.Entity("Messenger.Domain.Outbox.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -363,6 +403,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ProcessedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -371,6 +414,8 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ProcessedAtUtc", "OccurredAtUtc");
+
+                    b.HasIndex("ProcessedAtUtc", "RetryCount", "OccurredAtUtc");
 
                     b.ToTable("OutboxMessages", (string)null);
                 });

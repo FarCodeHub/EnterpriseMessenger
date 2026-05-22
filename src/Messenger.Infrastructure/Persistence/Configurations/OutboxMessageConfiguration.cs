@@ -19,6 +19,10 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
         builder.Property(x => x.Payload)
             .IsRequired()
             .HasColumnType("jsonb");
+            builder.Property(x => x.RetryCount)
+    .IsRequired();
+
+builder.HasIndex(x => new { x.ProcessedAtUtc, x.RetryCount, x.OccurredAtUtc });
 
         builder.HasIndex(x => new { x.ProcessedAtUtc, x.OccurredAtUtc });
     }

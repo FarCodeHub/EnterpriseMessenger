@@ -1,0 +1,29 @@
+using Messenger.Domain.Outbox;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Messenger.Infrastructure.Persistence.Configurations;
+
+public sealed class DeadLetterOutboxMessageConfiguration : IEntityTypeConfiguration<DeadLetterOutboxMessage>
+{
+    public void Configure(EntityTypeBuilder<DeadLetterOutboxMessage> builder)
+    {
+        builder.ToTable("DeadLetterOutboxMessages");
+
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Type)
+            .IsRequired()
+            .HasMaxLength(500);
+
+        builder.Property(x => x.Payload)
+            .IsRequired()
+            .HasColumnType("jsonb");
+
+        builder.Property(x => x.Error)
+            .IsRequired();
+
+        builder.HasIndex(x => x.OriginalOutboxMessageId);
+        builder.HasIndex(x => x.MovedAtUtc);
+    }
+}

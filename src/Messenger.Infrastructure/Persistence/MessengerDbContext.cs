@@ -31,6 +31,7 @@ public sealed class MessengerDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<DeadLetterOutboxMessage> DeadLetterOutboxMessages => Set<DeadLetterOutboxMessage>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MessengerDbContext).Assembly);

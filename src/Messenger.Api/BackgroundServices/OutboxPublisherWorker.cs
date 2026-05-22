@@ -35,7 +35,7 @@ public sealed class OutboxPublisherWorker : BackgroundService
         var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
         var messages = await dbContext.OutboxMessages
-            .Where(x => x.ProcessedAtUtc == null)
+            .Where(x => x.ProcessedAtUtc == null && x.RetryCount < 5)
             .OrderBy(x => x.OccurredAtUtc)
             .Take(50)
             .ToListAsync(cancellationToken);

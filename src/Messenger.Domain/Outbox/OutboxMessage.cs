@@ -13,6 +13,7 @@ public class OutboxMessage : BaseEntity
     public DateTime? ProcessedAtUtc { get; private set; }
 
     public string? Error { get; private set; }
+    public int RetryCount { get; private set; }
 
     private OutboxMessage()
     {
@@ -31,8 +32,9 @@ public class OutboxMessage : BaseEntity
         Error = null;
     }
 
-    public void MarkAsFailed(string error)
-    {
-        Error = error;
-    }
+public void MarkAsFailed(string error)
+{
+    RetryCount++;
+    Error = error;
+}
 }
