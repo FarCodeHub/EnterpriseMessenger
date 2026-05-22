@@ -41,6 +41,8 @@ using Messenger.Application.Auth.RevokeSession;
 using Messenger.Application.Auth.GetSessions;
 using Messenger.Application.Auditing;
 using Messenger.Infrastructure.Auditing;
+using Messenger.Application.Users.DeactivateUser;
+using Messenger.Application.Users.ActivateUser;
 namespace Messenger.Infrastructure;
 
 
@@ -115,6 +117,8 @@ public static class DependencyInjection
         services.AddScoped<ISessionRevoker, SessionRevoker>();
         services.AddScoped<IUserSessionReader, UserSessionReader>();
         services.AddScoped<IAuditLogWriter, AuditLogWriter>();
+        services.AddScoped<IUserDeactivator, UserDeactivator>();
+        services.AddScoped<IUserActivator, UserActivator>();
         return services;
     }
 }
