@@ -4,6 +4,7 @@ using Messenger.Application.Files.GetDownloadUrl;
 using Messenger.Application.Files.UploadFile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Messenger.Api.Controllers;
 [Authorize]
@@ -43,6 +44,10 @@ public async Task<IActionResult> GetDownloadUrl(
 
     return Ok(result);
 }
+
+
+
+[EnableRateLimiting("messages")]
     [HttpPost("upload")]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> UploadFile(
