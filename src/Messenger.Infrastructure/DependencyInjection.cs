@@ -46,6 +46,7 @@ using Messenger.Application.Users.ActivateUser;
 using Messenger.Application.Users.MakeAdmin;
 using Messenger.Application.Outbox;
 using Messenger.Infrastructure.Outbox;
+using Minio;
 namespace Messenger.Infrastructure;
 
 
@@ -76,7 +77,6 @@ public static class DependencyInjection
         services.AddScoped<IUserDeviceRegistrar, UserDeviceRegistrar>();
         services.AddScoped<ISyncEventReader, SyncEventReader>();
         services.AddScoped<ISyncCommitter, SyncCommitter>();
-        services.AddScoped<IFileUploader, LocalFileUploader>();
         services.AddScoped<IAttachmentDownloader, AttachmentDownloader>();
         var redisConnectionString = configuration["Redis:ConnectionString"];
 
@@ -124,6 +124,24 @@ public static class DependencyInjection
         services.AddScoped<IUserActivator, UserActivator>();
         services.AddScoped<IUserAdminMaker, UserAdminMaker>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
+        var minioEndpoint = configuration["Minio:Endpoint"] ?? "localhost:9000";
+        var minioAccessKey = configuration["Minio:AccessKey"] ?? "minioadmin";
+        var minioSecretKey = configuration["Minio:SecretKey"] ?? "minioadmin";
+        var minioUseSsl = bool.TryParse(configuration["Minio:UseSsl"], out var useSsl) && useSsl;
+
+        services.AddSingleton<IMinioClient>(_ =>
+        {
+            var builder = new MinioClient()
+                .WithEndpoint(minioEndpoint)
+                .WithCredentials(minioAccessKey, minioSecretKey);
+
+            if (minioUseSsl)
+                builder = builder.WithSSL();
+
+            return builder.Build();
+        });
+
+        services.AddScoped<IFileUploader, MinioFileUploader>(); 
         return services;
     }
 }
