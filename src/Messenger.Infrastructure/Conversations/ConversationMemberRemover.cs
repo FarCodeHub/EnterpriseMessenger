@@ -47,9 +47,17 @@ public sealed class ConversationMemberRemover : IConversationMemberRemover
               x.UserId == command.UserIdToRemove &&
               x.LeftAtUtc == null,
               cancellationToken);
+
+
+
+
         if (targetMember is null)
             throw new InvalidOperationException("User is not an active member of the conversation.");
 
+
+if (targetMember.Role == ConversationMemberRole.Owner)
+    throw new InvalidOperationException("Owner cannot be removed.");
+    
         if (currentUserRole == ConversationMemberRole.Admin &&
             targetMember.Role == ConversationMemberRole.Admin)
         {
