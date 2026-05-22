@@ -30,8 +30,11 @@ public sealed class UserLoginService : IUserLoginService
         var user = await _dbContext.Users
             .FirstOrDefaultAsync(x => x.UserName == command.UserName, cancellationToken);
 
-        if (user is null)
-            throw new UnauthorizedAccessException("Invalid username.");
+            if (user is null)
+                throw new UnauthorizedAccessException("Invalid username.");
+
+            if (!user.IsActive)
+                throw new UnauthorizedAccessException("User is not active.");
 
         var accessToken = _tokenService.CreateAccessToken(
             user.Id,
