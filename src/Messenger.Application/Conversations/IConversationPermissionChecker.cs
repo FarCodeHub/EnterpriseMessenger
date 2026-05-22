@@ -18,4 +18,10 @@ public interface IConversationPermissionChecker
         Guid conversationId,
         Guid userId,
         CancellationToken cancellationToken);
+
+
+        Task<ConversationMemberRole> GetActiveMemberRoleAsync(
+    Guid conversationId,
+    Guid userId,
+    CancellationToken cancellationToken);
 }

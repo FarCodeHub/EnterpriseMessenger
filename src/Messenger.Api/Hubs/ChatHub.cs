@@ -5,6 +5,7 @@ using Messenger.Domain.Messages;
 using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Hubs;
 
+using Messenger.Application.Conversations;
 using Messenger.Application.Realtime;
 using Microsoft.AspNetCore.Authorization;
 
@@ -14,16 +15,19 @@ public sealed class ChatHub : Hub
 {
     private readonly IConnectionTracker _connectionTracker;
     private readonly MessengerDbContext _dbContext;
+    private readonly IConversationPermissionChecker _permissionChecker;
 
-public ChatHub(
-    IConnectionTracker connectionTracker,
-    MessengerDbContext dbContext)
-{
-    _connectionTracker = connectionTracker;
-    _dbContext = dbContext;
-}
+    public ChatHub(
+        IConnectionTracker connectionTracker,
+        MessengerDbContext dbContext,
+        IConversationPermissionChecker permissionChecker)
+    {
+        _connectionTracker = connectionTracker;
+        _dbContext = dbContext;
+        _permissionChecker = permissionChecker;
+    }
 
-public async Task RegisterUser()
+    public async Task RegisterUser()
 {
     var userId = GetCurrentUserId();
 
@@ -43,7 +47,10 @@ public async Task JoinConversation(string conversationId)
 
     var currentUserId = GetCurrentUserId();
 
-    await EnsureConversationMemberAsync(parsedConversationId, currentUserId);
+    await _permissionChecker.EnsureActiveMemberAsync(
+    parsedConversationId,
+    currentUserId,
+    Context.ConnectionAborted);
  
     await Groups.AddToGroupAsync(
         Context.ConnectionId,
@@ -193,7 +200,10 @@ public async Task StartTyping(string conversationId)
 
     var currentUserId = GetCurrentUserId();
 
-    await EnsureConversationMemberAsync(parsedConversationId, currentUserId);
+  await _permissionChecker.EnsureActiveMemberAsync(
+    parsedConversationId,
+    currentUserId,
+    Context.ConnectionAborted);
 
     await Clients
         .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
@@ -212,7 +222,10 @@ public async Task StopTyping(string conversationId)
 
     var currentUserId = GetCurrentUserId();
 
-    await EnsureConversationMemberAsync(parsedConversationId, currentUserId);
+ await _permissionChecker.EnsureActiveMemberAsync(
+    parsedConversationId,
+    currentUserId,
+    Context.ConnectionAborted);
 
     await Clients
         .GroupExcept($"conversation:{parsedConversationId}", Context.ConnectionId)
@@ -235,17 +248,6 @@ private Guid GetCurrentUserId()
 }
 
 
-private async Task EnsureConversationMemberAsync(
-    Guid conversationId,
-    Guid userId)
-{
-    var isMember = await _dbContext.ConversationMembers
-        .AnyAsync(x =>
-            x.ConversationId == conversationId && x.LeftAtUtc == null&&
-            x.UserId == userId && x.LeftAtUtc == null);
-
-    if (!isMember)
-        throw new HubException("You are not a member of this conversation.");
-}
+ 
 
 }

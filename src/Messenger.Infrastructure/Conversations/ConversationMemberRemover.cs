@@ -25,42 +25,39 @@ public sealed class ConversationMemberRemover : IConversationMemberRemover
         CancellationToken cancellationToken)
     {
 
-await _permissionChecker.EnsureOwnerOrAdminAsync(
-    command.ConversationId,
-    command.CurrentUserId,
-    cancellationToken);
 
 
-        var currentMember = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == command.ConversationId &&
-                x.UserId == command.CurrentUserId &&
-                x.LeftAtUtc == null,
-                cancellationToken);
 
-        if (currentMember is null ||
-            (currentMember.Role != ConversationMemberRole.Owner &&
-             currentMember.Role != ConversationMemberRole.Admin))
-        {
-            throw new UnauthorizedAccessException("Only owner or admin can remove members.");
-        }
+        var currentUserRole = await _permissionChecker.GetActiveMemberRoleAsync(
+         command.ConversationId,
+         command.CurrentUserId,
+         cancellationToken);
+
+
+
+        await _permissionChecker.EnsureOwnerOrAdminAsync(
+            command.ConversationId,
+            command.CurrentUserId,
+            cancellationToken);
+
 
         var targetMember = await _dbContext.ConversationMembers
-            .FirstOrDefaultAsync(x =>
-                x.ConversationId == command.ConversationId &&
-                x.UserId == command.UserIdToRemove &&
-                x.LeftAtUtc == null,
-                cancellationToken);
-
+          .FirstOrDefaultAsync(x =>
+              x.ConversationId == command.ConversationId &&
+              x.UserId == command.UserIdToRemove &&
+              x.LeftAtUtc == null,
+              cancellationToken);
         if (targetMember is null)
-            throw new InvalidOperationException("Member not found.");
+            throw new InvalidOperationException("User is not an active member of the conversation.");
 
-        if (targetMember.Role == ConversationMemberRole.Owner)
-            throw new InvalidOperationException("Owner cannot be removed.");
-
-        if (currentMember.Role == ConversationMemberRole.Admin &&
+        if (currentUserRole == ConversationMemberRole.Admin &&
             targetMember.Role == ConversationMemberRole.Admin)
+        {
             throw new UnauthorizedAccessException("Admin cannot remove another admin.");
+        }
+
+
+
 
         targetMember.Leave();
         await _auditLogWriter.WriteAsync(

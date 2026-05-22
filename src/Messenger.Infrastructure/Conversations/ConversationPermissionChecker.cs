@@ -14,6 +14,25 @@ public sealed class ConversationPermissionChecker : IConversationPermissionCheck
         _dbContext = dbContext;
     }
 
+
+    public async Task<ConversationMemberRole> GetActiveMemberRoleAsync(
+    Guid conversationId,
+    Guid userId,
+    CancellationToken cancellationToken)
+{
+    var member = await _dbContext.ConversationMembers
+        .FirstOrDefaultAsync(x =>
+            x.ConversationId == conversationId &&
+            x.UserId == userId &&
+            x.LeftAtUtc == null,
+            cancellationToken);
+
+    if (member is null)
+        throw new UnauthorizedAccessException("You are not a member of this conversation.");
+
+    return member.Role;
+}
+
     public async Task EnsureActiveMemberAsync(
         Guid conversationId,
         Guid userId,
