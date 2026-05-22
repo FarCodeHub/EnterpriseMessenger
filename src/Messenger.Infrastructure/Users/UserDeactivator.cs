@@ -1,3 +1,4 @@
+using Messenger.Application.Auditing;
 using Messenger.Application.Users.DeactivateUser;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -7,10 +8,12 @@ namespace Messenger.Infrastructure.Users;
 public sealed class UserDeactivator : IUserDeactivator
 {
     private readonly MessengerDbContext _dbContext;
+    private readonly IAuditLogWriter _auditLogWriter;
 
-    public UserDeactivator(MessengerDbContext dbContext)
+    public UserDeactivator(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
+        _auditLogWriter = auditLogWriter;
     }
 
     public async Task<DeactivateUserResult> DeactivateAsync(
@@ -35,6 +38,19 @@ public sealed class UserDeactivator : IUserDeactivator
         {
             token.Revoke();
         }
+
+
+        await _auditLogWriter.WriteAsync(
+    "UserDeactivated",
+    command.UserId,
+    "User",
+    user.Id.ToString(),
+    new
+    {
+        user.UserName,
+        RevokedTokensCount = activeRefreshTokens.Count
+    },
+    cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
