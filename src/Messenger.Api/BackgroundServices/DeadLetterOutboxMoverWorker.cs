@@ -21,7 +21,18 @@ public sealed class DeadLetterOutboxMoverWorker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await MoveFailedMessagesAsync(stoppingToken);
+
+            try
+            {
+                await MoveFailedMessagesAsync(stoppingToken);
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Worker failed. It will retry later.");
+            }
+
+            
             await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
         }
     }
