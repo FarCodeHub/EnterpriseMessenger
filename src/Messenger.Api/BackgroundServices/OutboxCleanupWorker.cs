@@ -20,7 +20,18 @@ public sealed class OutboxCleanupWorker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+
+                    try
+        {
             await CleanupAsync(stoppingToken);
+
+                    }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Outbox publisher worker failed. It will retry later.");
+        }
             await Task.Delay(TimeSpan.FromHours(6), stoppingToken);
         }
     }

@@ -13,6 +13,7 @@ using HealthChecks.RabbitMQ;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using System.Threading.RateLimiting;
+using Microsoft.Extensions.Hosting;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -203,7 +204,11 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 });
-
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior =
+        BackgroundServiceExceptionBehavior.Ignore;
+});
 
 var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
