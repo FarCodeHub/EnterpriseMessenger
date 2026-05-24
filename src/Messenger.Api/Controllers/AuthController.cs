@@ -7,6 +7,7 @@ using Messenger.Application.Auth.Login;
 using Messenger.Application.Auth.Refresh;
 using Messenger.Application.Auth.RevokeSession;
 using Messenger.Application.Auth.GetSessions;
+using Messenger.Api.Common;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -32,6 +33,12 @@ private readonly ISessionRevoker _sessionRevoker;
         _sessionRevoker = sessionRevoker;
         _userSessionReader = userSessionReader;
     }
+
+
+
+
+    [ProducesResponseType(typeof(AuthUserResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [HttpPost("login")]
 public async Task<IActionResult> Login(
     LoginRequest request,
@@ -42,7 +49,15 @@ public async Task<IActionResult> Login(
             new LoginCommand(request.UserName, request.DeviceId),
             cancellationToken);
 
-        return Ok(result);
+       return Ok(new AuthTokenResponse(
+    result.AccessToken,
+    result.RefreshToken,
+    result.TokenType,
+    result.ExpiresInSeconds,
+    new AuthUserResponse(
+        result.User.Id,
+        result.User.DisplayName,
+        result.User.UserName)));
     
 }
 
@@ -63,7 +78,8 @@ public async Task<IActionResult> Login(
     }
  
 
-
+    [ProducesResponseType(typeof(AuthTokenResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
 [HttpPost("refresh")]
 public async Task<IActionResult> Refresh(
     RefreshTokenRequest request,
@@ -76,12 +92,21 @@ public async Task<IActionResult> Refresh(
                 request.DeviceId),
             cancellationToken);
 
-        return Ok(result);
+        return Ok(new AuthTokenResponse(
+    result.AccessToken,
+    result.RefreshToken,
+    result.TokenType,
+    result.ExpiresInSeconds,
+    new AuthUserResponse(
+        result.User.Id,
+        result.User.DisplayName,
+        result.User.UserName)));
    
 }
 
 
-
+    [ProducesResponseType(typeof(RevokeSessionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
 [Authorize]
 [HttpPost("logout")]
 public async Task<IActionResult> Logout(
@@ -94,7 +119,11 @@ public async Task<IActionResult> Logout(
             request.DeviceId),
         cancellationToken);
 
-    return Ok(result);
+  return Ok(new RevokeSessionResponse(
+    result.UserId,
+    result.DeviceId,
+    result.RevokedTokensCount,
+    result.RevokedAtUtc));
 }
 
 
@@ -109,6 +138,10 @@ public async Task<IActionResult> Logout(
     return Guid.Parse(userIdValue);
 }
 
+
+
+    [ProducesResponseType(typeof(RevokeSessionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
 [Authorize]
 [HttpPost("logout-all")]
 public async Task<IActionResult> LogoutAll(
@@ -120,10 +153,20 @@ public async Task<IActionResult> LogoutAll(
             DeviceId: null),
         cancellationToken);
 
-    return Ok(result);
+ return Ok(new RevokeSessionResponse(
+    result.UserId,
+    result.DeviceId,
+    result.RevokedTokensCount,
+    result.RevokedAtUtc));
 }
  
 
+
+
+
+
+    [ProducesResponseType(typeof(UserSessionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
 [Authorize]
 [HttpGet("sessions")]
 public async Task<IActionResult> GetSessions(
@@ -133,10 +176,17 @@ public async Task<IActionResult> GetSessions(
         new GetSessionsQuery(GetCurrentUserId()),
         cancellationToken);
 
-    return Ok(result);
+  return Ok(result.Select(x => new UserSessionResponse(
+    x.DeviceId,
+    x.ActiveRefreshTokensCount,
+    x.LatestExpiresAtUtc,
+    x.CreatedAtUtc)));
 }
 
 
+
+    [ProducesResponseType(typeof(RevokeSessionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
  [Authorize]
 [HttpDelete("sessions/{deviceId}")]
 public async Task<IActionResult> RevokeSession(
@@ -149,6 +199,10 @@ public async Task<IActionResult> RevokeSession(
             deviceId),
         cancellationToken);
 
-    return Ok(result);
+  return Ok(new RevokeSessionResponse(
+    result.UserId,
+    result.DeviceId,
+    result.RevokedTokensCount,
+    result.RevokedAtUtc));
 }
 }

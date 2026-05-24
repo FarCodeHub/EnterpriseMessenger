@@ -41,11 +41,11 @@ public sealed class UserActivator : IUserActivator
             cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return new ActivateUserResult(
-            user.Id,
-            user.DisplayName,
-            user.UserName,
-            user.IsActive);
+return new ActivateUserResult(
+    user.Id,
+    user.DisplayName,
+    user.UserName,
+    user.IsActive,
+    user.IsAdmin);
     }
 }

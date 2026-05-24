@@ -3,6 +3,7 @@ using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Messenger.Contracts.Common;
 
 namespace Messenger.Api.Controllers;
 
@@ -58,12 +59,17 @@ public sealed class AuditLogsController : ControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        return Ok(new
-        {
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount,
-            Items = items
-        });
+return Ok(new PagedResponse<AuditLogResponse>(
+    page,
+    pageSize,
+    totalCount,
+    items.Select(x => new AuditLogResponse(
+        x.Id,
+        x.EventType,
+        x.UserId,
+        x.EntityType,
+        x.EntityId,
+        x.Data,
+        x.CreatedAtUtc)).ToList()));
     }
 }
