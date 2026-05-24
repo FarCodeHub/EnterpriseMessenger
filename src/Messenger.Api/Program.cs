@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Hosting;
+using System.Reflection;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -35,6 +36,9 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
+
+
+
 builder.Services.AddSwaggerGen(options =>
 {
    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -61,6 +65,15 @@ builder.Services.AddSwaggerGen(options =>
             []
         }
    });
+
+var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+
+var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+
+options.IncludeXmlComments(xmlPath);
+
+
+
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);

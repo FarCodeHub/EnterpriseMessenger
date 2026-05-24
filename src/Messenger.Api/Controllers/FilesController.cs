@@ -32,13 +32,13 @@ public sealed class FilesController : ControllerBase
 
 
 
-[ProducesResponseType(typeof(AttachmentDownloadUrlResponse), StatusCodes.Status200OK)]
-[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(AttachmentDownloadUrlResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [Authorize]
     [HttpGet("{attachmentId:guid}/download-url")]
     public async Task<IActionResult> GetDownloadUrl(
-        Guid attachmentId,
-        CancellationToken cancellationToken)
+            Guid attachmentId,
+            CancellationToken cancellationToken)
     {
         var result = await _downloadUrlGenerator.GenerateAsync(
             new GetAttachmentDownloadUrlQuery(
@@ -55,14 +55,18 @@ public sealed class FilesController : ControllerBase
     }
 
 
-[ProducesResponseType(typeof(UploadFileResponse), StatusCodes.Status200OK)]
-[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
+
+/// <summary>
+/// Uploads a new attachment.
+/// </summary>
+    [ProducesResponseType(typeof(UploadFileResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
     [EnableRateLimiting("messages")]
     [HttpPost("upload")]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> UploadFile(
-            IFormFile file,
-            CancellationToken cancellationToken)
+                IFormFile file,
+                CancellationToken cancellationToken)
     {
         try
         {
