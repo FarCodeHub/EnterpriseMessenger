@@ -56,7 +56,12 @@ public sealed class UsersController : ControllerBase
     userId),
             cancellationToken);
 
-        return Ok(result);
+return Ok(new UserAdminActionResponse(
+    result.Id,
+    result.DisplayName,
+    result.UserName,
+    IsActive: true,
+    result.IsAdmin));
     }
 
 
@@ -73,7 +78,12 @@ public sealed class UsersController : ControllerBase
         userId),
             cancellationToken);
 
-        return Ok(result);
+return Ok(new UserAdminActionResponse(
+    result.Id,
+    result.DisplayName,
+    result.UserName,
+    result.IsActive,
+    result.IsAdmin));
     }
 
     [Authorize(Roles = "Admin")]
@@ -86,7 +96,13 @@ public sealed class UsersController : ControllerBase
             new DeactivateUserCommand(GetCurrentUserId(), userId),
             cancellationToken);
 
-        return Ok(result);
+return Ok(new UserAdminActionResponse(
+    result.Id,
+    result.DisplayName,
+    result.UserName,
+    result.IsActive,
+    result.IsAdmin,
+    result.RevokedTokensCount));
     }
 
     [HttpPost]

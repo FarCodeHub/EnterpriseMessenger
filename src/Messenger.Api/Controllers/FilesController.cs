@@ -5,8 +5,11 @@ using Messenger.Application.Files.UploadFile;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Messenger.Contracts.Files;
+using Messenger.Api.Common;
 
 namespace Messenger.Api.Controllers;
+
 [Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
@@ -29,30 +32,37 @@ public sealed class FilesController : ControllerBase
 
 
 
+[ProducesResponseType(typeof(AttachmentDownloadUrlResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
+    [Authorize]
+    [HttpGet("{attachmentId:guid}/download-url")]
+    public async Task<IActionResult> GetDownloadUrl(
+        Guid attachmentId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _downloadUrlGenerator.GenerateAsync(
+            new GetAttachmentDownloadUrlQuery(
+                attachmentId,
+                GetCurrentUserId()),
+            cancellationToken);
 
-[Authorize]
-[HttpGet("{attachmentId:guid}/download-url")]
-public async Task<IActionResult> GetDownloadUrl(
-    Guid attachmentId,
-    CancellationToken cancellationToken)
-{
-    var result = await _downloadUrlGenerator.GenerateAsync(
-        new GetAttachmentDownloadUrlQuery(
-            attachmentId,
-            GetCurrentUserId()),
-        cancellationToken);
-
-    return Ok(result);
-}
+        return Ok(new AttachmentDownloadUrlResponse(
+         result.AttachmentId,
+         result.FileName,
+         result.ContentType,
+         result.Url,
+         result.ExpiresInSeconds));
+    }
 
 
-
-[EnableRateLimiting("messages")]
+[ProducesResponseType(typeof(UploadFileResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
+    [EnableRateLimiting("messages")]
     [HttpPost("upload")]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> UploadFile(
-        IFormFile file,
-        CancellationToken cancellationToken)
+            IFormFile file,
+            CancellationToken cancellationToken)
     {
         try
         {
@@ -64,7 +74,13 @@ public async Task<IActionResult> GetDownloadUrl(
                     file.OpenReadStream()),
                 cancellationToken);
 
-            return Ok(result);
+
+            return Ok(new UploadFileResponse(
+                result.FileId,
+                result.OriginalFileName,
+                result.ContentType,
+                result.Length,
+                result.StoragePath));
         }
         catch (InvalidOperationException ex)
         {
