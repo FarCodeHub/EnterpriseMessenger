@@ -82,5 +82,11 @@ public void DemoteToMember()
 {
     Role = ConversationMemberRole.Member;
 }
-
+public void MarkAsRead(long sequenceNumber)
+{
+    if (sequenceNumber > LastReadSequenceNumber)
+    {
+        LastReadSequenceNumber = sequenceNumber;
+    }
+}
 }

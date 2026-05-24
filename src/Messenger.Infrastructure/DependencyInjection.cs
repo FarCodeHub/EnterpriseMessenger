@@ -149,6 +149,7 @@ public static class DependencyInjection
         services.AddScoped<IConversationPermissionChecker, ConversationPermissionChecker>();
         services.AddScoped<AdminUserSeeder>();
         services.AddSingleton<IPresenceService, RedisPresenceService>();
+        services.AddScoped<ITypingService, TypingService>();
         return services;
     }
 }
