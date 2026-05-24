@@ -77,7 +77,7 @@ public sealed class MessagesController : ControllerBase
 
             await _hubContext.Clients
                 .Group($"conversation:{result.ConversationId}")
-                .SendAsync("message.received", result, cancellationToken);
+                .SendAsync("message.created", result, cancellationToken);
 
             if (!result.IsDuplicate)
             {
