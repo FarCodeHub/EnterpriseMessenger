@@ -57,11 +57,29 @@ public sealed class MinioAttachmentDownloadUrlGenerator : IAttachmentDownloadUrl
 
         const int expiresInSeconds = 300;
 
-        var url = await _minioClient.PresignedGetObjectAsync(
-            new PresignedGetObjectArgs()
-                .WithBucket(bucketName)
-                .WithObject(attachment.StoragePath)
-                .WithExpiry(expiresInSeconds));
+ 
+
+
+
+                var publicEndpoint = _configuration["Minio:PublicEndpoint"]
+    ?? _configuration["Minio:Endpoint"]
+    ?? "localhost:9000";
+
+var accessKey = _configuration["Minio:AccessKey"] ?? "minioadmin";
+var secretKey = _configuration["Minio:SecretKey"] ?? "minioadmin_password";
+
+
+var publicMinioClient = new MinioClient()
+    .WithEndpoint(publicEndpoint)
+    .WithCredentials(accessKey, secretKey)
+    .Build();
+
+
+    var url = await publicMinioClient.PresignedGetObjectAsync(
+    new PresignedGetObjectArgs()
+        .WithBucket(bucketName)
+        .WithObject(attachment.StoragePath)
+        .WithExpiry(expiresInSeconds));
 
         return new GetAttachmentDownloadUrlResult(
             attachment.Id,

@@ -146,6 +146,7 @@ public static class DependencyInjection
         services.AddScoped<IFileUploader, MinioFileUploader>(); 
         services.AddScoped<IAttachmentDownloadUrlGenerator, MinioAttachmentDownloadUrlGenerator>();
         services.AddScoped<IConversationPermissionChecker, ConversationPermissionChecker>();
+        services.AddScoped<AdminUserSeeder>();
         return services;
     }
 }

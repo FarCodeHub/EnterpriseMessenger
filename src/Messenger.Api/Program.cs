@@ -15,6 +15,7 @@ using Serilog;
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Hosting;
 using System.Reflection;
+using Messenger.Infrastructure.Users;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -262,6 +263,15 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapHub<ChatHub>("/hubs/chat");
+
+
+using (var scope = app.Services.CreateScope())
+{
+    var seeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
+    await seeder.SeedAsync(CancellationToken.None);
+}
+
+
 try
 {
     app.Run();
