@@ -150,6 +150,7 @@ public static class DependencyInjection
         services.AddScoped<AdminUserSeeder>();
         services.AddSingleton<IPresenceService, RedisPresenceService>();
         services.AddScoped<ITypingService, TypingService>();
+        services.AddScoped<IReadReceiptService, ReadReceiptService>();
         return services;
     }
 }

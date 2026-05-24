@@ -18,6 +18,7 @@ public sealed class ChatHub : Hub
     private readonly MessengerDbContext _dbContext;
     private readonly IPresenceService _presenceService;
     private readonly ITypingService _typingService;
+    private readonly IReadReceiptService _readReceiptService;
     private readonly IConversationPermissionChecker _permissionChecker;
 
     public ChatHub(
@@ -25,13 +26,15 @@ public sealed class ChatHub : Hub
         MessengerDbContext dbContext,
         IConversationPermissionChecker permissionChecker,
         IPresenceService presenceService,
-        ITypingService typingService)
+        ITypingService typingService,
+        IReadReceiptService readReceiptService)
     {
         _connectionTracker = connectionTracker;
         _dbContext = dbContext;
         _permissionChecker = permissionChecker;
         _presenceService = presenceService;
         _typingService = typingService;
+        _readReceiptService = readReceiptService;
     }
 
 
@@ -327,36 +330,23 @@ public async Task MarkAsSeen(
     if (!Guid.TryParse(conversationId, out var parsedConversationId))
         throw new InvalidOperationException("Invalid conversation id.");
 
-    await _permissionChecker.EnsureActiveMemberAsync(
-        parsedConversationId,
-        userId,
+   await _readReceiptService.MarkAsSeenAsync(
+    parsedConversationId,
+    userId,
+    sequenceNumber,
+    Context.ConnectionAborted);
+
+await Clients
+    .OthersInGroup($"conversation:{parsedConversationId}")
+    .SendAsync(
+        "message.seen",
+        new
+        {
+            ConversationId = parsedConversationId,
+            UserId = userId,
+            SequenceNumber = sequenceNumber
+        },
         Context.ConnectionAborted);
-
-    var member = await _dbContext.ConversationMembers
-        .FirstOrDefaultAsync(x =>
-            x.ConversationId == parsedConversationId &&
-            x.UserId == userId &&
-            x.LeftAtUtc == null,
-            Context.ConnectionAborted);
-
-    if (member is null)
-        throw new InvalidOperationException("Conversation member not found.");
-
-    member.MarkAsRead(sequenceNumber);
-
-    await _dbContext.SaveChangesAsync(Context.ConnectionAborted);
-
-    await Clients
-        .OthersInGroup($"conversation:{parsedConversationId}")
-        .SendAsync(
-            "message.seen",
-            new
-            {
-                ConversationId = parsedConversationId,
-                UserId = userId,
-                SequenceNumber = sequenceNumber
-            },
-            Context.ConnectionAborted);
 }
 
 
