@@ -9,6 +9,7 @@ using Messenger.Application.Users.DeactivateUser;
 using Messenger.Application.Users.ActivateUser;
 using Messenger.Application.Users.MakeAdmin;
 using System.Security.Claims;
+using Messenger.Api.Common;
 
 namespace Messenger.Api.Controllers;
 
@@ -44,6 +45,12 @@ public sealed class UsersController : ControllerBase
         return Guid.Parse(userIdValue);
     }
 
+
+
+
+
+    [ProducesResponseType(typeof(UserAdminActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [Authorize(Roles = "Admin")]
     [HttpPost("{userId:guid}/make-admin")]
     public async Task<IActionResult> MakeAdmin(
@@ -66,6 +73,8 @@ return Ok(new UserAdminActionResponse(
 
 
 
+    [ProducesResponseType(typeof(UserAdminActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [Authorize(Roles = "Admin")]
     [HttpPost("{userId:guid}/activate")]
     public async Task<IActionResult> ActivateUser(
@@ -86,6 +95,8 @@ return Ok(new UserAdminActionResponse(
     result.IsAdmin));
     }
 
+    [ProducesResponseType(typeof(UserAdminActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [Authorize(Roles = "Admin")]
     [HttpPost("{userId:guid}/deactivate")]
     public async Task<IActionResult> DeactivateUser(
@@ -104,6 +115,8 @@ return Ok(new UserAdminActionResponse(
     result.IsAdmin,
     result.RevokedTokensCount));
     }
+
+
 
     [HttpPost]
     public async Task<IActionResult> CreateUser(
@@ -125,6 +138,10 @@ return Ok(new UserAdminActionResponse(
             return Conflict(ex.Message);
         }
     }
+
+
+
+
     [HttpGet]
     public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
     {
@@ -142,6 +159,9 @@ return Ok(new UserAdminActionResponse(
 
         return Ok(users);
     }
+
+
+
 
     [HttpPost("{userId:guid}/devices")]
     public async Task<IActionResult> RegisterDevice(
