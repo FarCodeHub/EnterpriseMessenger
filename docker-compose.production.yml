@@ -66,8 +66,10 @@ services:
       Minio__AccessKey: ${MINIO_ROOT_USER}
       Minio__SecretKey: ${MINIO_ROOT_PASSWORD}
       Minio__BucketName: ${MINIO_BUCKET_NAME}
+      Minio__PublicEndpoint: ${MINIO_PUBLIC_ENDPOINT}
       Minio__UseSsl: false
- 
+      SeedAdmin__UserName: ${SEED_ADMIN_USERNAME}
+      SeedAdmin__DisplayName: ${SEED_ADMIN_DISPLAY_NAME}
     
     restart: unless-stopped
     depends_on:
