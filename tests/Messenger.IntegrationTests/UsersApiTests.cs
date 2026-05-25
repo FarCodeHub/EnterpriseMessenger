@@ -26,9 +26,10 @@ public sealed class UsersApiTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await _client.PostAsJsonAsync("/api/v1/users", request);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+var body = await response.Content.ReadAsStringAsync();
+      response.StatusCode.Should().Be(HttpStatusCode.OK, body);
 
-        var body = await response.Content.ReadAsStringAsync();
+   
 
         body.Should().Contain(request.DisplayName);
         body.Should().Contain(request.UserName);
@@ -37,16 +38,22 @@ public sealed class UsersApiTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task CreateUser_Should_Return_Conflict_When_UserName_Exists()
     {
-        var userName = $"duplicate-{Guid.NewGuid():N}";
+       var userName = $"test-user-{Guid.NewGuid():N}";
 
-        var request = new CreateUserRequest(
-            DisplayName: "Test User",
-            UserName: userName);
+     var request = new CreateUserRequest(
+    "Test User",
+    userName);
 
-        var firstResponse = await _client.PostAsJsonAsync("/api/v1/users", request);
-        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+var firstResponse = await _client.PostAsJsonAsync(
+    "/api/v1/users",
+    request);
 
-        var secondResponse = await _client.PostAsJsonAsync("/api/v1/users", request);
-        secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+var secondResponse = await _client.PostAsJsonAsync(
+    "/api/v1/users",
+    request);
+
+secondResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 }

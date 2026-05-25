@@ -77,7 +77,9 @@ options.IncludeXmlComments(xmlPath);
 
 });
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(
+    builder.Configuration,
+    builder.Environment);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowLocalTest", policy =>
@@ -91,10 +93,11 @@ builder.Services.AddCors(options =>
 });
 
 
+var isTesting = builder.Environment.IsEnvironment("Testing");
 
- var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
-if (!string.IsNullOrWhiteSpace(redisConnectionString))
+if (!isTesting && !string.IsNullOrWhiteSpace(redisConnectionString))
 {
     builder.Services
         .AddSignalR()
@@ -265,8 +268,10 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapHub<ChatHub>("/hubs/chat");
 
 
-using (var scope = app.Services.CreateScope())
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    using var scope = app.Services.CreateScope();
+
     var seeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
     await seeder.SeedAsync(CancellationToken.None);
 }
