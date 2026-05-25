@@ -20,6 +20,7 @@ public sealed class ChatHub : Hub
     private readonly ITypingService _typingService;
     private readonly IReadReceiptService _readReceiptService;
     private readonly IConversationPermissionChecker _permissionChecker;
+    private readonly IDeliveryReceiptService _deliveryReceiptService;
 
     public ChatHub(
         IConnectionTracker connectionTracker,
@@ -27,7 +28,8 @@ public sealed class ChatHub : Hub
         IConversationPermissionChecker permissionChecker,
         IPresenceService presenceService,
         ITypingService typingService,
-        IReadReceiptService readReceiptService)
+        IReadReceiptService readReceiptService,
+        IDeliveryReceiptService deliveryReceiptService)
     {
         _connectionTracker = connectionTracker;
         _dbContext = dbContext;
@@ -35,6 +37,7 @@ public sealed class ChatHub : Hub
         _presenceService = presenceService;
         _typingService = typingService;
         _readReceiptService = readReceiptService;
+        _deliveryReceiptService = deliveryReceiptService;
     }
 
 
@@ -301,22 +304,23 @@ public async Task MarkAsDelivered(
     if (!Guid.TryParse(conversationId, out var parsedConversationId))
         throw new InvalidOperationException("Invalid conversation id.");
 
-    await _permissionChecker.EnsureActiveMemberAsync(
-        parsedConversationId,
-        userId,
-        Context.ConnectionAborted);
+await _deliveryReceiptService.MarkAsDeliveredAsync(
+    parsedConversationId,
+    userId,
+    sequenceNumber,
+    Context.ConnectionAborted);
 
-    await Clients
-        .OthersInGroup($"conversation:{parsedConversationId}")
-        .SendAsync(
-            "message.delivered",
-            new
-            {
-                ConversationId = parsedConversationId,
-                UserId = userId,
-                SequenceNumber = sequenceNumber
-            },
-            Context.ConnectionAborted);
+await Clients
+    .OthersInGroup($"conversation:{parsedConversationId}")
+    .SendAsync(
+        "message.delivered",
+        new
+        {
+            ConversationId = parsedConversationId,
+            UserId = userId,
+            SequenceNumber = sequenceNumber
+        },
+        Context.ConnectionAborted);
 }
 
 

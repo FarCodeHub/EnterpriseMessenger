@@ -50,21 +50,28 @@ using Minio;
 using Messenger.Application.Files.GetDownloadUrl;
 using Messenger.Application.Conversations;
 using Messenger.Application.Abstractions.Realtime;
+using Microsoft.Extensions.Hosting;
+
+
 namespace Messenger.Infrastructure;
 
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(
-        this IServiceCollection services,
-        IConfiguration configuration)
+ public static IServiceCollection AddInfrastructure(
+    this IServiceCollection services,
+    IConfiguration configuration,
+    IHostEnvironment environment)
     {
         var connectionString = configuration.GetConnectionString("MessengerDb");
 
-        services.AddDbContext<MessengerDbContext>(options =>
-        {
-            options.UseNpgsql(connectionString);
-        });
+  if (!environment.IsEnvironment("Testing"))
+{
+    services.AddDbContext<MessengerDbContext>(options =>
+    {
+        options.UseNpgsql(configuration.GetConnectionString("MessengerDb"));
+    });
+}
 
         services.AddScoped<IMessageSender, MessageSender>();
         services.AddScoped<IMessageEditor, MessageEditor>();
@@ -81,14 +88,18 @@ public static class DependencyInjection
         services.AddScoped<ISyncEventReader, SyncEventReader>();
         services.AddScoped<ISyncCommitter, SyncCommitter>();
         services.AddScoped<IAttachmentDownloader, AttachmentDownloader>();
-        var redisConnectionString = configuration["Redis:ConnectionString"];
 
-        if (!string.IsNullOrWhiteSpace(redisConnectionString))
-        {
-            services.AddSingleton<IConnectionMultiplexer>(
-                ConnectionMultiplexer.Connect(redisConnectionString));
-        }
+var isTesting = environment.IsEnvironment("Testing");
 
+var redisConnectionString = configuration["Redis:ConnectionString"];
+
+if (!isTesting && !string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    services.AddSingleton<IConnectionMultiplexer>(
+        _ => ConnectionMultiplexer.Connect(redisConnectionString));
+
+    services.AddSingleton<IPresenceService, RedisPresenceService>();
+}
 
         services.AddMassTransit(options =>
         {
@@ -148,9 +159,10 @@ public static class DependencyInjection
         services.AddScoped<IAttachmentDownloadUrlGenerator, MinioAttachmentDownloadUrlGenerator>();
         services.AddScoped<IConversationPermissionChecker, ConversationPermissionChecker>();
         services.AddScoped<AdminUserSeeder>();
-        services.AddSingleton<IPresenceService, RedisPresenceService>();
+        
         services.AddScoped<ITypingService, TypingService>();
         services.AddScoped<IReadReceiptService, ReadReceiptService>();
+        services.AddScoped<IDeliveryReceiptService, DeliveryReceiptService>();
         return services;
     }
 }
