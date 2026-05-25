@@ -5,9 +5,11 @@ using Messenger.Domain.Messages;
 using Microsoft.EntityFrameworkCore;
 namespace Messenger.Api.Hubs;
 
+using System.Threading.RateLimiting;
 using Messenger.Application.Abstractions.Realtime;
 using Messenger.Application.Conversations;
 using Messenger.Application.Realtime;
+using Messenger.Contracts.Realtime;
 using Microsoft.AspNetCore.Authorization;
 
 
@@ -56,7 +58,7 @@ await _typingService.StartTypingAsync(
     await Clients
         .OthersInGroup($"conversation:{parsedConversationId}")
         .SendAsync(
-            "typing.started",
+            RealtimeEvents.TypingStarted,
             new
             {
                 ConversationId = parsedConversationId,
@@ -80,7 +82,7 @@ public async Task StopTyping(string conversationId)
     await Clients
         .OthersInGroup($"conversation:{parsedConversationId}")
         .SendAsync(
-            "typing.stopped",
+            RealtimeEvents.TypingStopped,
             new
             {
                 ConversationId = parsedConversationId,
@@ -95,7 +97,7 @@ public async Task StopTyping(string conversationId)
 
         await _connectionTracker.AddConnectionAsync(userId, Context.ConnectionId);
 
-        await Clients.Caller.SendAsync("presence.registered", new
+        await Clients.Caller.SendAsync(RealtimeEvents.PresenceRegistered, new
         {
             UserId = userId,
             Context.ConnectionId
@@ -118,7 +120,7 @@ public async Task StopTyping(string conversationId)
             Context.ConnectionId,
             $"conversation:{parsedConversationId}");
 
-        await Clients.Caller.SendAsync("conversation.joined", new
+        await Clients.Caller.SendAsync(RealtimeEvents.ConversationJoined, new
         {
             ConversationId = parsedConversationId
         });
@@ -135,7 +137,7 @@ public async Task StopTyping(string conversationId)
         Context.ConnectionAborted);
 
     await Clients.All.SendAsync(
-        "presence.online",
+        RealtimeEvents.PresenceOnline,
         userId,
         Context.ConnectionAborted);
 
@@ -155,7 +157,7 @@ public override async Task OnDisconnectedAsync(Exception? exception)
     if (isOffline)
     {
         await Clients.All.SendAsync(
-            "presence.offline",
+            RealtimeEvents.PresenceOffline,
             userId,
             Context.ConnectionAborted);
     }
@@ -209,7 +211,7 @@ public override async Task OnDisconnectedAsync(Exception? exception)
         {
             await Clients
                 .Group($"conversation:{message.ConversationId}")
-                .SendAsync("message.delivered", new
+                .SendAsync(RealtimeEvents.MessageDelivered, new
                 {
                     MessageId = message.Id,
 
@@ -220,7 +222,7 @@ public override async Task OnDisconnectedAsync(Exception? exception)
                 });
         }
 
-        await Clients.Caller.SendAsync("message.delivered.ack", new
+        await Clients.Caller.SendAsync(RealtimeEvents.MessageDeliveredACK, new
         {
             MessageId = parsedMessageId,
             UserId = currentUserId,
@@ -263,7 +265,7 @@ public override async Task OnDisconnectedAsync(Exception? exception)
         {
             await Clients
                 .Group($"conversation:{message.ConversationId}")
-                .SendAsync("message.seen", new
+                .SendAsync(RealtimeEvents.MessageSeen, new
                 {
                     MessageId = message.Id,
                     message.ConversationId,
@@ -273,7 +275,7 @@ public override async Task OnDisconnectedAsync(Exception? exception)
                 });
         }
 
-        await Clients.Caller.SendAsync("message.seen.ack", new
+        await Clients.Caller.SendAsync(RealtimeEvents.MessageSeenACK, new
         {
             MessageId = parsedMessageId,
             UserId = currentUserId,
@@ -313,7 +315,7 @@ await _deliveryReceiptService.MarkAsDeliveredAsync(
 await Clients
     .OthersInGroup($"conversation:{parsedConversationId}")
     .SendAsync(
-        "message.delivered",
+        RealtimeEvents.MessageDelivered,
         new
         {
             ConversationId = parsedConversationId,
@@ -343,7 +345,7 @@ public async Task MarkAsSeen(
 await Clients
     .OthersInGroup($"conversation:{parsedConversationId}")
     .SendAsync(
-        "message.seen",
+        RealtimeEvents.MessageSeen,
         new
         {
             ConversationId = parsedConversationId,

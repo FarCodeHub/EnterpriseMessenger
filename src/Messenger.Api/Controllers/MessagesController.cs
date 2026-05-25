@@ -14,6 +14,7 @@ using Messenger.Application.Conversations.MarkConversationRead;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
+using Messenger.Contracts.Realtime;
 
 namespace Messenger.Api.Controllers;
 [Authorize]
@@ -77,13 +78,13 @@ public sealed class MessagesController : ControllerBase
 
             await _hubContext.Clients
                 .Group($"conversation:{result.ConversationId}")
-                .SendAsync("message.created", result, cancellationToken);
+                .SendAsync(RealtimeEvents.MessageCreated, result, cancellationToken);
 
             if (!result.IsDuplicate)
             {
                 await _hubContext.Clients
                     .Group($"conversation:{result.ConversationId}")
-                    .SendAsync("conversation.updated", new
+                    .SendAsync(RealtimeEvents.ConversationUpdated, new
                     {
                         ConversationId = result.ConversationId,
                         LastMessageId = result.Id,
@@ -181,7 +182,7 @@ public async Task<IActionResult> MarkConversationAsRead(
 
         await _hubContext.Clients
             .Group($"conversation:{conversationId}")
-            .SendAsync("conversation.read", result, cancellationToken);
+            .SendAsync(RealtimeEvents.ConversationRead, result, cancellationToken);
 
         return Ok(result);
    
@@ -202,7 +203,7 @@ public async Task<IActionResult> EditMessage(
 
     await _hubContext.Clients
         .Group($"conversation:{result.ConversationId}")
-        .SendAsync("message.edited", result, cancellationToken);
+        .SendAsync(RealtimeEvents.MessageEdited, result, cancellationToken);
 
     return Ok(result);
 }
@@ -222,7 +223,7 @@ public async Task<IActionResult> EditMessage(
 
             await _hubContext.Clients
                 .Group($"conversation:{result.ConversationId}")
-                .SendAsync("message.deleted", result, cancellationToken);
+                .SendAsync(RealtimeEvents.MessageDeleted, result, cancellationToken);
 
             return Ok(result);
   
