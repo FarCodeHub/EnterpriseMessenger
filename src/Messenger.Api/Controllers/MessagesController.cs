@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Messenger.Contracts.Realtime;
 
 namespace Messenger.Api.Controllers;
+
 [Authorize]
 [ApiController]
 [Route("api/v1/[controller]")]
@@ -52,53 +53,54 @@ public sealed class MessagesController : ControllerBase
     }
 
 
-[EnableRateLimiting("messages")]
+    [EnableRateLimiting("messages")]
     [HttpPost]
     public async Task<IActionResult> SendMessage(
-    SendMessageRequest request,
-    CancellationToken cancellationToken)
+        SendMessageRequest request,
+        CancellationToken cancellationToken)
     {
-      
 
-            var currentUserId = GetCurrentUserId();
-            var command = new SendMessageCommand(
-                request.ConversationId,
-                currentUserId,
-                request.ClientMessageId,
-                request.Body,
-                request.ReplyToMessageId,
-                request.Attachments?.Select(x =>
-                    new SendMessageAttachmentCommand(
-                        x.FileName,
-                        x.ContentType,
-                        x.Size,
-                        x.StoragePath)).ToList());
 
-            var result = await _messageSender.SendAsync(command, cancellationToken);
+        var currentUserId = GetCurrentUserId();
+        var command = new SendMessageCommand(
+            request.ConversationId,
+            currentUserId,
+            request.ClientMessageId,
+            request.Body,
+            request.ReplyToMessageId,
+            request.Attachments?.Select(x =>
+                new SendMessageAttachmentCommand(
+                    x.FileName,
+                    x.ContentType,
+                    x.Size,
+                    x.StoragePath)).ToList());
 
+        var result = await _messageSender.SendAsync(command, cancellationToken);
+
+        await _hubContext.Clients
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync(RealtimeEvents.MessageCreated, result, cancellationToken);
+
+        if (!result.IsDuplicate)
+        {
             await _hubContext.Clients
                 .Group($"conversation:{result.ConversationId}")
-                .SendAsync(RealtimeEvents.MessageCreated, result, cancellationToken);
+                .SendAsync(RealtimeEvents.ConversationUpdated, new ConversationUpdatedEvent(
+        result.ConversationId,
+        result.Id,
+        result.Body,
+        result.SenderUserId,
+        result.SequenceNumber,
+        result.CreatedAtUtc), cancellationToken);
+        }
 
-            if (!result.IsDuplicate)
-            {
-                await _hubContext.Clients
-                    .Group($"conversation:{result.ConversationId}")
-                    .SendAsync(RealtimeEvents.ConversationUpdated, new
-                    {
-                        ConversationId = result.ConversationId,
-                        LastMessageId = result.Id,
-                        LastMessageBody = result.Body,
-                        LastMessageAtUtc = result.CreatedAtUtc,
-                        LastMessageSenderUserId = result.SenderUserId,
-                        LastMessageSequenceNumber = result.SequenceNumber
-                    }, cancellationToken);
-            }
+        return Ok(result);
 
-            return Ok(result);
-      
-    
+
     }
+
+
+
     [HttpGet("conversation/{conversationId:guid}")]
     public async Task<IActionResult> GetMessages(
        Guid conversationId,
@@ -139,39 +141,39 @@ public sealed class MessagesController : ControllerBase
        int radius = 100,
        CancellationToken cancellationToken = default)
     {
-       
-            var result = await _messageReader.GetReplyContextAsync(
-                messageId,
-                radius,
-                cancellationToken);
 
-            return Ok(result);
-      
+        var result = await _messageReader.GetReplyContextAsync(
+            messageId,
+            radius,
+            cancellationToken);
+
+        return Ok(result);
+
     }
 
-[HttpGet("conversation/{conversationId:guid}/search")]
-public async Task<IActionResult> SearchMessages(
-    Guid conversationId,
-    string query,
-    int take = 20,
-    CancellationToken cancellationToken = default)
-{
-   
+    [HttpGet("conversation/{conversationId:guid}/search")]
+    public async Task<IActionResult> SearchMessages(
+        Guid conversationId,
+        string query,
+        int take = 20,
+        CancellationToken cancellationToken = default)
+    {
+
         var result = await _messageSearchService.SearchAsync(
             new SearchMessagesQuery(conversationId, query, take),
             cancellationToken);
 
         return Ok(result);
-   
-}
- 
- [HttpPost("conversation/{conversationId:guid}/read")]
-public async Task<IActionResult> MarkConversationAsRead(
-    Guid conversationId,
-    MarkConversationReadRequest request,
-    CancellationToken cancellationToken)
-{
-   
+
+    }
+
+    [HttpPost("conversation/{conversationId:guid}/read")]
+    public async Task<IActionResult> MarkConversationAsRead(
+       Guid conversationId,
+       MarkConversationReadRequest request,
+       CancellationToken cancellationToken)
+    {
+
         var currentUserId = GetCurrentUserId();
         var result = await _conversationReadMarker.MarkAsReadAsync(
             new MarkConversationReadCommand(
@@ -185,48 +187,48 @@ public async Task<IActionResult> MarkConversationAsRead(
             .SendAsync(RealtimeEvents.ConversationRead, result, cancellationToken);
 
         return Ok(result);
-   
-}
-   
-   [HttpPut("{messageId:guid}")]
-public async Task<IActionResult> EditMessage(
-    Guid messageId,
-    EditMessageRequest request,
-    CancellationToken cancellationToken)
-{
-    var result = await _messageEditor.EditAsync(
-        new EditMessageCommand(
-            messageId,
-            GetCurrentUserId(),
-            request.Body),
-        cancellationToken);
 
-    await _hubContext.Clients
-        .Group($"conversation:{result.ConversationId}")
-        .SendAsync(RealtimeEvents.MessageEdited, result, cancellationToken);
+    }
 
-    return Ok(result);
-}
-   
- 
+    [HttpPut("{messageId:guid}")]
+    public async Task<IActionResult> EditMessage(
+     Guid messageId,
+     EditMessageRequest request,
+     CancellationToken cancellationToken)
+    {
+        var result = await _messageEditor.EditAsync(
+            new EditMessageCommand(
+                messageId,
+                GetCurrentUserId(),
+                request.Body),
+            cancellationToken);
+
+        await _hubContext.Clients
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync(RealtimeEvents.MessageEdited, result, cancellationToken);
+
+        return Ok(result);
+    }
+
+
 
     [HttpDelete("{messageId:guid}")]
     public async Task<IActionResult> DeleteMessage(
         Guid messageId,
         CancellationToken cancellationToken)
     {
-       
-            var currentUserId = GetCurrentUserId();
-            var result = await _messageDeleter.DeleteAsync(
-                new DeleteMessageCommand(messageId, currentUserId),
-                cancellationToken);
 
-            await _hubContext.Clients
-                .Group($"conversation:{result.ConversationId}")
-                .SendAsync(RealtimeEvents.MessageDeleted, result, cancellationToken);
+        var currentUserId = GetCurrentUserId();
+        var result = await _messageDeleter.DeleteAsync(
+            new DeleteMessageCommand(messageId, currentUserId),
+            cancellationToken);
 
-            return Ok(result);
-  
+        await _hubContext.Clients
+            .Group($"conversation:{result.ConversationId}")
+            .SendAsync(RealtimeEvents.MessageDeleted, result, cancellationToken);
+
+        return Ok(result);
+
     }
 
     private async Task AddSyncEventForConversationMembers(
@@ -267,15 +269,15 @@ public async Task<IActionResult> EditMessage(
         }
     }
 
-private Guid GetCurrentUserId()
-{
-    var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    private Guid GetCurrentUserId()
+    {
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    if (string.IsNullOrWhiteSpace(userIdValue))
-        throw new UnauthorizedAccessException("UserId not found in token.");
+        if (string.IsNullOrWhiteSpace(userIdValue))
+            throw new UnauthorizedAccessException("UserId not found in token.");
 
-    return Guid.Parse(userIdValue);
-}
+        return Guid.Parse(userIdValue);
+    }
 
 
 }

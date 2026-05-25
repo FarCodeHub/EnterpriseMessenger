@@ -59,11 +59,7 @@ await _typingService.StartTypingAsync(
         .OthersInGroup($"conversation:{parsedConversationId}")
         .SendAsync(
             RealtimeEvents.TypingStarted,
-            new
-            {
-                ConversationId = parsedConversationId,
-                UserId = userId
-            },
+    new TypingEvent(parsedConversationId, userId),
             Context.ConnectionAborted);
 }
 
@@ -83,11 +79,7 @@ public async Task StopTyping(string conversationId)
         .OthersInGroup($"conversation:{parsedConversationId}")
         .SendAsync(
             RealtimeEvents.TypingStopped,
-            new
-            {
-                ConversationId = parsedConversationId,
-                UserId = userId
-            },
+          new TypingEvent(parsedConversationId, userId),
             Context.ConnectionAborted);
 }
 
@@ -316,12 +308,7 @@ await Clients
     .OthersInGroup($"conversation:{parsedConversationId}")
     .SendAsync(
         RealtimeEvents.MessageDelivered,
-        new
-        {
-            ConversationId = parsedConversationId,
-            UserId = userId,
-            SequenceNumber = sequenceNumber
-        },
+        new MessageReceiptEvent(parsedConversationId, userId, sequenceNumber),
         Context.ConnectionAborted);
 }
 
@@ -346,12 +333,7 @@ await Clients
     .OthersInGroup($"conversation:{parsedConversationId}")
     .SendAsync(
         RealtimeEvents.MessageSeen,
-        new
-        {
-            ConversationId = parsedConversationId,
-            UserId = userId,
-            SequenceNumber = sequenceNumber
-        },
+    new MessageReceiptEvent(parsedConversationId, userId, sequenceNumber),
         Context.ConnectionAborted);
 }
 
