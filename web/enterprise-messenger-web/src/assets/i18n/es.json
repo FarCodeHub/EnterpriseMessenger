@@ -1,0 +1,17 @@
+{
+  "app": {
+    "name": "EnterpriseMessenger"
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar sesión",
+      "subtitle": "Inicia sesión para continuar",
+      "username": "Nombre de usuario",
+      "usernamePlaceholder": "por ejemplo admin",
+      "usernameRequired": "El nombre de usuario es obligatorio.",
+      "submit": "Entrar",
+      "submitting": "Entrando...",
+      "failed": "Error de inicio de sesión. Verifica tu usuario."
+    }
+  }
+}

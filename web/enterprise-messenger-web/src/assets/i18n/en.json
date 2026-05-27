@@ -1,0 +1,17 @@
+{
+  "app": {
+    "name": "EnterpriseMessenger"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Sign in to continue",
+      "username": "Username",
+      "usernamePlaceholder": "e.g. admin",
+      "usernameRequired": "Username is required.",
+      "submit": "Sign in",
+      "submitting": "Signing in...",
+      "failed": "Login failed. Please check your username."
+    }
+  }
+}
