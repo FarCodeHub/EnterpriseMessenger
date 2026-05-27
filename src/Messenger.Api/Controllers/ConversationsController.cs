@@ -15,6 +15,7 @@ using Messenger.Application.Conversations.SetMemberRole;
 using Messenger.Application.Conversations.LeaveConversation;
 using Messenger.Application.Conversations.UpdateConversationMemberSettings;
 using Messenger.Application.Conversations.GetMembers;
+using Messenger.Api.Common;
 namespace Messenger.Api.Controllers;
 
 [Authorize]
@@ -49,6 +50,8 @@ public sealed class ConversationsController : ControllerBase
 
 
 
+    [ProducesResponseType(typeof(ConversationMemberActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [HttpPost("{conversationId:guid}/members")]
 public async Task<IActionResult> AddMember(
     Guid conversationId,
@@ -63,9 +66,15 @@ public async Task<IActionResult> AddMember(
                 request.UserId),
             cancellationToken);
 
-        return Ok(result);
+       return Ok(new ConversationMemberActionResponse(
+    result.ConversationId,
+    result.UserId,
+    Rejoined: result.Rejoined));
    
 }
+
+
+
 
     [HttpPost("private")]
     public async Task<IActionResult> CreatePrivateConversation(
@@ -123,6 +132,11 @@ public async Task<IActionResult> AddMember(
         return Ok(result);
     }
  
+
+
+ 
+    [ProducesResponseType(typeof(ConversationMemberSettingsResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [HttpPost("{conversationId:guid}/mute")]
 public async Task<IActionResult> SetMute(
     Guid conversationId,
@@ -139,7 +153,12 @@ public async Task<IActionResult> SetMute(
                 null),
             cancellationToken);
 
-        return Ok(result);
+    return Ok(new ConversationMemberSettingsResponse(
+    result.ConversationId,
+    result.UserId,
+    result.IsMuted,
+    result.IsPinned,
+    result.IsArchived));
  
 }
     
@@ -152,6 +171,12 @@ public async Task<IActionResult> SetMute(
 
         return Guid.Parse(userIdValue);
     }
+
+
+
+
+    [ProducesResponseType(typeof(ConversationMemberSettingsResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
  [HttpPost("{conversationId:guid}/pin")]
 public async Task<IActionResult> SetPin(
     Guid conversationId,
@@ -168,10 +193,21 @@ public async Task<IActionResult> SetPin(
                 null),
             cancellationToken);
 
-        return Ok(result);
+       return Ok(new ConversationMemberSettingsResponse(
+    result.ConversationId,
+    result.UserId,
+    result.IsMuted,
+    result.IsPinned,
+    result.IsArchived));
  
 }
 
+
+
+
+
+    [ProducesResponseType(typeof(ConversationMemberSettingsResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
  [HttpPost("{conversationId:guid}/archive")]
 public async Task<IActionResult> SetArchive(
     Guid conversationId,
@@ -188,7 +224,12 @@ public async Task<IActionResult> SetArchive(
                 request.IsArchived),
             cancellationToken);
 
-        return Ok(result);
+       return Ok(new ConversationMemberSettingsResponse(
+    result.ConversationId,
+    result.UserId,
+    result.IsMuted,
+    result.IsPinned,
+    result.IsArchived));
    
 }
 
@@ -205,6 +246,12 @@ public async Task<IActionResult> SetArchive(
         return Ok(result);
     }
 
+
+
+
+
+    [ProducesResponseType(typeof(ConversationMemberActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
  [HttpPost("{conversationId:guid}/leave")]
 public async Task<IActionResult> LeaveConversation(
     Guid conversationId,
@@ -217,12 +264,17 @@ public async Task<IActionResult> LeaveConversation(
                 GetCurrentUserId()),
             cancellationToken);
 
-        return Ok(result);
+      return Ok(new ConversationMemberActionResponse(
+    result.ConversationId,
+    result.UserId,
+    LeftAtUtc: result.LeftAtUtc));
    
 }
  
  
  
+    [ProducesResponseType(typeof(ConversationMemberActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
  [HttpDelete("{conversationId:guid}/members/{userId:guid}")]
 public async Task<IActionResult> RemoveMember(
     Guid conversationId,
@@ -237,9 +289,18 @@ public async Task<IActionResult> RemoveMember(
                 userId),
             cancellationToken);
 
-        return Ok(result);
+      return Ok(new ConversationMemberActionResponse(
+    result.ConversationId,
+    result.UserId,
+    LeftAtUtc: result.RemovedAtUtc));
  
 }
+
+
+
+
+    [ProducesResponseType(typeof(ConversationMemberResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
  [HttpGet("{conversationId:guid}/members")]
 public async Task<IActionResult> GetMembers(
     Guid conversationId,
@@ -252,9 +313,19 @@ public async Task<IActionResult> GetMembers(
                 GetCurrentUserId()),
             cancellationToken);
 
-        return Ok(result);
+       return Ok(result.Select(x => new ConversationMemberResponse(
+    x.Id,
+    x.DisplayName,
+    x.UserName,
+    x.JoinedAtUtc,
+    x.IsMuted,
+    x.IsPinned,
+    x.IsArchived,
+    x.Role)));
   
 }
+[ProducesResponseType(typeof(ConversationMemberActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
  [HttpPut("{conversationId:guid}/members/{userId:guid}/role")]
 public async Task<IActionResult> SetMemberRole(
     Guid conversationId,
@@ -271,7 +342,10 @@ public async Task<IActionResult> SetMemberRole(
                 request.Role),
             cancellationToken);
 
-        return Ok(result);
+   return Ok(new ConversationMemberActionResponse(
+    result.ConversationId,
+    result.UserId,
+    Role: result.Role));
    
 }
 

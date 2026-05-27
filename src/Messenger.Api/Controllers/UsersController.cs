@@ -1,17 +1,15 @@
 using Messenger.Contracts.Users;
-using Messenger.Domain.Users;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Users.CreateUser;
 using Messenger.Application.Users.RegisterDevice;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization;
 using Messenger.Application.Users.DeactivateUser;
 using Messenger.Application.Users.ActivateUser;
 using Messenger.Application.Users.MakeAdmin;
-using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Messenger.Api.Common;
 
 namespace Messenger.Api.Controllers;
 
@@ -47,6 +45,12 @@ public sealed class UsersController : ControllerBase
         return Guid.Parse(userIdValue);
     }
 
+
+
+
+
+    [ProducesResponseType(typeof(UserAdminActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [Authorize(Roles = "Admin")]
     [HttpPost("{userId:guid}/make-admin")]
     public async Task<IActionResult> MakeAdmin(
@@ -59,11 +63,18 @@ public sealed class UsersController : ControllerBase
     userId),
             cancellationToken);
 
-        return Ok(result);
+return Ok(new UserAdminActionResponse(
+    result.Id,
+    result.DisplayName,
+    result.UserName,
+    IsActive: true,
+    result.IsAdmin));
     }
 
 
 
+    [ProducesResponseType(typeof(UserAdminActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [Authorize(Roles = "Admin")]
     [HttpPost("{userId:guid}/activate")]
     public async Task<IActionResult> ActivateUser(
@@ -76,9 +87,16 @@ public sealed class UsersController : ControllerBase
         userId),
             cancellationToken);
 
-        return Ok(result);
+return Ok(new UserAdminActionResponse(
+    result.Id,
+    result.DisplayName,
+    result.UserName,
+    result.IsActive,
+    result.IsAdmin));
     }
 
+    [ProducesResponseType(typeof(UserAdminActionResponse), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [Authorize(Roles = "Admin")]
     [HttpPost("{userId:guid}/deactivate")]
     public async Task<IActionResult> DeactivateUser(
@@ -89,8 +107,16 @@ public sealed class UsersController : ControllerBase
             new DeactivateUserCommand(GetCurrentUserId(), userId),
             cancellationToken);
 
-        return Ok(result);
+return Ok(new UserAdminActionResponse(
+    result.Id,
+    result.DisplayName,
+    result.UserName,
+    result.IsActive,
+    result.IsAdmin,
+    result.RevokedTokensCount));
     }
+
+
 
     [HttpPost]
     public async Task<IActionResult> CreateUser(
@@ -112,6 +138,10 @@ public sealed class UsersController : ControllerBase
             return Conflict(ex.Message);
         }
     }
+
+
+
+
     [HttpGet]
     public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
     {
@@ -129,6 +159,9 @@ public sealed class UsersController : ControllerBase
 
         return Ok(users);
     }
+
+
+
 
     [HttpPost("{userId:guid}/devices")]
     public async Task<IActionResult> RegisterDevice(

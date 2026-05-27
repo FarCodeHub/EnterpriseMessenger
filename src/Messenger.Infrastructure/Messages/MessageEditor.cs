@@ -3,6 +3,7 @@ using Messenger.Application.Messages.EditMessage;
 using Messenger.Application.Sync;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Messenger.Application.Search;
 
 namespace Messenger.Infrastructure.Messages;
 
@@ -11,12 +12,14 @@ public sealed class MessageEditor : IMessageEditor
     private readonly MessengerDbContext _dbContext;
     private readonly IUserSyncEventWriter _syncEventWriter;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly IMessageSearchIndexer _messageSearchIndexer;
 
-    public MessageEditor(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter)
+    public MessageEditor(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer)
     {
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
         _auditLogWriter = auditLogWriter;
+        _messageSearchIndexer = messageSearchIndexer;
     }
 
     public async Task<EditMessageResult> EditAsync(
@@ -62,6 +65,20 @@ public sealed class MessageEditor : IMessageEditor
     cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+
+await _messageSearchIndexer.IndexAsync(
+    new MessageSearchDocument(
+        message.Id,
+        message.ConversationId,
+        message.SenderUserId,
+        message.Body,
+        message.SequenceNumber,
+        message.CreatedAtUtc,
+        message.EditedAtUtc,
+        IsDeleted: false),
+    cancellationToken);
+
 
         return new EditMessageResult(
             message.Id,

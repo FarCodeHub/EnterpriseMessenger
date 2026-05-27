@@ -71,11 +71,12 @@ public sealed class UserDeactivator : IUserDeactivator
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return new DeactivateUserResult(
-            user.Id,
-            user.DisplayName,
-            user.UserName,
-            user.IsActive,
-            activeRefreshTokens.Count);
+return new DeactivateUserResult(
+    user.Id,
+    user.DisplayName,
+    user.UserName,
+    user.IsActive,
+    user.IsAdmin,
+    activeRefreshTokens.Count);
     }
 }

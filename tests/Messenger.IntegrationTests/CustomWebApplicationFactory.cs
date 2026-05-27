@@ -6,10 +6,16 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Hosting;
-
+using Messenger.Application.Abstractions.Realtime;
+using Messenger.IntegrationTests.Fakes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using StackExchange.Redis;
+using OpenSearch.Client;
+using Messenger.Application.Search;
 namespace Messenger.IntegrationTests;
 
-public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
+  public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = $"MessengerTestDb_{Guid.NewGuid()}";
 
@@ -17,29 +23,34 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
 
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Testing:IsEnabled"] = "true",
+                ["Redis:ConnectionString"] = ""
+            });
+        });
+
         builder.ConfigureServices(services =>
         {
-            var descriptorsToRemove = services
+            services.RemoveAll<IHostedService>();
+            services.RemoveAll<IConnectionMultiplexer>();
+            services.RemoveAll<IPresenceService>();
+            services.RemoveAll<IOpenSearchClient>();
+services.RemoveAll<IMessageSearchIndexer>();
+services.AddSingleton<IMessageSearchIndexer, FakeMessageSearchIndexer>();
+services.RemoveAll<IMessageFullTextSearchService>();
+services.AddSingleton<IMessageFullTextSearchService, FakeMessageFullTextSearchService>();
+
+            var dbContextDescriptors = services
                 .Where(d =>
                     d.ServiceType == typeof(DbContextOptions<MessengerDbContext>) ||
-                    d.ServiceType == typeof(DbContextOptions) ||
-                    d.ServiceType.FullName?.Contains("MessengerDbContext") == true)
+                    d.ServiceType == typeof(DbContextOptions))
                 .ToList();
 
-
-                var hostedServices = services
-    .Where(d => d.ServiceType == typeof(IHostedService))
-    .ToList();
-
-foreach (var hostedService in hostedServices)
-{
-    services.Remove(hostedService);
-}
-
-            foreach (var descriptor in descriptorsToRemove)
-            {
+            foreach (var descriptor in dbContextDescriptors)
                 services.Remove(descriptor);
-            }
 
             services.AddDbContext<MessengerDbContext>(options =>
             {
@@ -50,16 +61,16 @@ foreach (var hostedService in hostedServices)
                 });
             });
 
+            services.AddSingleton<IPresenceService, FakePresenceService>();
+
             services.AddAuthentication(options =>
-     {
-         options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
-         options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
-     })
-     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-         TestAuthHandler.SchemeName,
-         _ => { });
-
-
+            {
+                options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
+                options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
+            })
+            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                TestAuthHandler.SchemeName,
+                _ => { });
         });
     }
 }

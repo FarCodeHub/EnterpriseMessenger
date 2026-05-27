@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: enterprise-messenger-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "15432:5432"
+    volumes:
+      - enterprise_messenger_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: enterprise-messenger-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - enterprise_messenger_redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: enterprise-messenger-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - enterprise_messenger_rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio
+    container_name: enterprise-messenger-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - enterprise_messenger_minio_data:/data
+    restart: unless-stopped
+
+  messenger-api:
+    image: enterprise-messenger-api:latest
+    container_name: enterprise-messenger-api
+    ports:
+      - "8080:8080"
+    environment:
+      # ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__MessengerDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Redis__ConnectionString: redis:6379
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: ${RABBITMQ_USER}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD}
+      Minio__Endpoint: minio:9000
+      Minio__AccessKey: ${MINIO_ROOT_USER}
+      Minio__SecretKey: ${MINIO_ROOT_PASSWORD}
+      Minio__BucketName: ${MINIO_BUCKET_NAME}
+      Minio__PublicEndpoint: ${MINIO_PUBLIC_ENDPOINT}
+      Minio__UseSsl: false
+      SeedAdmin__UserName: ${SEED_ADMIN_USERNAME}
+      SeedAdmin__DisplayName: ${SEED_ADMIN_DISPLAY_NAME}
+      OpenSearch__Url: http://opensearch:9200
+      OpenSearch__MessagesIndex: messenger-messages
+    
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+      - minio
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    container_name: enterprise-messenger-opensearch
+    environment:
+      discovery.type: single-node
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      plugins.security.disabled: "true"
+      bootstrap.memory_lock: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - enterprise_messenger_opensearch_data:/usr/share/opensearch/data
+    restart: unless-stopped
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2
+    container_name: enterprise-messenger-opensearch-dashboards
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - "5601:5601"
+    depends_on:
+      - opensearch
+    restart: unless-stopped
+    
+
+
+volumes:
+  enterprise_messenger_postgres_data:
+  enterprise_messenger_redis_data:
+  enterprise_messenger_rabbitmq_data:
+  enterprise_messenger_minio_data:
+  enterprise_messenger_opensearch_data:

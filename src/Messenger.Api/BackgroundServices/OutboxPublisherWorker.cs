@@ -18,14 +18,24 @@ public sealed class OutboxPublisherWorker : BackgroundService
         _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+{
+    while (!stoppingToken.IsCancellationRequested)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
             await PublishPendingMessagesAsync(stoppingToken);
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Outbox publisher worker failed. It will retry later.");
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
     }
+}
 
     private async Task PublishPendingMessagesAsync(CancellationToken cancellationToken)
     {

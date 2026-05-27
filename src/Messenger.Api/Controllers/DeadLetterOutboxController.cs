@@ -1,8 +1,9 @@
+using Messenger.Contracts.Common;
+using Messenger.Contracts.Outbox;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
 namespace Messenger.Api.Controllers;
 
 [Authorize(Roles = "Admin")]
@@ -16,6 +17,10 @@ public sealed class DeadLetterOutboxController : ControllerBase
     {
         _dbContext = dbContext;
     }
+
+
+
+
 
     [HttpGet]
     public async Task<IActionResult> GetDeadLetters(
@@ -45,13 +50,17 @@ public sealed class DeadLetterOutboxController : ControllerBase
             })
             .ToListAsync(cancellationToken);
 
-        return Ok(new
-        {
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount,
-            Items = items
-        });
+return Ok(new PagedResponse<DeadLetterOutboxResponse>(
+    page,
+    pageSize,
+    totalCount,
+    items.Select(x => new DeadLetterOutboxResponse(
+        x.Id,
+        x.OriginalOutboxMessageId,
+        x.Type,
+        x.Error,
+        x.RetryCount,
+        x.MovedAtUtc)).ToList()));
     }
 
 
@@ -75,12 +84,10 @@ public async Task<IActionResult> RetryDeadLetter(
 
     await _dbContext.SaveChangesAsync(cancellationToken);
 
-    return Ok(new
-    {
-        DeadLetterId = deadLetterId,
-        NewOutboxMessageId = outboxMessage.Id,
-        RetriedAtUtc = DateTime.UtcNow
-    });
+return Ok(new RetryDeadLetterOutboxResponse(
+    deadLetterId,
+    outboxMessage.Id,
+    DateTime.UtcNow));
 }
 
 

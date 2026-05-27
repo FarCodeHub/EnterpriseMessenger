@@ -20,8 +20,17 @@ public sealed class NotificationDispatchWorker : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await ProcessPendingNotificationsAsync(stoppingToken);
 
+                    try
+        {
+            await ProcessPendingNotificationsAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Outbox publisher worker failed. It will retry later.");
+        }
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
     }

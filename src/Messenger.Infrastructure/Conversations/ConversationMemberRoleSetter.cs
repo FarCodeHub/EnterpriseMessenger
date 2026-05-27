@@ -1,4 +1,5 @@
 using Messenger.Application.Auditing;
+using Messenger.Application.Conversations;
 using Messenger.Application.Conversations.SetMemberRole;
 using Messenger.Domain.Enums;
 using Messenger.Infrastructure.Persistence;
@@ -10,11 +11,13 @@ public sealed class ConversationMemberRoleSetter : IConversationMemberRoleSetter
 {
     private readonly MessengerDbContext _dbContext;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly IConversationPermissionChecker _permissionChecker;
 
-    public ConversationMemberRoleSetter(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter)
+    public ConversationMemberRoleSetter(MessengerDbContext dbContext, IAuditLogWriter auditLogWriter, IConversationPermissionChecker permissionChecker)
     {
         _dbContext = dbContext;
         _auditLogWriter = auditLogWriter;
+        _permissionChecker = permissionChecker;
     }
 
     public async Task<SetConversationMemberRoleResult> SetAsync(
@@ -28,8 +31,10 @@ public sealed class ConversationMemberRoleSetter : IConversationMemberRoleSetter
                 x.LeftAtUtc == null,
                 cancellationToken);
 
-        if (currentMember is null || currentMember.Role != ConversationMemberRole.Owner)
-            throw new UnauthorizedAccessException("Only owner can change member roles.");
+        await _permissionChecker.EnsureOwnerAsync(
+    command.ConversationId,
+    command.CurrentUserId,
+    cancellationToken);
 
         var targetMember = await _dbContext.ConversationMembers
             .FirstOrDefaultAsync(x =>

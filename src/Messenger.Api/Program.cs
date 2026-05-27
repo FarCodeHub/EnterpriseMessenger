@@ -1,6 +1,6 @@
 using Messenger.Infrastructure;
 using Messenger.Api.Hubs;
- 
+
 using System.Text;
 using Messenger.Api.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -12,6 +12,11 @@ using Messenger.Api.Middleware;
 using HealthChecks.RabbitMQ;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Serilog;
+using System.Threading.RateLimiting;
+using Microsoft.Extensions.Hosting;
+using System.Reflection;
+using Messenger.Infrastructure.Users;
+using Messenger.Application.Search;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -33,19 +38,22 @@ builder.Host.UseSerilog();
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
+
+
+
 builder.Services.AddSwaggerGen(options =>
 {
-   options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-   {
-       Name = "Authorization",
-       Type = SecuritySchemeType.Http,
-       Scheme = "Bearer",
-       BearerFormat = "JWT",
-       In = ParameterLocation.Header,
-       Description = "Enter JWT token like this: Bearer {your token}"
-   });
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter JWT token like this: Bearer {your token}"
+    });
 
-   options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
    {
         {
             new OpenApiSecurityScheme
@@ -59,9 +67,20 @@ builder.Services.AddSwaggerGen(options =>
             []
         }
    });
+
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+
+    options.IncludeXmlComments(xmlPath);
+
+
+
 });
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure(
+    builder.Configuration,
+    builder.Environment);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowLocalTest", policy =>
@@ -75,10 +94,11 @@ builder.Services.AddCors(options =>
 });
 
 
+var isTesting = builder.Environment.IsEnvironment("Testing");
 
- var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 
-if (!string.IsNullOrWhiteSpace(redisConnectionString))
+if (!isTesting && !string.IsNullOrWhiteSpace(redisConnectionString))
 {
     builder.Services
         .AddSignalR()
@@ -89,7 +109,7 @@ else
     builder.Services.AddSignalR();
 }
 
- 
+
 
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 
@@ -137,6 +157,9 @@ builder.Services.AddHostedService<NotificationDispatchWorker>();
 builder.Services.AddHostedService<OutboxPublisherWorker>();
 builder.Services.AddHostedService<OutboxCleanupWorker>();
 builder.Services.AddHostedService<DeadLetterOutboxMoverWorker>();
+builder.Services.AddHostedService<RefreshTokenCleanupWorker>();
+builder.Services.AddHostedService<NotificationCleanupWorker>();
+builder.Services.AddHostedService<AuditLogCleanupWorker>();
 
 var rabbitMqHost =
     builder.Configuration["RabbitMq:Host"] ?? "localhost";
@@ -170,8 +193,43 @@ builder.Services
         },
         tags: ["ready"]);
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("auth", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 
+    options.AddPolicy("messages", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 
+    options.AddPolicy("files", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior =
+        BackgroundServiceExceptionBehavior.Ignore;
+});
 
 var app = builder.Build();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
@@ -186,7 +244,7 @@ app.UseCors("AllowLocalTest");
 
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
 {
@@ -198,7 +256,7 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 
 app.MapControllers();
- app.MapHealthChecks("/health/live", new HealthCheckOptions
+app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
 });
@@ -209,6 +267,25 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 
 app.MapHub<ChatHub>("/hubs/chat");
+
+
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    using var scope = app.Services.CreateScope();
+
+    var seeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
+    await seeder.SeedAsync(CancellationToken.None);
+}
+using (var scope = app.Services.CreateScope())
+{
+    var indexer = scope.ServiceProvider.GetService<IMessageSearchIndexer>();
+
+    if (indexer is not null)
+    {
+        await indexer.EnsureIndexAsync(CancellationToken.None);
+    }
+}
+
 try
 {
     app.Run();

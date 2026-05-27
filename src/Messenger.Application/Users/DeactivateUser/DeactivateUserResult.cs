@@ -5,5 +5,6 @@ public sealed record DeactivateUserResult(
     string DisplayName,
     string UserName,
     bool IsActive,
+    bool IsAdmin,
     int RevokedTokensCount
 );

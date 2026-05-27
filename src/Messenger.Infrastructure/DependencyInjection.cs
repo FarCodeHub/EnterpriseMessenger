@@ -46,21 +46,35 @@ using Messenger.Application.Users.ActivateUser;
 using Messenger.Application.Users.MakeAdmin;
 using Messenger.Application.Outbox;
 using Messenger.Infrastructure.Outbox;
+using Minio;
+using Messenger.Application.Files.GetDownloadUrl;
+using Messenger.Application.Conversations;
+using Messenger.Application.Abstractions.Realtime;
+using Microsoft.Extensions.Hosting;
+using Messenger.Application.Search;
+using Messenger.Infrastructure.Search;
+using OpenSearch.Client;
+
+
 namespace Messenger.Infrastructure;
 
 
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
-        this IServiceCollection services,
-        IConfiguration configuration)
+       this IServiceCollection services,
+       IConfiguration configuration,
+       IHostEnvironment environment)
     {
         var connectionString = configuration.GetConnectionString("MessengerDb");
 
-        services.AddDbContext<MessengerDbContext>(options =>
+        if (!environment.IsEnvironment("Testing"))
         {
-            options.UseNpgsql(connectionString);
-        });
+            services.AddDbContext<MessengerDbContext>(options =>
+            {
+                options.UseNpgsql(configuration.GetConnectionString("MessengerDb"));
+            });
+        }
 
         services.AddScoped<IMessageSender, MessageSender>();
         services.AddScoped<IMessageEditor, MessageEditor>();
@@ -76,16 +90,19 @@ public static class DependencyInjection
         services.AddScoped<IUserDeviceRegistrar, UserDeviceRegistrar>();
         services.AddScoped<ISyncEventReader, SyncEventReader>();
         services.AddScoped<ISyncCommitter, SyncCommitter>();
-        services.AddScoped<IFileUploader, LocalFileUploader>();
         services.AddScoped<IAttachmentDownloader, AttachmentDownloader>();
+
+        var isTesting = environment.IsEnvironment("Testing");
+
         var redisConnectionString = configuration["Redis:ConnectionString"];
 
-        if (!string.IsNullOrWhiteSpace(redisConnectionString))
+        if (!isTesting && !string.IsNullOrWhiteSpace(redisConnectionString))
         {
             services.AddSingleton<IConnectionMultiplexer>(
-                ConnectionMultiplexer.Connect(redisConnectionString));
-        }
+                _ => ConnectionMultiplexer.Connect(redisConnectionString));
 
+            services.AddSingleton<IPresenceService, RedisPresenceService>();
+        }
 
         services.AddMassTransit(options =>
         {
@@ -124,6 +141,43 @@ public static class DependencyInjection
         services.AddScoped<IUserActivator, UserActivator>();
         services.AddScoped<IUserAdminMaker, UserAdminMaker>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
+        var minioEndpoint = configuration["Minio:Endpoint"] ?? "localhost:9000";
+        var minioAccessKey = configuration["Minio:AccessKey"] ?? "minioadmin";
+        var minioSecretKey = configuration["Minio:SecretKey"] ?? "minioadmin";
+        var minioUseSsl = bool.TryParse(configuration["Minio:UseSsl"], out var useSsl) && useSsl;
+
+        services.AddSingleton<IMinioClient>(_ =>
+        {
+            var builder = new MinioClient()
+                .WithEndpoint(minioEndpoint)
+                .WithCredentials(minioAccessKey, minioSecretKey);
+
+            if (minioUseSsl)
+                builder = builder.WithSSL();
+
+            return builder.Build();
+        });
+
+        services.AddScoped<IFileUploader, MinioFileUploader>();
+        services.AddScoped<IAttachmentDownloadUrlGenerator, MinioAttachmentDownloadUrlGenerator>();
+        services.AddScoped<IConversationPermissionChecker, ConversationPermissionChecker>();
+        services.AddScoped<AdminUserSeeder>();
+
+        services.AddScoped<ITypingService, TypingService>();
+        services.AddScoped<IReadReceiptService, ReadReceiptService>();
+        services.AddScoped<IDeliveryReceiptService, DeliveryReceiptService>();
+        var openSearchUrl = configuration["OpenSearch:Url"];
+
+        if (!string.IsNullOrWhiteSpace(openSearchUrl))
+        {
+            var settings = new ConnectionSettings(new Uri(openSearchUrl))
+                .DefaultIndex(configuration["OpenSearch:MessagesIndex"] ?? "messenger-messages");
+
+            services.AddSingleton<IOpenSearchClient>(new OpenSearchClient(settings));
+            services.AddScoped<IMessageSearchIndexer, OpenSearchMessageSearchIndexer>();
+        }
+
+        services.AddScoped<IMessageFullTextSearchService, OpenSearchMessageFullTextSearchService>();
         return services;
     }
 }

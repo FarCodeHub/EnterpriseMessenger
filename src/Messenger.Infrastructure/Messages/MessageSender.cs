@@ -7,6 +7,8 @@ using MassTransit;
 using Messenger.Contracts.IntegrationEvents;
 using Messenger.Application.Auditing;
 using Messenger.Application.Outbox;
+using Messenger.Application.Conversations;
+using Messenger.Application.Search;
 
 namespace Messenger.Infrastructure.Messages;
 
@@ -14,21 +16,27 @@ public sealed class MessageSender : IMessageSender
 {
     private readonly MessengerDbContext _dbContext;
     private readonly IUserSyncEventWriter _syncEventWriter;
-   private readonly IOutboxWriter _outboxWriter;
+    private readonly IOutboxWriter _outboxWriter;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly IConversationPermissionChecker _permissionChecker;
+    private readonly IMessageSearchIndexer _messageSearchIndexer;
 
     public MessageSender(
         MessengerDbContext dbContext,
         IUserSyncEventWriter syncEventWriter,
-       
+
         IAuditLogWriter auditLogWriter,
-        IOutboxWriter outboxWriter)
+        IOutboxWriter outboxWriter,
+        IConversationPermissionChecker permissionChecker,
+        IMessageSearchIndexer messageSearchIndexer)
     {
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
-       
+
         _auditLogWriter = auditLogWriter;
         _outboxWriter = outboxWriter;
+        _permissionChecker = permissionChecker;
+        _messageSearchIndexer = messageSearchIndexer;
     }
 
     public async Task<SendMessageResult> SendAsync(
@@ -38,14 +46,15 @@ public sealed class MessageSender : IMessageSender
         if (string.IsNullOrWhiteSpace(command.Body))
             throw new InvalidOperationException("Message body is required.");
 
-        var isMember = await _dbContext.ConversationMembers
-            .AnyAsync(x =>
-                x.ConversationId == command.ConversationId && x.LeftAtUtc == null &&
-                x.UserId == command.SenderUserId,
-                cancellationToken);
 
-        if (!isMember)
-            throw new InvalidOperationException("Sender is not a member of this conversation.");
+
+
+        await _permissionChecker.EnsureActiveMemberAsync(
+            command.ConversationId,
+            command.SenderUserId,
+            cancellationToken);
+
+
 
         var duplicateMessage = await _dbContext.Messages
             .FirstOrDefaultAsync(x =>
@@ -173,21 +182,33 @@ public sealed class MessageSender : IMessageSender
             cancellationToken);
 
 
-await _outboxWriter.AddAsync(
-    new MessageCreatedIntegrationEvent(
-        message.Id,
-        message.ConversationId,
-        message.SequenceNumber,
-        message.SenderUserId,
-        message.Body,
-        message.CreatedAtUtc),
-    cancellationToken);
+        await _outboxWriter.AddAsync(
+            new MessageCreatedIntegrationEvent(
+                message.Id,
+                message.ConversationId,
+                message.SequenceNumber,
+                message.SenderUserId,
+                message.Body,
+                message.CreatedAtUtc),
+            cancellationToken);
 
 
 
         await _dbContext.SaveChangesAsync(cancellationToken);
-    
-    
+
+
+
+await _messageSearchIndexer.IndexAsync(
+    new MessageSearchDocument(
+        message.Id,
+        message.ConversationId,
+        message.SenderUserId,
+        message.Body,
+        message.SequenceNumber,
+        message.CreatedAtUtc,
+        EditedAtUtc: null,
+        IsDeleted: false),
+    cancellationToken);
 
 
         return new SendMessageResult(
