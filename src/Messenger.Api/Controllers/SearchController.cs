@@ -55,14 +55,16 @@ if (string.IsNullOrWhiteSpace(query))
             result.Page,
             result.PageSize,
             (int)result.TotalCount,
-            result.Items.Select(x => new MessageSearchResponse(
-                x.Id,
-                x.ConversationId,
-                x.SenderUserId,
-                x.Body,
-                x.SequenceNumber,
-                x.CreatedAtUtc,
-                x.EditedAtUtc)).ToList()));
+            
+  result.Items.Select(x => new MessageSearchResponse(
+    x.Document.Id,
+    x.Document.ConversationId,
+    x.Document.SenderUserId,
+    x.Document.Body,
+    x.Highlight,
+    x.Document.SequenceNumber,
+    x.Document.CreatedAtUtc,
+    x.Document.EditedAtUtc)).ToList()));
     }
 
 

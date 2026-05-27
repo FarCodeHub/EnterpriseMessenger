@@ -44,7 +44,7 @@ public sealed class OpenSearchMessageFullTextSearchService : IMessageFullTextSea
                     page,
                     pageSize,
                     0,
-                    Array.Empty<MessageSearchDocument>());
+                    Array.Empty<MessageSearchResultItem>());
             }
 
             allowedConversationIds = [query.ConversationId.Value];
@@ -56,7 +56,7 @@ public sealed class OpenSearchMessageFullTextSearchService : IMessageFullTextSea
                 page,
                 pageSize,
                 0,
-                Array.Empty<MessageSearchDocument>());
+                Array.Empty<MessageSearchResultItem>());
         }
 
         var response = await _client.SearchAsync<MessageSearchDocument>(
@@ -69,7 +69,7 @@ public sealed class OpenSearchMessageFullTextSearchService : IMessageFullTextSea
                         .Must(
                             m => m.Match(mm => mm
                                 .Field(f => f.Body)
-                                .Query(query.Text)
+                                .Query(query.Text).Fuzziness(Fuzziness.Auto)
                             )
                         )
                         .Filter(
@@ -81,8 +81,12 @@ public sealed class OpenSearchMessageFullTextSearchService : IMessageFullTextSea
                         )
                     )
                 )
-                .Sort(sort => sort
-                    .Descending(x => x.CreatedAtUtc)),
+                .Sort(sort => sort.Descending(x => x.CreatedAtUtc)).Highlight(h => h
+    .PreTags("<em>")
+    .PostTags("</em>")
+    .Fields(f => f
+        .Field(x => x.Body)
+    )),
             cancellationToken);
 
         if (!response.IsValid)
@@ -90,10 +94,24 @@ public sealed class OpenSearchMessageFullTextSearchService : IMessageFullTextSea
                 response.ServerError?.ToString()
                 ?? response.OriginalException?.Message);
 
-        return new MessageSearchResult(
-            page,
-            pageSize,
-            response.Total,
-            response.Documents.ToList());
+      var items = response.Hits
+    .Where(x => x.Source is not null)
+    .Select(x =>
+    {
+        var highlight = x.Highlight.TryGetValue("body", out var values)
+            ? values.FirstOrDefault()
+            : null;
+
+        return new MessageSearchResultItem(
+            x.Source,
+            highlight);
+    })
+    .ToList();
+
+return new MessageSearchResult(
+    page,
+    pageSize,
+    response.Total,
+    items);
     }
 }

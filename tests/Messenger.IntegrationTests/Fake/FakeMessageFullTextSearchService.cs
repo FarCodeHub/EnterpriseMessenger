@@ -12,6 +12,6 @@ public sealed class FakeMessageFullTextSearchService : IMessageFullTextSearchSer
             query.Page,
             query.PageSize,
             0,
-            Array.Empty<MessageSearchDocument>()));
+            Array.Empty<MessageSearchResultItem>()));
     }
 }

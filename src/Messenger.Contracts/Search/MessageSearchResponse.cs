@@ -5,6 +5,7 @@ public sealed record MessageSearchResponse(
     Guid ConversationId,
     Guid SenderUserId,
     string Body,
+    string? Highlight,
     long SequenceNumber,
     DateTime CreatedAtUtc,
     DateTime? EditedAtUtc

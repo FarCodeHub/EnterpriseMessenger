@@ -1,7 +1,7 @@
-namespace Messenger.Application.Search;
+using Messenger.Application.Search;
 
 public sealed record MessageSearchResult(
     int Page,
     int PageSize,
     long TotalCount,
-    IReadOnlyCollection<MessageSearchDocument> Items);
+    IReadOnlyCollection<MessageSearchResultItem> Items);
