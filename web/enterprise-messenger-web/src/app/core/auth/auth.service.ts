@@ -85,4 +85,17 @@ private clearLocalAuth(): void {
   getAccessToken(): string | null {
     return this.tokenStorage.getAccessToken();
   }
+
+logoutAll(): Observable<void> {
+  return this.authApi.logoutAll().pipe(
+    catchError(() => of(null)),
+    finalize(() => {
+      this.clearLocalAuth();
+    }),
+    map(() => void 0)
+  );
+}
+
+
+
 }

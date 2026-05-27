@@ -19,6 +19,14 @@ import { AuthService } from '../../core/auth/auth.service';
         >
           Logout
         </button>
+
+        <button
+  type="button"
+  class="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold hover:bg-orange-500"
+  (click)="logoutAll()"
+>
+  Logout All
+</button>
       </header>
 
       <main>
@@ -33,6 +41,14 @@ export class MainLayoutComponent {
 
 logout(): void {
   this.authService.logout().subscribe({
+    next: () => {
+      this.router.navigateByUrl('/auth/login');
+    }
+  });
+}
+
+logoutAll(): void {
+  this.authService.logoutAll().subscribe({
     next: () => {
       this.router.navigateByUrl('/auth/login');
     }
