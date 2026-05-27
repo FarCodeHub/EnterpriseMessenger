@@ -2,8 +2,10 @@ using Messenger.Api.Common;
 using Messenger.Application.Search;
 using Messenger.Contracts.Common;
 using Messenger.Contracts.Search;
+using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Messenger.Api.Controllers;
 
@@ -14,11 +16,13 @@ public sealed class SearchController : ControllerBase
 {
     private readonly IMessageFullTextSearchService _messageSearchService;
     private readonly IMessageSearchIndexer _messageSearchIndexer;
+    private readonly MessengerDbContext _dbContext;
 
-    public SearchController(IMessageFullTextSearchService messageSearchService, IMessageSearchIndexer messageSearchIndexer)
+    public SearchController(IMessageFullTextSearchService messageSearchService, IMessageSearchIndexer messageSearchIndexer, MessengerDbContext dbContext)
     {
         _messageSearchService = messageSearchService;
         _messageSearchIndexer = messageSearchIndexer;
+        _dbContext = dbContext;
     }
 
     [HttpGet("messages")]
@@ -91,7 +95,71 @@ public async Task<IActionResult> RebuildMessagesIndex(
     }
 
 
+[HttpGet("conversations")]
+public async Task<IActionResult> SearchConversations(
+    [FromQuery] string query,
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 20,
+    CancellationToken cancellationToken = default)
+{
+    if (string.IsNullOrWhiteSpace(query))
+    {
+        return BadRequest(new ApiErrorResponse(
+            "validation_error",
+            "Search query is required.",
+            StatusCodes.Status400BadRequest,
+            DateTime.UtcNow));
+    }
 
+    var currentUserId = GetCurrentUserId();
+
+    page = page <= 0 ? 1 : page;
+    pageSize = pageSize <= 0 ? 20 : Math.Min(pageSize, 100);
+
+var searchText = query.Trim().ToLower();
+
+var baseQuery = _dbContext.Conversations
+    .Where(c =>
+        _dbContext.ConversationMembers.Any(m =>
+            m.ConversationId == c.Id &&
+            m.UserId == currentUserId &&
+            m.LeftAtUtc == null) &&
+        (
+            c.Title != null &&
+            c.Title.ToLower().Contains(searchText)
+            ||
+            _dbContext.ConversationMembers.Any(m =>
+                m.ConversationId == c.Id &&
+                m.UserId != currentUserId &&
+                m.LeftAtUtc == null &&
+                _dbContext.Users.Any(u =>
+                    u.Id == m.UserId &&
+                    (
+                        u.DisplayName.ToLower().Contains(searchText) ||
+                        u.UserName.ToLower().Contains(searchText)
+                    )))
+        ));
+
+    var totalCount = await baseQuery.CountAsync(cancellationToken);
+
+    var items = await baseQuery
+        .OrderByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .Select(x => new ConversationSearchResponse(
+            x.Id,
+            x.Title,
+            x.Type.ToString(),
+            x.CreatedAtUtc,
+            x.LastMessageAtUtc))
+        .ToListAsync(cancellationToken);
+
+    return Ok(new PagedResponse<ConversationSearchResponse>(
+        page,
+        pageSize,
+        totalCount,
+        items));
+}
 
 
 }
