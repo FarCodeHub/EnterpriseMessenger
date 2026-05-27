@@ -51,6 +51,9 @@ using Messenger.Application.Files.GetDownloadUrl;
 using Messenger.Application.Conversations;
 using Messenger.Application.Abstractions.Realtime;
 using Microsoft.Extensions.Hosting;
+using Messenger.Application.Search;
+using Messenger.Infrastructure.Search;
+using OpenSearch.Client;
 
 
 namespace Messenger.Infrastructure;
@@ -58,20 +61,20 @@ namespace Messenger.Infrastructure;
 
 public static class DependencyInjection
 {
- public static IServiceCollection AddInfrastructure(
-    this IServiceCollection services,
-    IConfiguration configuration,
-    IHostEnvironment environment)
+    public static IServiceCollection AddInfrastructure(
+       this IServiceCollection services,
+       IConfiguration configuration,
+       IHostEnvironment environment)
     {
         var connectionString = configuration.GetConnectionString("MessengerDb");
 
-  if (!environment.IsEnvironment("Testing"))
-{
-    services.AddDbContext<MessengerDbContext>(options =>
-    {
-        options.UseNpgsql(configuration.GetConnectionString("MessengerDb"));
-    });
-}
+        if (!environment.IsEnvironment("Testing"))
+        {
+            services.AddDbContext<MessengerDbContext>(options =>
+            {
+                options.UseNpgsql(configuration.GetConnectionString("MessengerDb"));
+            });
+        }
 
         services.AddScoped<IMessageSender, MessageSender>();
         services.AddScoped<IMessageEditor, MessageEditor>();
@@ -89,17 +92,17 @@ public static class DependencyInjection
         services.AddScoped<ISyncCommitter, SyncCommitter>();
         services.AddScoped<IAttachmentDownloader, AttachmentDownloader>();
 
-var isTesting = environment.IsEnvironment("Testing");
+        var isTesting = environment.IsEnvironment("Testing");
 
-var redisConnectionString = configuration["Redis:ConnectionString"];
+        var redisConnectionString = configuration["Redis:ConnectionString"];
 
-if (!isTesting && !string.IsNullOrWhiteSpace(redisConnectionString))
-{
-    services.AddSingleton<IConnectionMultiplexer>(
-        _ => ConnectionMultiplexer.Connect(redisConnectionString));
+        if (!isTesting && !string.IsNullOrWhiteSpace(redisConnectionString))
+        {
+            services.AddSingleton<IConnectionMultiplexer>(
+                _ => ConnectionMultiplexer.Connect(redisConnectionString));
 
-    services.AddSingleton<IPresenceService, RedisPresenceService>();
-}
+            services.AddSingleton<IPresenceService, RedisPresenceService>();
+        }
 
         services.AddMassTransit(options =>
         {
@@ -155,14 +158,26 @@ if (!isTesting && !string.IsNullOrWhiteSpace(redisConnectionString))
             return builder.Build();
         });
 
-        services.AddScoped<IFileUploader, MinioFileUploader>(); 
+        services.AddScoped<IFileUploader, MinioFileUploader>();
         services.AddScoped<IAttachmentDownloadUrlGenerator, MinioAttachmentDownloadUrlGenerator>();
         services.AddScoped<IConversationPermissionChecker, ConversationPermissionChecker>();
         services.AddScoped<AdminUserSeeder>();
-        
+
         services.AddScoped<ITypingService, TypingService>();
         services.AddScoped<IReadReceiptService, ReadReceiptService>();
         services.AddScoped<IDeliveryReceiptService, DeliveryReceiptService>();
+        var openSearchUrl = configuration["OpenSearch:Url"];
+
+        if (!string.IsNullOrWhiteSpace(openSearchUrl))
+        {
+            var settings = new ConnectionSettings(new Uri(openSearchUrl))
+                .DefaultIndex(configuration["OpenSearch:MessagesIndex"] ?? "messenger-messages");
+
+            services.AddSingleton<IOpenSearchClient>(new OpenSearchClient(settings));
+            services.AddScoped<IMessageSearchIndexer, OpenSearchMessageSearchIndexer>();
+        }
+
+        services.AddScoped<IMessageFullTextSearchService, OpenSearchMessageFullTextSearchService>();
         return services;
     }
 }

@@ -1,5 +1,6 @@
 using Messenger.Application.Auditing;
 using Messenger.Application.Messages.DeleteMessage;
+using Messenger.Application.Search;
 using Messenger.Application.Sync;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -11,12 +12,14 @@ public sealed class MessageDeleter : IMessageDeleter
     private readonly MessengerDbContext _dbContext;
     private readonly IUserSyncEventWriter _syncEventWriter;
     private readonly IAuditLogWriter _auditLogWriter;
+    private readonly IMessageSearchIndexer _messageSearchIndexer;
 
-    public MessageDeleter(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter)
+    public MessageDeleter(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer)
     {
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
         _auditLogWriter = auditLogWriter;
+        _messageSearchIndexer = messageSearchIndexer;
     }
 
     public async Task<DeleteMessageResult> DeleteAsync(
@@ -61,6 +64,11 @@ public sealed class MessageDeleter : IMessageDeleter
           cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+
+        await _messageSearchIndexer.DeleteAsync(
+    message.Id,
+    cancellationToken);
 
         return new DeleteMessageResult(
             message.Id,

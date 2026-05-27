@@ -1,6 +1,6 @@
 using Messenger.Infrastructure;
 using Messenger.Api.Hubs;
- 
+
 using System.Text;
 using Messenger.Api.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -16,6 +16,7 @@ using System.Threading.RateLimiting;
 using Microsoft.Extensions.Hosting;
 using System.Reflection;
 using Messenger.Infrastructure.Users;
+using Messenger.Application.Search;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -42,17 +43,17 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(options =>
 {
-   options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-   {
-       Name = "Authorization",
-       Type = SecuritySchemeType.Http,
-       Scheme = "Bearer",
-       BearerFormat = "JWT",
-       In = ParameterLocation.Header,
-       Description = "Enter JWT token like this: Bearer {your token}"
-   });
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter JWT token like this: Bearer {your token}"
+    });
 
-   options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
    {
         {
             new OpenApiSecurityScheme
@@ -67,11 +68,11 @@ builder.Services.AddSwaggerGen(options =>
         }
    });
 
-var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
 
-var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
 
-options.IncludeXmlComments(xmlPath);
+    options.IncludeXmlComments(xmlPath);
 
 
 
@@ -108,7 +109,7 @@ else
     builder.Services.AddSignalR();
 }
 
- 
+
 
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 
@@ -255,7 +256,7 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 
 app.MapControllers();
- app.MapHealthChecks("/health/live", new HealthCheckOptions
+app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
     Predicate = _ => false
 });
@@ -275,7 +276,15 @@ if (!app.Environment.IsEnvironment("Testing"))
     var seeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
     await seeder.SeedAsync(CancellationToken.None);
 }
+using (var scope = app.Services.CreateScope())
+{
+    var indexer = scope.ServiceProvider.GetService<IMessageSearchIndexer>();
 
+    if (indexer is not null)
+    {
+        await indexer.EnsureIndexAsync(CancellationToken.None);
+    }
+}
 
 try
 {
