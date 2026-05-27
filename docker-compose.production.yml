@@ -72,14 +72,23 @@ services:
       SeedAdmin__DisplayName: ${SEED_ADMIN_DISPLAY_NAME}
       OpenSearch__Url: http://opensearch:9200
       OpenSearch__MessagesIndex: messenger-messages
-    
-    restart: unless-stopped
+
+  messenger-web:
+    build:
+      context: ./web/enterprise-messenger-web
+      dockerfile: Dockerfile
+    image: enterprise-messenger-web:latest
+    container_name: enterprise-messenger-web
+    ports:
+      - "4200:80"
     depends_on:
+      - messenger-api
       - postgres
       - redis
       - rabbitmq
       - minio
-
+    restart: unless-stopped
+    
   opensearch:
     image: opensearchproject/opensearch:2
     container_name: enterprise-messenger-opensearch
