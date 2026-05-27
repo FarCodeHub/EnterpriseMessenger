@@ -242,3 +242,100 @@ Payload:
 ```json
 "user-guid"
 ```
+
+
+---
+
+# Search
+
+## Search Messages
+
+```http
+GET /search/messages?query=hello&conversationId={conversationId}&page=1&pageSize=20
+Authorization: Bearer {token}
+```
+
+Notes:
+
+```text
+query is required.
+conversationId is optional.
+Only messages from conversations where current user is active member are returned.
+Deleted messages are excluded.
+Supports fuzzy matching and Persian/Arabic normalization.
+```
+
+Response:
+
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 1,
+  "items": [
+    {
+      "id": "message-guid",
+      "conversationId": "conversation-guid",
+      "senderUserId": "user-guid",
+      "body": "Hello world",
+      "highlight": "<em>Hello</em> world",
+      "sequenceNumber": 12,
+      "createdAtUtc": "2026-05-27T08:00:00Z",
+      "editedAtUtc": null
+    }
+  ]
+}
+```
+
+---
+
+## Search Conversations
+
+```http
+GET /search/conversations?query=dev&page=1&pageSize=20
+Authorization: Bearer {token}
+```
+
+Notes:
+
+```text
+query is required.
+Searches group title and private conversation participant displayName/userName.
+Only conversations where current user is active member are returned.
+```
+
+Response:
+
+```json
+{
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 1,
+  "items": [
+    {
+      "id": "conversation-guid",
+      "title": "Dev Team",
+      "type": "Group",
+      "createdAtUtc": "2026-05-27T08:00:00Z",
+      "lastMessageAtUtc": "2026-05-27T08:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## Rebuild Message Search Index
+
+```http
+POST /search/messages/rebuild-index
+Authorization: Bearer {admin-token}
+```
+
+Response:
+
+```json
+{
+  "message": "Messages search index rebuilt."
+}
+```

@@ -8,6 +8,7 @@ using Messenger.Contracts.IntegrationEvents;
 using Messenger.Application.Auditing;
 using Messenger.Application.Outbox;
 using Messenger.Application.Conversations;
+using Messenger.Application.Search;
 
 namespace Messenger.Infrastructure.Messages;
 
@@ -18,6 +19,7 @@ public sealed class MessageSender : IMessageSender
     private readonly IOutboxWriter _outboxWriter;
     private readonly IAuditLogWriter _auditLogWriter;
     private readonly IConversationPermissionChecker _permissionChecker;
+    private readonly IMessageSearchIndexer _messageSearchIndexer;
 
     public MessageSender(
         MessengerDbContext dbContext,
@@ -25,7 +27,8 @@ public sealed class MessageSender : IMessageSender
 
         IAuditLogWriter auditLogWriter,
         IOutboxWriter outboxWriter,
-        IConversationPermissionChecker permissionChecker)
+        IConversationPermissionChecker permissionChecker,
+        IMessageSearchIndexer messageSearchIndexer)
     {
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
@@ -33,6 +36,7 @@ public sealed class MessageSender : IMessageSender
         _auditLogWriter = auditLogWriter;
         _outboxWriter = outboxWriter;
         _permissionChecker = permissionChecker;
+        _messageSearchIndexer = messageSearchIndexer;
     }
 
     public async Task<SendMessageResult> SendAsync(
@@ -193,6 +197,18 @@ public sealed class MessageSender : IMessageSender
         await _dbContext.SaveChangesAsync(cancellationToken);
 
 
+
+await _messageSearchIndexer.IndexAsync(
+    new MessageSearchDocument(
+        message.Id,
+        message.ConversationId,
+        message.SenderUserId,
+        message.Body,
+        message.SequenceNumber,
+        message.CreatedAtUtc,
+        EditedAtUtc: null,
+        IsDeleted: false),
+    cancellationToken);
 
 
         return new SendMessageResult(

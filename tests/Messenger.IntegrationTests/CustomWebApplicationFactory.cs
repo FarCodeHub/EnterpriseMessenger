@@ -11,6 +11,8 @@ using Messenger.IntegrationTests.Fakes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using StackExchange.Redis;
+using OpenSearch.Client;
+using Messenger.Application.Search;
 namespace Messenger.IntegrationTests;
 
   public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
@@ -35,6 +37,11 @@ namespace Messenger.IntegrationTests;
             services.RemoveAll<IHostedService>();
             services.RemoveAll<IConnectionMultiplexer>();
             services.RemoveAll<IPresenceService>();
+            services.RemoveAll<IOpenSearchClient>();
+services.RemoveAll<IMessageSearchIndexer>();
+services.AddSingleton<IMessageSearchIndexer, FakeMessageSearchIndexer>();
+services.RemoveAll<IMessageFullTextSearchService>();
+services.AddSingleton<IMessageFullTextSearchService, FakeMessageFullTextSearchService>();
 
             var dbContextDescriptors = services
                 .Where(d =>
