@@ -2,13 +2,18 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
-
+import { TranslateModule } from '@ngx-translate/core';
 import { AuthService } from '../../../core/auth/auth.service';
-
+import { LanguageSwitcherComponent } from '../../../shared/components/language-switcher/language-switcher.component';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+imports: [
+  CommonModule,
+  ReactiveFormsModule,
+  TranslateModule,
+  LanguageSwitcherComponent
+],
   templateUrl: './login.component.html'
 })
 export class LoginComponent {
@@ -30,7 +35,7 @@ export class LoginComponent {
     }
 
     this.isLoading.set(true);
-    this.errorMessage.set(null);
+  this.errorMessage.set('auth.login.failed');
 
     const { userName } = this.form.getRawValue();
 
