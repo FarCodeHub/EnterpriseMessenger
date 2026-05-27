@@ -1,0 +1,17 @@
+{
+  "app": {
+    "name": "EnterpriseMessenger"
+  },
+  "auth": {
+    "login": {
+      "title": "ورود به سیستم",
+      "subtitle": "برای ادامه وارد شوید",
+      "username": "نام کاربری",
+      "usernamePlaceholder": "مثلاً admin",
+      "usernameRequired": "نام کاربری الزامی است.",
+      "submit": "ورود",
+      "submitting": "در حال ورود...",
+      "failed": "ورود ناموفق بود. نام کاربری را بررسی کنید."
+    }
+  }
+}
