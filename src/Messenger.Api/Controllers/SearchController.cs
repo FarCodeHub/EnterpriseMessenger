@@ -160,6 +160,4 @@ var baseQuery = _dbContext.Conversations
         totalCount,
         items));
 }
-
-
 }

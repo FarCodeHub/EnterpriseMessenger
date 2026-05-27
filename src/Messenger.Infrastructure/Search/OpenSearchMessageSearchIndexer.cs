@@ -63,21 +63,45 @@ public async Task EnsureIndexAsync(CancellationToken cancellationToken)
     if (existsResponse.Exists)
         return;
 
-    var createResponse = await _client.Indices.CreateAsync(
-        _indexName,
-        c => c
-            .Map<MessageSearchDocument>(m => m
-                .Properties(p => p
-                    .Keyword(k => k.Name(x => x.Id))
-                    .Keyword(k => k.Name(x => x.ConversationId))
-                    .Keyword(k => k.Name(x => x.SenderUserId))
-                    .Text(t => t.Name(x => x.Body))
-                    .Number(n => n.Name(x => x.SequenceNumber).Type(NumberType.Long))
-                    .Date(d => d.Name(x => x.CreatedAtUtc))
-                    .Date(d => d.Name(x => x.EditedAtUtc))
-                    .Boolean(b => b.Name(x => x.IsDeleted))
-                )),
-        cancellationToken);
+var createResponse = await _client.Indices.CreateAsync(
+    _indexName,
+    c => c
+        .Settings(s => s
+            .Analysis(a => a
+                .CharFilters(cf => cf
+                    .Mapping("persian_char_filter", m => m
+                        .Mappings(
+                            "ي => ی",
+                            "ك => ک",
+                            "ۀ => ه",
+                            "ة => ه"
+                        )
+                    )
+                )
+                .Analyzers(an => an
+                    .Custom("persian_messenger_analyzer", ca => ca
+                        .CharFilters("persian_char_filter")
+                        .Tokenizer("standard")
+                        .Filters("lowercase", "arabic_normalization", "persian_normalization")
+                    )
+                )
+            )
+        )
+        .Map<MessageSearchDocument>(m => m
+            .Properties(p => p
+                .Keyword(k => k.Name(x => x.Id))
+                .Keyword(k => k.Name(x => x.ConversationId))
+                .Keyword(k => k.Name(x => x.SenderUserId))
+                .Text(t => t
+                    .Name(x => x.Body)
+                    .Analyzer("persian_messenger_analyzer")
+                    .SearchAnalyzer("persian_messenger_analyzer"))
+                .Number(n => n.Name(x => x.SequenceNumber).Type(NumberType.Long))
+                .Date(d => d.Name(x => x.CreatedAtUtc))
+                .Date(d => d.Name(x => x.EditedAtUtc))
+                .Boolean(b => b.Name(x => x.IsDeleted))
+            )),
+    cancellationToken);
 
     if (!createResponse.IsValid)
         throw new InvalidOperationException(
