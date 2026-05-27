@@ -13,5 +13,15 @@
       "submitting": "Entrando...",
       "failed": "Error de inicio de sesión. Verifica tu usuario."
     }
+  },
+  "layout": {
+  "conversationsPlaceholder": "La lista de conversaciones aparecerá aquí",
+  "logout": "Salir"
+},
+"conversations": {
+  "empty": {
+    "title": "No hay conversación seleccionada",
+    "description": "Selecciona una conversación de la lista o inicia una nueva."
   }
+}
 }

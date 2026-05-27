@@ -13,5 +13,15 @@
       "submitting": "Signing in...",
       "failed": "Login failed. Please check your username."
     }
+  },
+  "layout": {
+  "conversationsPlaceholder": "Conversation list will be here",
+  "logout": "Logout"
+},
+"conversations": {
+  "empty": {
+    "title": "No conversation selected",
+    "description": "Select a conversation from the list or start a new one."
   }
+}
 }

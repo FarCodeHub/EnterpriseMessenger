@@ -28,7 +28,7 @@ import { LanguageSwitcherComponent } from '../../shared/components/language-swit
               class="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500"
               (click)="logout()"
             >
-              Logout
+              {{ 'layout.logout' | translate }}
             </button>
           </div>
 
@@ -39,7 +39,7 @@ import { LanguageSwitcherComponent } from '../../shared/components/language-swit
 
         <div class="flex-1 overflow-y-auto p-4">
           <div class="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-400">
-            Conversation list will be here
+          {{ 'layout.conversationsPlaceholder' | translate }}
           </div>
         </div>
       </aside>
