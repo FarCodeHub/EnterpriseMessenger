@@ -1,10 +1,10 @@
 import { environment } from '../../../environments/environment';
 
-export interface AppConfig {
+export interface ApplicationConfig {
   production: boolean;
   apiBaseUrl: string;
   signalRHubUrl: string;
   appName: string;
 }
 
-export const appConfig: AppConfig = environment;
+export const applicationConfig: ApplicationConfig = environment;

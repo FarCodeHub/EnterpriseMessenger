@@ -6,7 +6,7 @@ import { TokenStorageService } from '../storage/token-storage.service';
 import { LoginRequest } from '../../features/auth/models/login-request';
 import { AuthResponse } from '../../features/auth/models/auth-response';
 import { AuthUserDto } from '../../features/auth/models/auth-user.dto';
-
+import { catchError, finalize, map, of } from 'rxjs';
 @Injectable({
   providedIn: 'root'
 })
@@ -55,11 +55,32 @@ export class AuthService {
       })
     );
   }
+logout(): Observable<void> {
+  const refreshToken = this.tokenStorage.getRefreshToken();
+  const deviceId = this.tokenStorage.getDeviceId();
 
-  logout(): void {
-    this.tokenStorage.clear();
-    this.userSignal.set(null);
+  if (!refreshToken) {
+    this.clearLocalAuth();
+    return of(void 0);
   }
+
+  return this.authApi.logout({
+    refreshToken,
+    deviceId
+  }).pipe(
+    catchError(() => of(null)),
+    finalize(() => {
+      this.clearLocalAuth();
+    }),
+    map(() => void 0)
+  );
+}
+ 
+
+private clearLocalAuth(): void {
+  this.tokenStorage.clear();
+  this.userSignal.set(null);
+}
 
   getAccessToken(): string | null {
     return this.tokenStorage.getAccessToken();

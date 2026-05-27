@@ -1,10 +1,10 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { appConfig } from '../config/app-config';
+import { applicationConfig } from '../config/application-config';
 
 export abstract class BaseApiService {
   protected readonly http = inject(HttpClient);
-  protected readonly baseUrl = appConfig.apiBaseUrl;
+  protected readonly baseUrl = applicationConfig.apiBaseUrl
 
   protected get<TResponse>(url: string, params?: Record<string, string | number | boolean | null | undefined>) {
     return this.http.get<TResponse>(`${this.baseUrl}${url}`, {
