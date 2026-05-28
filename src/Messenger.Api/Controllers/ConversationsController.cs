@@ -132,9 +132,6 @@ public async Task<IActionResult> AddMember(
         return Ok(result);
     }
  
-
-
- 
     [ProducesResponseType(typeof(ConversationMemberSettingsResponse), StatusCodes.Status200OK)]
 [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status403Forbidden)]
     [HttpPost("{conversationId:guid}/mute")]

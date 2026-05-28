@@ -103,10 +103,18 @@ var createResponse = await _client.Indices.CreateAsync(
             )),
     cancellationToken);
 
-    if (!createResponse.IsValid)
-        throw new InvalidOperationException(
-            createResponse.ServerError?.ToString()
-            ?? createResponse.OriginalException?.Message);
+if (!createResponse.IsValid)
+{
+    throw new InvalidOperationException(
+        $"""
+        OpenSearch create index failed.
+        Index: {_indexName}
+        DebugInformation: {createResponse.DebugInformation}
+        ServerError: {createResponse.ServerError}
+        OriginalException: {createResponse.OriginalException?.Message}
+        """,
+        createResponse.OriginalException);
+}
 }
 
 

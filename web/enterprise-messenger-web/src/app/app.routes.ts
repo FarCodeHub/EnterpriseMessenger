@@ -21,11 +21,18 @@ export const routes: Routes = [
         import('./features/conversations/conversations-page.component')
           .then(c => c.ConversationsPageComponent)
     },
+        {
+  path: 'conversations/:conversationId',
+  loadComponent: () =>
+    import('./features/conversations/conversation-chat/conversation-chat.component')
+      .then(c => c.ConversationChatComponent)
+},
     {
       path: '',
       pathMatch: 'full',
       redirectTo: 'conversations'
-    }
+    },
+
   ]
 },
   {

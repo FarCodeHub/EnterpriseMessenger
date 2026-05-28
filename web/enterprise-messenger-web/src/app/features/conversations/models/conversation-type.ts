@@ -1,3 +1,4 @@
-export type ConversationType =
-  | 'Private'
-  | 'Group';
+export enum ConversationType {
+  Private = 1,
+  Group = 2
+}

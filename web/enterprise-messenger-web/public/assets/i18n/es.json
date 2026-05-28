@@ -22,6 +22,11 @@
   "empty": {
     "title": "No hay conversación seleccionada",
     "description": "Selecciona una conversación de la lista o inicia una nueva."
+  },  "list": {
+    "loading": "Cargando conversaciones...",
+    "empty": "Aún no hay conversaciones.",
+    "noMessages": "Aún no hay mensajes",
+"archived": "Archivado"
   }
 }
 }

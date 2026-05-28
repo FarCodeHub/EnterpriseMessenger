@@ -1,7 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { BaseApiService } from '../api/base-api.service';
+import { AuthService } from '../auth/auth.service';
 
 import { ConversationListItemDto } from '../../features/conversations/models/conversation-list-item.dto';
 
@@ -9,11 +10,29 @@ import { ConversationListItemDto } from '../../features/conversations/models/con
   providedIn: 'root'
 })
 export class ConversationsApiService extends BaseApiService {
+  private readonly authService = inject(AuthService);
+
   getMyConversations(): Observable<ConversationListItemDto[]> {
-    return this.get<ConversationListItemDto[]>('/Conversations');
+    const userId = this.authService.user()?.id;
+
+    if (!userId) {
+      throw new Error('User is not authenticated.');
+    }
+
+    return this.get<ConversationListItemDto[]>(
+      `/Conversations/user/${userId}`
+    );
   }
 
   getArchivedConversations(): Observable<ConversationListItemDto[]> {
-    return this.get<ConversationListItemDto[]>('/Conversations/archived');
+    const userId = this.authService.user()?.id;
+
+    if (!userId) {
+      throw new Error('User is not authenticated.');
+    }
+
+    return this.get<ConversationListItemDto[]>(
+      `/Conversations/user/${userId}/archived`
+    );
   }
 }

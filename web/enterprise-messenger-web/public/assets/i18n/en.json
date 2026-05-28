@@ -22,6 +22,12 @@
   "empty": {
     "title": "No conversation selected",
     "description": "Select a conversation from the list or start a new one."
+  },
+    "list": {
+    "loading": "Loading conversations...",
+    "empty": "No conversations yet.",
+    "noMessages": "No messages yet",
+"archived": "Archived"
   }
 }
 }

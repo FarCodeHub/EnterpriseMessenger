@@ -15,8 +15,8 @@ services:
   redis:
     image: redis:7
     container_name: enterprise-messenger-redis
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     volumes:
       - enterprise_messenger_redis_data:/data
     command: redis-server --appendonly yes
@@ -87,6 +87,7 @@ services:
       - redis
       - rabbitmq
       - minio
+      - opensearch
     restart: unless-stopped
     
   opensearch:
