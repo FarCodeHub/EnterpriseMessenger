@@ -27,6 +27,12 @@
     "empty": "Aún no hay conversaciones.",
     "noMessages": "Aún no hay mensajes",
 "archived": "Archivado"
-  }
+  },"messages": {
+  "title": "Mensajes",
+  "loading": "Cargando mensajes...",
+  "empty": "Aún no hay mensajes.",
+  "deleted": "Este mensaje fue eliminado",
+  "edited": "editado"
+}
 }
 }
