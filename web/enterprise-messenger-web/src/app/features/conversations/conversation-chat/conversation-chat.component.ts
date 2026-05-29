@@ -8,6 +8,8 @@ import { MessagesState } from '../../../state/messages/messages.state';
 import { FormsModule } from '@angular/forms';
 import { signal } from '@angular/core';
 import { ChatSignalRService } from '../../../core/signalr/chat-signalr.service';
+import { OnDestroy } from '@angular/core';
+import { Subject, takeUntil } from 'rxjs';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -126,7 +128,8 @@ import { ChatSignalRService } from '../../../core/signalr/chat-signalr.service';
     </div>
   `
 })
-export class ConversationChatComponent implements OnInit {
+export class ConversationChatComponent implements OnInit, OnDestroy {
+  private readonly destroy$ = new Subject<void>();
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private readonly conversationsState = inject(ConversationsState);
@@ -152,13 +155,31 @@ export class ConversationChatComponent implements OnInit {
   });
 
 ngOnInit(): void {
+ 
   const conversationId = this.conversationId();
 
   if (conversationId) {
     this.messagesState.load(conversationId);
 
     this.chatSignalR.joinConversation(conversationId);
+      this.chatSignalR.messageCreated$
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(event => {
+    if (event.conversationId === conversationId) {
+      this.messagesState.handleMessageCreated(event);
+    }
+  });
   }
+ 
+this.chatSignalR.messageCreated$
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(event => {
+    console.log('message.created received:', event);
+
+    if (event.conversationId === conversationId) {
+      this.messagesState.handleMessageCreated(event);
+    }
+  });
 }
 
 
@@ -181,5 +202,8 @@ ngOnInit(): void {
     this.messageText.set('');
   }
 
-
+ngOnDestroy(): void {
+  this.destroy$.next();
+  this.destroy$.complete();
+}
 }

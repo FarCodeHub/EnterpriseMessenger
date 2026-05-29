@@ -90,10 +90,13 @@ export class ChatSignalRService {
     await this.invoke('RegisterUser');
   }
 
-  async joinConversation(conversationId: string): Promise<void> {
-    console.log('Conversation joined:', conversationId);
-    await this.invoke('JoinConversation', conversationId);
-  }
+async joinConversation(conversationId: string): Promise<void> {
+  await this.connect();
+
+  console.log('Joining conversation:', conversationId);
+
+  await this.invoke('JoinConversation', conversationId);
+}
 
   async startTyping(conversationId: string): Promise<void> {
     await this.invoke('StartTyping', conversationId);
