@@ -34,7 +34,12 @@
   "loading": "Loading messages...",
   "empty": "No messages yet.",
   "deleted": "This message was deleted",
-  "edited": "edited"
+  "edited": "edited",
+  "failed": "failed",
+"input": {
+  "placeholder": "Write a message...",
+  "send": "Send"
+}
 }
 }
 }

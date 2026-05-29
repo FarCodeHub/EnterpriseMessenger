@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-
+import { SendMessageRequest } from '../../features/messages/models/send-message.request';
 import { BaseApiService } from '../api/base-api.service';
 import { MessageDto } from '../../features/messages/models/message.dto';
 
@@ -14,4 +14,7 @@ export class MessagesApiService extends BaseApiService {
       { take }
     );
   }
+  sendMessage(request: SendMessageRequest): Observable<MessageDto> {
+  return this.post<MessageDto, SendMessageRequest>('/messages', request);
+}
 }
