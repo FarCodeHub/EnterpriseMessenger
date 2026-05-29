@@ -1,4 +1,4 @@
-export const SignalREvents = {
+export const ChatSignalREvents  = {
   MessageCreated: 'message.created',
   MessageEdited: 'message.edited',
   MessageDeleted: 'message.deleted',
@@ -15,6 +15,8 @@ export const SignalREvents = {
   PresenceOffline: 'presence.offline',
 
   ConversationJoined: 'conversation.joined',
+  HubError: 'hub.error',
 
-  HubError: 'hub.error'
+PresenceRegistered: 'presence.registered',
+
 } as const;

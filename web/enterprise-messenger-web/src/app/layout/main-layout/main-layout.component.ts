@@ -1,7 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
-
+import { OnInit, OnDestroy } from '@angular/core';
+import { ChatSignalRService } from '../../core/signalr/chat-signalr.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { LanguageSwitcherComponent } from '../../shared/components/language-switcher/language-switcher.component';
 import { ConversationListComponent } from '../../features/conversations/conversation-list/conversation-list.component';
@@ -54,16 +55,24 @@ import { ConversationListComponent } from '../../features/conversations/conversa
     </div>
   `
 })
-export class MainLayoutComponent {
+export class MainLayoutComponent implements OnInit, OnDestroy{
   readonly authService = inject(AuthService);
-
+private readonly chatSignalR = inject(ChatSignalRService);
   private readonly router = inject(Router);
+ngOnInit(): void {
+  this.chatSignalR.connect();
+}
 
-  logout(): void {
+ngOnDestroy(): void {
+  this.chatSignalR.disconnect();
+}
+logout(): void {
+  this.chatSignalR.disconnect().finally(() => {
     this.authService.logout().subscribe({
       next: () => {
         this.router.navigateByUrl('/auth/login');
       }
     });
-  }
+  });
+}
 }
