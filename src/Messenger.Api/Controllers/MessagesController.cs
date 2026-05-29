@@ -83,6 +83,18 @@ public sealed class MessagesController : ControllerBase
 
         if (!result.IsDuplicate)
         {
+
+var sender = await _dbContext.Users
+    .Where(x => x.Id == result.SenderUserId)
+    .Select(x => new
+    {
+        x.DisplayName,
+        x.UserName
+    })
+    .FirstOrDefaultAsync(cancellationToken);
+
+var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
+
             await _hubContext.Clients
                 .Group($"conversation:{result.ConversationId}")
                 .SendAsync(RealtimeEvents.ConversationUpdated, new ConversationUpdatedEvent(
@@ -90,6 +102,7 @@ public sealed class MessagesController : ControllerBase
         result.Id,
         result.Body,
         result.SenderUserId,
+        senderUserDisplayName ?? "TEST DISPLAY NAME", 
         result.SequenceNumber,
         result.CreatedAtUtc), cancellationToken);
         }

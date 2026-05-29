@@ -28,6 +28,7 @@
     "noMessages": "Aún no hay mensajes",
 "archived": "Archivado"
   },"messages": {
+    "typing": "Escribiendo...",
   "title": "Mensajes",
   "loading": "Cargando mensajes...",
   "empty": "Aún no hay mensajes.",

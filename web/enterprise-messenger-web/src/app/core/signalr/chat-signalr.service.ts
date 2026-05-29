@@ -111,6 +111,11 @@ async joinConversation(conversationId: string): Promise<void> {
   }
 
   async markAsDelivered(conversationId: string, sequenceNumber: number): Promise<void> {
+    console.log(
+  'MarkAsDelivered',
+  conversationId,
+  sequenceNumber
+);
     await this.invoke('MarkAsDelivered', conversationId, sequenceNumber);
   }
 

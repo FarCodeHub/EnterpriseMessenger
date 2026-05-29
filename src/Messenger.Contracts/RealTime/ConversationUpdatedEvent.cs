@@ -5,6 +5,7 @@ public sealed record ConversationUpdatedEvent(
     Guid LastMessageId,
     string Body,
     Guid SenderUserId,
+    string? SenderDisplayName,
     long SequenceNumber,
     DateTime CreatedAtUtc
 );

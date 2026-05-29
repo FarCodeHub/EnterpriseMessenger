@@ -33,8 +33,10 @@ export interface ConversationUpdatedEvent {
   lastMessageId: string;
   body: string;
   senderUserId: string;
+  senderDisplayName: string;
   sequenceNumber: number;
   createdAtUtc: string;
+
 }
 
 export interface TypingEvent {

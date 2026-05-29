@@ -2,8 +2,12 @@ import { Injectable, inject, signal } from '@angular/core';
 import { SendMessageRequest } from '../../features/messages/models/send-message.request';
 import { MessagesApiService } from '../../core/services/messages-api.service';
 import { MessageDto } from '../../features/messages/models/message.dto';
-import { MessageCreatedEvent } from '../../core/signalr/chat-signalr.models';
-@Injectable({
+import {
+  MessageCreatedEvent,
+  MessageDeletedEvent,
+  MessageEditedEvent
+} from '../../core/signalr/chat-signalr.models';
+ @Injectable({
   providedIn: 'root'
 })
 export class MessagesState {
@@ -127,6 +131,44 @@ private sortMessages(messages: MessageDto[]): MessageDto[] {
   });
 }
 
+handleMessageEdited(event: MessageEditedEvent): void {
+  this.messagesSignal.set(
+    this.messagesSignal().map(message =>
+      message.id === event.id
+        ? {
+            ...message,
+            body: event.body,
+            editedAtUtc: event.editedAtUtc
+          }
+        : message
+    )
+  );
+}
+
+handleMessageDeleted(event: MessageDeletedEvent): void {
+  this.messagesSignal.set(
+    this.messagesSignal().map(message =>
+      message.id === event.id
+        ? {
+            ...message,
+            deletedAtUtc: event.deletedAtUtc,
+            body: ''
+          }
+        : message
+    )
+  );
+}
+
+
+getLastSequenceNumber(): number | null {
+  const messages = this.messagesSignal();
+
+  if (messages.length === 0) {
+    return null;
+  }
+
+  return Math.max(...messages.map(x => x.sequenceNumber));
+}
 
 
 

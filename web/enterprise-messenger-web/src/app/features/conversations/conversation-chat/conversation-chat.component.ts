@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-
+import { TypingState } from '../../../state/messages/typing.state';
 import { ActivatedRoute } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ConversationsState } from '../../../state/conversations/conversations.state';
@@ -20,8 +20,8 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
   
 <div class="grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
 <header class="border-b border-white/10 px-6 py-4">
-  <div class="flex items-center gap-3">
-  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+<div class="flex flex-row-reverse items-start gap-3">
+    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
     {{ conversation()?.displayTitle?.charAt(0) || '?' }}
   </div>
 
@@ -36,9 +36,14 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
   </div>
 </div>
       </header>
-
+@if (typingState.isAnyoneTyping(conversationId()!, currentUserId())) {
+  <div class="shrink-0 border-b border-white/10 bg-slate-900/60 px-6 py-2 text-xs text-blue-400">
+    {{ 'conversations.messages.typing' | translate }}
+  </div>
+}
 <section
   #messagesContainer
+  dir="ltr"
   class="min-h-0 overflow-y-auto px-6 py-4 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]"
 >
         @if (messagesState.isLoading()) {
@@ -72,9 +77,9 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
                     {{ 'messages.deleted' | translate }}
                   </div>
                 } @else {
-                  <div class="whitespace-pre-wrap break-words">
-                    {{ message.body }}
-                  </div>
+            <div class="whitespace-pre-wrap break-words text-start" dir="auto">
+  {{ message.body }}
+</div>
 
                   @if (message.attachments.length > 0) {
                     <div class="mt-2 space-y-1">
@@ -117,7 +122,7 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
   name="messageText"
   [ngModel]="messageText()"
   (ngModelChange)="messageText.set($event)"
-  (input)="resizeTextarea($event)"
+  (input)="resizeTextarea($event); handleTyping()"
   (keydown.enter)="handleEnter($event)"
 class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-500"  [placeholder]="'conversations.messages.input.placeholder' | translate"
 ></textarea>
@@ -141,6 +146,9 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly conversationsState = inject(ConversationsState);
   private readonly chatSignalR = inject(ChatSignalRService);
+  readonly typingState = inject(TypingState);
+  private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
+  private isTypingSent = false;
   readonly messageText = signal('');
   readonly conversation = computed(() => {
     const id = this.conversationId();
@@ -158,8 +166,8 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   readonly currentUserId = computed(() => {
     return this.authService.user()?.id;
   });
-@ViewChild('messagesContainer')
-private messagesContainer?: ElementRef<HTMLDivElement>;
+  @ViewChild('messagesContainer')
+  private messagesContainer?: ElementRef<HTMLDivElement>;
   ngOnInit(): void {
     this.route.paramMap
       .pipe(takeUntil(this.destroy$))
@@ -174,7 +182,17 @@ private messagesContainer?: ElementRef<HTMLDivElement>;
         }
 
         this.messagesState.load(conversationId);
-        setTimeout(() => this.scrollToBottom(), 300);
+        setTimeout(() => 
+          {
+
+                 this.scrollToBottom()
+  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
+  const currentConversationId = this.conversationId();
+
+  if (currentConversationId && lastSequenceNumber) {
+    this.chatSignalR.markAsDelivered(currentConversationId, lastSequenceNumber);
+  }
+},  300);
         this.chatSignalR.joinConversation(conversationId);
       });
 
@@ -185,40 +203,84 @@ private messagesContainer?: ElementRef<HTMLDivElement>;
 
         if (event.conversationId === currentConversationId) {
           this.messagesState.handleMessageCreated(event);
+
           this.scrollToBottom();
+          this.chatSignalR.markAsDelivered(event.conversationId, event.sequenceNumber);
+        }
+      });
+    this.chatSignalR.messageEdited$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        if (event.conversationId === this.conversationId()) {
+          this.messagesState.handleMessageEdited(event);
+        }
+      });
+
+    this.chatSignalR.messageDeleted$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        if (event.conversationId === this.conversationId()) {
+          this.messagesState.handleMessageDeleted(event);
+        }
+      });
+
+    this.chatSignalR.typingStarted$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        if (event.conversationId === this.conversationId()) {
+          this.typingState.startTyping(event.conversationId, event.userId);
+        }
+      });
+
+    this.chatSignalR.typingStopped$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        if (event.conversationId === this.conversationId()) {
+          this.typingState.stopTyping(event.conversationId, event.userId);
         }
       });
   }
 
 
-sendMessage(): void {
-  const conversationId = this.conversationId();
-  const body = this.messageText().trim();
+  sendMessage(): void {
+    const conversationId = this.conversationId();
+    const body = this.messageText().trim();
 
-  if (!conversationId || !body) {
-    return;
-  }
-
-  this.messagesState.send({
-    conversationId,
-    clientMessageId: crypto.randomUUID(),
-    body,
-    replyToMessageId: null,
-    attachments: []
-  });
-
-  this.messageText.set('');
-
-  setTimeout(() => {
-    const textarea = document.querySelector(
-      'textarea[name="messageText"]'
-    ) as HTMLTextAreaElement | null;
-
-    if (textarea) {
-      textarea.style.height = 'auto';
+    if (!conversationId || !body) {
+      return;
     }
-  });
+
+    this.messagesState.send({
+      conversationId,
+      clientMessageId: crypto.randomUUID(),
+      body,
+      replyToMessageId: null,
+      attachments: []
+    });
+
+    this.messageText.set('');
+if (conversationId && this.isTypingSent) {
+  this.chatSignalR.stopTyping(conversationId);
+  this.isTypingSent = false;
 }
+
+if (this.typingStopTimer) {
+  clearTimeout(this.typingStopTimer);
+  this.typingStopTimer = null;
+}
+    setTimeout(() => {
+      const textarea = document.querySelector(
+        'textarea[name="messageText"]'
+      ) as HTMLTextAreaElement | null;
+
+      if (textarea) {
+        textarea.style.height = 'auto';
+      }
+    });
+
+
+
+  }
 
   ngOnDestroy(): void {
     this.destroy$.next();
@@ -226,32 +288,58 @@ sendMessage(): void {
   }
 
 
-private scrollToBottom(): void {
-  queueMicrotask(() => {
-    const element = this.messagesContainer?.nativeElement;
+  private scrollToBottom(): void {
+    queueMicrotask(() => {
+      const element = this.messagesContainer?.nativeElement;
 
-    if (!element) {
+      if (!element) {
+        return;
+      }
+
+      element.scrollTop = element.scrollHeight;
+    });
+  }
+
+  handleEnter(event: Event): void {
+    const keyboardEvent = event as KeyboardEvent;
+
+    if (keyboardEvent.shiftKey) {
       return;
     }
 
-    element.scrollTop = element.scrollHeight;
-  });
-}
+    keyboardEvent.preventDefault();
+    this.sendMessage();
+  }
+  resizeTextarea(event: Event): void {
+    const textarea = event.target as HTMLTextAreaElement;
 
-handleEnter(event: Event): void {
-  const keyboardEvent = event as KeyboardEvent;
-
-  if (keyboardEvent.shiftKey) {
-    return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
   }
 
-  keyboardEvent.preventDefault();
-  this.sendMessage();
-}
-resizeTextarea(event: Event): void {
-  const textarea = event.target as HTMLTextAreaElement;
 
-  textarea.style.height = 'auto';
-  textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
-}
+
+  handleTyping(): void {
+    const conversationId = this.conversationId();
+
+    if (!conversationId) {
+      return;
+    }
+
+    if (!this.isTypingSent) {
+      this.chatSignalR.startTyping(conversationId);
+      this.isTypingSent = true;
+    }
+
+    if (this.typingStopTimer) {
+      clearTimeout(this.typingStopTimer);
+    }
+
+    this.typingStopTimer = setTimeout(() => {
+      this.chatSignalR.stopTyping(conversationId);
+      this.isTypingSent = false;
+    }, 1500);
+  }
+
+
 }
