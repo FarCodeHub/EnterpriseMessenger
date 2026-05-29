@@ -91,6 +91,7 @@ export class ChatSignalRService {
   }
 
   async joinConversation(conversationId: string): Promise<void> {
+    console.log('Conversation joined:', conversationId);
     await this.invoke('JoinConversation', conversationId);
   }
 
@@ -119,10 +120,17 @@ export class ChatSignalRService {
   }
 
   private registerHandlers(): void {
+
+
+
     if (!this.connection) {
       return;
     }
 
+
+
+
+    
 this.connection.on(ChatSignalREvents.PresenceRegistered, userId => {
   this.presenceRegistered$.next(userId);
 });

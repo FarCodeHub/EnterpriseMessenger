@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { MessagesState } from '../../../state/messages/messages.state';
 import { FormsModule } from '@angular/forms';
 import { signal } from '@angular/core';
+import { ChatSignalRService } from '../../../core/signalr/chat-signalr.service';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -129,6 +130,7 @@ export class ConversationChatComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private readonly conversationsState = inject(ConversationsState);
+  private readonly chatSignalR = inject(ChatSignalRService);
   readonly messageText = signal('');
   readonly conversation = computed(() => {
     const id = this.conversationId();
@@ -149,13 +151,15 @@ export class ConversationChatComponent implements OnInit {
     return this.authService.user()?.id;
   });
 
-  ngOnInit(): void {
-    const conversationId = this.conversationId();
+ngOnInit(): void {
+  const conversationId = this.conversationId();
 
-    if (conversationId) {
-      this.messagesState.load(conversationId);
-    }
+  if (conversationId) {
+    this.messagesState.load(conversationId);
+
+    this.chatSignalR.joinConversation(conversationId);
   }
+}
 
 
   sendMessage(): void {
