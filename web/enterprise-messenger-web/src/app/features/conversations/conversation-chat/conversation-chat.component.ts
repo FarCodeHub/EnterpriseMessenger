@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { Component, OnInit, computed, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
-
+import { ConversationsState } from '../../../state/conversations/conversations.state';
 import { AuthService } from '../../../core/auth/auth.service';
 import { MessagesState } from '../../../state/messages/messages.state';
 
@@ -13,12 +13,21 @@ import { MessagesState } from '../../../state/messages/messages.state';
   template: `
     <div class="flex h-full min-h-0 flex-col bg-slate-950">
       <header class="border-b border-white/10 px-6 py-4">
-        <h2 class="text-lg font-bold text-white">
-          {{ 'messages.title' | translate }}
-        </h2>
-        <p class="text-xs text-slate-400">
-          {{ conversationId() }}
-        </p>
+<div class="flex items-center gap-3">
+  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
+    {{ conversation()?.displayTitle?.charAt(0) || '?' }}
+  </div>
+
+  <div class="min-w-0">
+    <h2 class="truncate text-lg font-bold text-white">
+      {{ conversation()?.displayTitle || ('messages.title' | translate) }}
+    </h2>
+
+    <p class="text-xs text-slate-400">
+      {{ conversation()?.type === 1 ? 'Private' : 'Group' }}
+    </p>
+  </div>
+</div>
       </header>
 
       <section class="min-h-0 flex-1 overflow-y-auto px-6 py-4">
@@ -86,7 +95,16 @@ import { MessagesState } from '../../../state/messages/messages.state';
 export class ConversationChatComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
+private readonly conversationsState = inject(ConversationsState);
+readonly conversation = computed(() => {
+  const id = this.conversationId();
 
+  if (!id) {
+    return null;
+  }
+
+  return this.conversationsState.getById(id);
+});
   readonly messagesState = inject(MessagesState);
 
   readonly conversationId = computed(() => {

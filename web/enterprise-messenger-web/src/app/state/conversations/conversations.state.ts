@@ -30,4 +30,8 @@ export class ConversationsState {
         }
       });
   }
+  getById(conversationId: string) {
+  return this.conversationsSignal()
+    .find(conversation => conversation.id === conversationId) ?? null;
+}
 }
