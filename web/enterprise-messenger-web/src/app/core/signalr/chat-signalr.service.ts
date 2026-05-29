@@ -19,7 +19,8 @@ import {
   MessageDeletedEvent,
   MessageEditedEvent,
   MessageReceiptEvent,
-  PresenceEvent,
+ PresenceSnapshotEvent,
+PresenceChangedEvent,
   TypingEvent
 } from './chat-signalr.models';
 
@@ -30,11 +31,12 @@ export class ChatSignalRService {
   private readonly authService = inject(AuthService);
 
   private connection: HubConnection | null = null;
-
+private presenceRenewTimer: ReturnType<typeof setInterval> | null = null;
+private renewingConversationId: string | null = null;
   readonly messageCreated$ = new Subject<MessageCreatedEvent>();
   readonly messageEdited$ = new Subject<MessageEditedEvent>();
   readonly messageDeleted$ = new Subject<MessageDeletedEvent>();
-
+readonly reconnected$ = new Subject<void>();
   readonly conversationUpdated$ = new Subject<ConversationUpdatedEvent>();
 
   readonly typingStarted$ = new Subject<TypingEvent>();
@@ -43,13 +45,14 @@ export class ChatSignalRService {
   readonly messageSeen$ = new Subject<MessageReceiptEvent>();
   readonly messageDelivered$ = new Subject<MessageReceiptEvent>();
 
-  readonly presenceOnline$ = new Subject<PresenceEvent>();
-  readonly presenceOffline$ = new Subject<PresenceEvent>();
-
+  // readonly presenceOnline$ = new Subject<PresenceEvent>();
+  // readonly presenceOffline$ = new Subject<PresenceEvent>();
+readonly presenceSnapshot$ = new Subject<PresenceSnapshotEvent>();
+readonly presenceChanged$ = new Subject<PresenceChangedEvent>();
   readonly conversationJoined$ = new Subject<ConversationJoinedEvent>();
   readonly hubError$ = new Subject<HubErrorEvent>();
 
-  readonly presenceRegistered$ = new Subject<PresenceEvent>();
+  // readonly presenceRegistered$ = new Subject<PresenceEvent>();
 
   async connect(): Promise<void> {
     if (this.connection?.state === HubConnectionState.Connected) {
@@ -69,7 +72,9 @@ export class ChatSignalRService {
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
       .build();
-
+this.connection.onreconnected(() => {
+  this.reconnected$.next();
+});
     this.registerHandlers();
 
     await this.connection.start();
@@ -78,10 +83,11 @@ export class ChatSignalRService {
   }
 
   async disconnect(): Promise<void> {
+    this.stopPresenceRenewTimer();
+
     if (!this.connection) {
       return;
     }
-
     await this.connection.stop();
     this.connection = null;
   }
@@ -89,6 +95,14 @@ export class ChatSignalRService {
   async registerUser(): Promise<void> {
     await this.invoke('RegisterUser');
   }
+
+
+
+async leaveConversation(conversationId: string): Promise<void> {
+  console.log('LeaveConversation invoke:', conversationId);
+  await this.invoke('LeaveConversation', conversationId);
+}
+
 
 async joinConversation(conversationId: string): Promise<void> {
   await this.connect();
@@ -139,9 +153,9 @@ async joinConversation(conversationId: string): Promise<void> {
 
 
     
-this.connection.on(ChatSignalREvents.PresenceRegistered, userId => {
-  this.presenceRegistered$.next(userId);
-});
+// this.connection.on(ChatSignalREvents.PresenceRegistered, userId => {
+//   this.presenceRegistered$.next(userId);
+// });
 
 
     this.connection.on(ChatSignalREvents.MessageCreated, event => {
@@ -176,13 +190,21 @@ this.connection.on(ChatSignalREvents.PresenceRegistered, userId => {
       this.messageDelivered$.next(event);
     });
 
-    this.connection.on(ChatSignalREvents.PresenceOnline, userId => {
-      this.presenceOnline$.next(userId);
-    });
+    // this.connection.on(ChatSignalREvents.PresenceOnline, userId => {
+    //   this.presenceOnline$.next(userId);
+    // });
 
-    this.connection.on(ChatSignalREvents.PresenceOffline, userId => {
-      this.presenceOffline$.next(userId);
-    });
+    // this.connection.on(ChatSignalREvents.PresenceOffline, userId => {
+    //   this.presenceOffline$.next(userId);
+    // });
+
+    this.connection.on(ChatSignalREvents.PresenceSnapshot, event => {
+  this.presenceSnapshot$.next(event);
+});
+
+this.connection.on(ChatSignalREvents.PresenceChanged, event => {
+  this.presenceChanged$.next(event);
+});
 
     this.connection.on(ChatSignalREvents.ConversationJoined, conversationId => {
       this.conversationJoined$.next(conversationId);
@@ -192,4 +214,38 @@ this.connection.on(ChatSignalREvents.PresenceRegistered, userId => {
       this.hubError$.next(message);
     });
   }
+
+
+  async renewPresence(conversationId: string): Promise<void> {
+  await this.invoke('RenewPresence', conversationId);
+}
+
+startPresenceRenewTimer(conversationId: string): void {
+
+  this.stopPresenceRenewTimer();
+  console.log('Presence renew timer started:', conversationId);
+  this.renewingConversationId = conversationId;
+
+  this.presenceRenewTimer = setInterval(() => {
+    if (
+      this.connection &&
+      this.connection.state === HubConnectionState.Connected
+    ) {
+      console.log('RenewPresence invoke:', conversationId);
+      this.connection.invoke('RenewPresence', conversationId)
+        .catch(error => {
+          console.error('RenewPresence failed', error);
+        });
+    }
+  }, 30000);
+}
+
+stopPresenceRenewTimer(): void {
+  if (this.presenceRenewTimer) {
+    clearInterval(this.presenceRenewTimer);
+    this.presenceRenewTimer = null;
+  }
+
+  this.renewingConversationId = null;
+}
 }

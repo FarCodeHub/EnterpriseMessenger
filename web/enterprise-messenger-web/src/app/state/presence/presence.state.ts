@@ -4,27 +4,54 @@ import { Injectable, signal } from '@angular/core';
   providedIn: 'root'
 })
 export class PresenceState {
-  private readonly onlineUserIdsSignal = signal<Set<string>>(new Set());
+  private readonly onlineUsersByConversationSignal =
+    signal<Record<string, string[]>>({});
 
-  readonly onlineUserIds = this.onlineUserIdsSignal.asReadonly();
+  readonly onlineUsersByConversation =
+    this.onlineUsersByConversationSignal.asReadonly();
 
-  setOnline(userId: string): void {
-    const next = new Set(this.onlineUserIdsSignal());
-    next.add(userId);
-    this.onlineUserIdsSignal.set(next);
+  setSnapshot(conversationId: string, userIds: string[]): void {
+    this.onlineUsersByConversationSignal.set({
+      ...this.onlineUsersByConversationSignal(),
+      [conversationId]: [...new Set(userIds)]
+    });
   }
 
-  setOffline(userId: string): void {
-    const next = new Set(this.onlineUserIdsSignal());
-    next.delete(userId);
-    this.onlineUserIdsSignal.set(next);
+  setUserPresence(
+    conversationId: string,
+    userId: string,
+    isOnline: boolean
+  ): void {
+    const current = this.onlineUsersByConversationSignal();
+    const currentUsers = current[conversationId] ?? [];
+
+    const nextUsers = isOnline
+      ? [...new Set([...currentUsers, userId])]
+      : currentUsers.filter(x => x !== userId);
+
+    this.onlineUsersByConversationSignal.set({
+      ...current,
+      [conversationId]: nextUsers
+    });
   }
 
-  isOnline(userId: string | null | undefined): boolean {
-    if (!userId) {
+  clearConversation(conversationId: string): void {
+    const current = { ...this.onlineUsersByConversationSignal() };
+
+    delete current[conversationId];
+
+    this.onlineUsersByConversationSignal.set(current);
+  }
+
+  isOnline(
+    conversationId: string | null | undefined,
+    userId: string | null | undefined
+  ): boolean {
+    if (!conversationId || !userId) {
       return false;
     }
 
-    return this.onlineUserIdsSignal().has(userId);
+    return (this.onlineUsersByConversationSignal()[conversationId] ?? [])
+      .includes(userId);
   }
 }

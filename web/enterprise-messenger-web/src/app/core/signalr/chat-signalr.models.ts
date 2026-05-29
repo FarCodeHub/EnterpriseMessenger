@@ -50,6 +50,18 @@ export interface MessageReceiptEvent {
   sequenceNumber: number;
 }
 
-export type PresenceEvent = string;
+
+export interface PresenceSnapshotEvent {
+  conversationId: string;
+  userIds: string[];
+}
+
+export interface PresenceChangedEvent {
+  conversationId: string;
+  userId: string;
+  isOnline: boolean;
+}
+
+// export type PresenceEvent = string;
 export type ConversationJoinedEvent = string;
 export type HubErrorEvent = string;

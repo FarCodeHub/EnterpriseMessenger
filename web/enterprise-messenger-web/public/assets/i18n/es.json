@@ -40,5 +40,9 @@
   "send": "Enviar"
 }
 }
+},
+"presence": {
+  "online": "En línea",
+  "offline": "Desconectado"
 }
 }

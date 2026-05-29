@@ -6,9 +6,8 @@ import { ConversationsState } from '../../../state/conversations/conversations.s
 import { AuthService } from '../../../core/auth/auth.service';
 import { MessagesState } from '../../../state/messages/messages.state';
 import { FormsModule } from '@angular/forms';
-
+import { PresenceState } from '../../../state/presence/presence.state';
 import { ChatSignalRService } from '../../../core/signalr/chat-signalr.service';
-
 import { Subject, takeUntil } from 'rxjs';
 
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
@@ -21,14 +20,29 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
 <div class="grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
 <header class="border-b border-white/10 px-6 py-4">
 <div class="flex flex-row-reverse items-start gap-3">
-    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-    {{ conversation()?.displayTitle?.charAt(0) || '?' }}
-  </div>
+<div
+  class="flex h-11 w-11 items-center justify-center rounded-xl border-2 bg-blue-600 text-sm font-bold text-white"
+  [class.border-emerald-400]="presenceState.isOnline(conversationId(), conversationPresenceUserId())"
+  [class.border-slate-500]="!presenceState.isOnline(conversationId(), conversationPresenceUserId())"
+>
+  {{ conversation()?.displayTitle?.charAt(0) || '?' }}
+</div>
 
   <div class="min-w-0">
     <h2 class="truncate text-lg font-bold text-white">
       {{ conversation()?.displayTitle || ('messages.title' | translate) }}
     </h2>
+
+
+<p class="text-xs text-slate-400">
+  @if (conversation()?.type === 1) {
+    {{ 'presence.lastSeenRecently' | translate }}
+  } @else {
+    {{ 'conversations.type.group' | translate }}
+  }
+</p>
+
+
 
     <p class="text-xs text-slate-400">
       {{ conversation()?.type === 1 ? 'Private' : 'Group' }}
@@ -144,9 +158,11 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
+  private activeConversationId: string | null = null;
   private readonly conversationsState = inject(ConversationsState);
   private readonly chatSignalR = inject(ChatSignalRService);
   readonly typingState = inject(TypingState);
+  readonly presenceState = inject(PresenceState);
   private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
   private isTypingSent = false;
   readonly messageText = signal('');
@@ -159,6 +175,15 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
 
     return this.conversationsState.getById(id);
   });
+readonly conversationPresenceUserId = computed(() => {
+  const conversation = this.conversation();
+
+  if (!conversation || conversation.type !== 1) {
+    return null;
+  }
+
+  return conversation.otherParticipantUserId;
+});
   readonly messagesState = inject(MessagesState);
 
   readonly conversationId = signal<string | null>(null);
@@ -169,32 +194,54 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   @ViewChild('messagesContainer')
   private messagesContainer?: ElementRef<HTMLDivElement>;
   ngOnInit(): void {
-    this.route.paramMap
+
+
+
+ this.route.paramMap
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(params => {
+    void this.switchConversation(params.get('conversationId'));
+  });
+
+
+    this.chatSignalR.presenceSnapshot$
       .pipe(takeUntil(this.destroy$))
-      .subscribe(params => {
-        const conversationId = params.get('conversationId');
+      .subscribe(event => {
+        console.log('presence.snapshot received:', event);
+        this.presenceState.setSnapshot(
+          event.conversationId,
+          event.userIds
+        );
 
-        this.conversationId.set(conversationId);
-        this.messagesState.clear();
 
-        if (!conversationId) {
-          return;
-        }
+console.log('conversation:', this.conversation());
+console.log('conversationId:', this.conversationId());
+console.log('otherParticipantUserId:', this.conversationPresenceUserId());
+console.log('presence state:', this.presenceState.onlineUsersByConversation());
+console.log(
+  'is online:',
+  this.presenceState.isOnline(
+    this.conversationId(),
+    this.conversationPresenceUserId()
+  )
+);
 
-        this.messagesState.load(conversationId);
-        setTimeout(() => 
-          {
 
-                 this.scrollToBottom()
-  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
-  const currentConversationId = this.conversationId();
-
-  if (currentConversationId && lastSequenceNumber) {
-    this.chatSignalR.markAsDelivered(currentConversationId, lastSequenceNumber);
-  }
-},  300);
-        this.chatSignalR.joinConversation(conversationId);
       });
+
+    this.chatSignalR.presenceChanged$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        console.log('presence.changed received:', event);
+
+
+        this.presenceState.setUserPresence(
+          event.conversationId,
+          event.userId,
+          event.isOnline
+        );
+      });
+
 
     this.chatSignalR.messageCreated$
       .pipe(takeUntil(this.destroy$))
@@ -239,6 +286,18 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
           this.typingState.stopTyping(event.conversationId, event.userId);
         }
       });
+
+
+this.chatSignalR.reconnected$
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(() => {
+    const conversationId = this.conversationId();
+
+    if (conversationId) {
+      this.chatSignalR.joinConversation(conversationId);
+      this.chatSignalR.startPresenceRenewTimer(conversationId);
+    }
+  });
   }
 
 
@@ -258,16 +317,19 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
       attachments: []
     });
 
-    this.messageText.set('');
-if (conversationId && this.isTypingSent) {
-  this.chatSignalR.stopTyping(conversationId);
-  this.isTypingSent = false;
-}
+    this.scrollToBottom();
 
-if (this.typingStopTimer) {
-  clearTimeout(this.typingStopTimer);
-  this.typingStopTimer = null;
-}
+
+    this.messageText.set('');
+    if (conversationId && this.isTypingSent) {
+      this.chatSignalR.stopTyping(conversationId);
+      this.isTypingSent = false;
+    }
+
+    if (this.typingStopTimer) {
+      clearTimeout(this.typingStopTimer);
+      this.typingStopTimer = null;
+    }
     setTimeout(() => {
       const textarea = document.querySelector(
         'textarea[name="messageText"]'
@@ -282,14 +344,22 @@ if (this.typingStopTimer) {
 
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+ngOnDestroy(): void {
+  this.chatSignalR.stopPresenceRenewTimer();
+
+  if (this.activeConversationId) {
+    this.chatSignalR.leaveConversation(this.activeConversationId);
+    this.presenceState.clearConversation(this.activeConversationId);
   }
 
+  this.destroy$.next();
+  this.destroy$.complete();
+}
 
-  private scrollToBottom(): void {
-    queueMicrotask(() => {
+
+private scrollToBottom(): void {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
       const element = this.messagesContainer?.nativeElement;
 
       if (!element) {
@@ -298,7 +368,8 @@ if (this.typingStopTimer) {
 
       element.scrollTop = element.scrollHeight;
     });
-  }
+  });
+}
 
   handleEnter(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
@@ -341,5 +412,36 @@ if (this.typingStopTimer) {
     }, 1500);
   }
 
+private async switchConversation(newConversationId: string | null): Promise<void> {
+  const oldConversationId = this.activeConversationId;
 
+  this.chatSignalR.stopPresenceRenewTimer();
+
+  if (oldConversationId && oldConversationId !== newConversationId) {
+    console.log('Leaving conversation:', oldConversationId);
+
+    await this.chatSignalR.leaveConversation(oldConversationId);
+    this.presenceState.clearConversation(oldConversationId);
+  }
+
+  this.activeConversationId = newConversationId;
+  this.conversationId.set(newConversationId);
+  this.messagesState.clear();
+
+  if (!newConversationId) {
+    return;
+  }
+
+  this.messagesState.load(newConversationId)
+    .pipe(takeUntil(this.destroy$))
+    .subscribe(() => {
+      this.scrollToBottom();
+    });
+
+  console.log('Joining conversation:', newConversationId);
+
+  await this.chatSignalR.joinConversation(newConversationId);
+
+  this.chatSignalR.startPresenceRenewTimer(newConversationId);
+}
 }

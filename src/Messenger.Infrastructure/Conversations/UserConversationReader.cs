@@ -161,6 +161,10 @@ public sealed class UserConversationReader : IUserConversationReader
                 x => x,
                 cancellationToken);
 
+
+
+
+
         return conversations
             .Select(conversation =>
             {
@@ -181,8 +185,10 @@ public sealed class UserConversationReader : IUserConversationReader
 
                 var displayTitle = conversation.Title;
 
-                if (string.IsNullOrWhiteSpace(displayTitle) &&
-                    otherUsers.TryGetValue(conversation.Id, out var otherUser))
+ otherUsers.TryGetValue(conversation.Id, out var otherUser);
+
+             
+                if (string.IsNullOrWhiteSpace(displayTitle) && otherUser is not null)
                 {
                     displayTitle = otherUser.DisplayName ?? otherUser.UserName;
                 }
@@ -194,11 +200,20 @@ public sealed class UserConversationReader : IUserConversationReader
                         : "Untitled Group";
                 }
 
+                Guid? otherParticipantUserId =
+                    conversation.Type == (int)ConversationType.Private
+                        ? otherUser?.Id
+                        : null;
+
+
+
+
                 return new GetUserConversationResult(
                     conversation.Id,
                     conversation.Type,
                     conversation.Title,
                     displayTitle,
+                    otherParticipantUserId,
                     conversation.CreatedAtUtc,
                     conversation.LastMessageId,
                     conversation.LastMessageAtUtc,

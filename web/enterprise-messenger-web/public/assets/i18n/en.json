@@ -42,5 +42,9 @@
   "send": "Send"
 }
 }
+},
+"presence": {
+  "online": "Online",
+  "offline": "Offline"
 }
 }

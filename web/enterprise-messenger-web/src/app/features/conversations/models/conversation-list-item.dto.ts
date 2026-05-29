@@ -12,7 +12,7 @@ export interface ConversationListItemDto {
   lastMessagePreview: string | null;
   lastMessageSenderUserId: string | null;
   lastMessageSenderDisplayName: string | null;
-
+   otherParticipantUserId: string | null;
   lastReadSequenceNumber: number;
   unreadCount: number;
 

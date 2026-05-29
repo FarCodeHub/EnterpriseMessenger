@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ChatSignalRService } from '../../core/signalr/chat-signalr.service';
 import { LanguageSwitcherComponent } from '../../shared/components/language-switcher/language-switcher.component';
 import { ConversationListComponent } from '../../features/conversations/conversation-list/conversation-list.component';
+import { PresenceState } from '../../state/presence/presence.state';
 import { ConversationsState } from '../../state/conversations/conversations.state';
 @Component({
   selector: 'app-main-layout',
@@ -57,27 +58,40 @@ import { ConversationsState } from '../../state/conversations/conversations.stat
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly authService = inject(AuthService);
-private readonly destroy$ = new Subject<void>();
-private readonly conversationsState = inject(ConversationsState);
+  private readonly destroy$ = new Subject<void>();
+  private readonly conversationsState = inject(ConversationsState);
   private readonly router = inject(Router);
   private readonly chatSignalR = inject(ChatSignalRService);
+  private readonly presenceState = inject(PresenceState);
+  ngOnInit(): void {
+    this.chatSignalR.connect();
 
-ngOnInit(): void {
-  this.chatSignalR.connect();
+    this.chatSignalR.conversationUpdated$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        this.conversationsState.handleConversationUpdated(event);
+      });
 
-  this.chatSignalR.conversationUpdated$
-    .pipe(takeUntil(this.destroy$))
-    .subscribe(event => {
-      this.conversationsState.handleConversationUpdated(event);
-    });
-}
 
-ngOnDestroy(): void {
-  this.destroy$.next();
-  this.destroy$.complete();
+  //     this.chatSignalR.presenceOnline$
+  // .pipe(takeUntil(this.destroy$))
+  // .subscribe(userId => {
+  //   this.presenceState.setOnline(userId);
+  // });
 
-  this.chatSignalR.disconnect();
-}
+// this.chatSignalR.presenceOffline$
+//   .pipe(takeUntil(this.destroy$))
+//   .subscribe(userId => {
+//     this.presenceState.setOffline(userId);
+//   });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+
+    this.chatSignalR.disconnect();
+  }
 
   logout(): void {
     this.chatSignalR.disconnect().finally(() => {

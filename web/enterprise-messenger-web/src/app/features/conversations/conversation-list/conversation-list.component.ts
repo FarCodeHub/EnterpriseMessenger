@@ -23,6 +23,15 @@ import { ConversationsState } from '../../../state/conversations/conversations.s
       }
 
 @for (conversation of state.conversations(); track conversation.id) {
+
+
+  <button
+    type="button"
+    class="w-full rounded-xl px-4 py-3 text-start hover:bg-white/10"
+    (click)="openConversation(conversation.id)"
+  >
+
+  
 <div class="flex flex-row-reverse items-start gap-3">
   <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
     {{ conversation.displayTitle.charAt(0) }}
@@ -60,12 +69,9 @@ import { ConversationsState } from '../../../state/conversations/conversations.s
     </div>
   </div>
 </div>
+  </button>
 }
-    
-    
-    
-    
-    
+   
     </div>
   `
 })

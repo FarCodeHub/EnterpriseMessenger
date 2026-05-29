@@ -7,6 +7,7 @@ import {
   MessageDeletedEvent,
   MessageEditedEvent
 } from '../../core/signalr/chat-signalr.models';
+import { Observable, tap, finalize, map } from 'rxjs';
  @Injectable({
   providedIn: 'root'
 })
@@ -19,25 +20,20 @@ export class MessagesState {
   readonly messages = this.messagesSignal.asReadonly();
   readonly isLoading = this.isLoadingSignal.asReadonly();
 
-load(conversationId: string): void {
+load(conversationId: string): Observable<void> {
   this.isLoadingSignal.set(true);
 
-  this.messagesApi.getConversationMessages(conversationId)
-    .subscribe({
-      next: response => {
-        this.messagesSignal.set(
-          this.sortMessages(response)
-        );
-
-        this.isLoadingSignal.set(false);
-      },
-      error: () => {
-        this.messagesSignal.set([]);
-        this.isLoadingSignal.set(false);
-      }
-    });
+  return this.messagesApi.getConversationMessages(conversationId, 50).pipe(
+    map(response => this.sortMessages(response)),
+    tap(messages => {
+      this.messagesSignal.set(messages);
+    }),
+    finalize(() => {
+      this.isLoadingSignal.set(false);
+    }),
+    map(() => void 0)
+  );
 }
-
   clear(): void {
     this.messagesSignal.set([]);
   }

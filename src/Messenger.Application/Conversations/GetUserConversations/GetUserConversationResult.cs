@@ -5,6 +5,7 @@ public sealed record GetUserConversationResult(
     int Type,
     string? Title,
     string DisplayTitle,
+     Guid? OtherParticipantUserId,
     DateTime CreatedAtUtc,
     Guid? LastMessageId,
     DateTime? LastMessageAtUtc,
