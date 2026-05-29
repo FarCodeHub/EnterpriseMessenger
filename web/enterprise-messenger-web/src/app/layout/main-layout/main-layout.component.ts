@@ -4,11 +4,17 @@ import { TranslateModule } from '@ngx-translate/core';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { LanguageSwitcherComponent } from '../../shared/components/language-switcher/language-switcher.component';
+import { ConversationListComponent } from '../../features/conversations/conversation-list/conversation-list.component';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [RouterOutlet, TranslateModule, LanguageSwitcherComponent],
+ imports: [
+  RouterOutlet,
+  TranslateModule,
+  LanguageSwitcherComponent,
+  ConversationListComponent
+],
   template: `
     <div class="flex h-screen bg-slate-950 text-white">
       <aside class="flex w-80 flex-col border-e border-white/10 bg-slate-900">
@@ -28,7 +34,7 @@ import { LanguageSwitcherComponent } from '../../shared/components/language-swit
               class="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold hover:bg-red-500"
               (click)="logout()"
             >
-              Logout
+              {{ 'layout.logout' | translate }}
             </button>
           </div>
 
@@ -38,9 +44,7 @@ import { LanguageSwitcherComponent } from '../../shared/components/language-swit
         </div>
 
         <div class="flex-1 overflow-y-auto p-4">
-          <div class="rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-400">
-            Conversation list will be here
-          </div>
+      <app-conversation-list />
         </div>
       </aside>
 

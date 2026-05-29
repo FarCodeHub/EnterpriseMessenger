@@ -13,5 +13,26 @@
       "submitting": "Entrando...",
       "failed": "Error de inicio de sesión. Verifica tu usuario."
     }
-  }
+  },
+  "layout": {
+  "conversationsPlaceholder": "La lista de conversaciones aparecerá aquí",
+  "logout": "Salir"
+},
+"conversations": {
+  "empty": {
+    "title": "No hay conversación seleccionada",
+    "description": "Selecciona una conversación de la lista o inicia una nueva."
+  },  "list": {
+    "loading": "Cargando conversaciones...",
+    "empty": "Aún no hay conversaciones.",
+    "noMessages": "Aún no hay mensajes",
+"archived": "Archivado"
+  },"messages": {
+  "title": "Mensajes",
+  "loading": "Cargando mensajes...",
+  "empty": "Aún no hay mensajes.",
+  "deleted": "Este mensaje fue eliminado",
+  "edited": "editado"
+}
+}
 }

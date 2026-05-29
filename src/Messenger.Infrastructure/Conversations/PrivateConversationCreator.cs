@@ -29,6 +29,31 @@ public sealed class PrivateConversationCreator : IPrivateConversationCreator
 
         if (existingUsersCount != 2)
             throw new InvalidOperationException("One or both users do not exist.");
+            
+
+
+
+            var existingConversationId = await _dbContext.Conversations
+    .Where(conversation => conversation.Type == ConversationType.Private)
+    .Where(conversation =>
+        _dbContext.ConversationMembers.Any(member =>
+            member.ConversationId == conversation.Id &&
+            member.UserId == command.FirstUserId &&
+            member.LeftAtUtc == null) &&
+        _dbContext.ConversationMembers.Any(member =>
+            member.ConversationId == conversation.Id &&
+            member.UserId == command.SecondUserId &&
+            member.LeftAtUtc == null))
+    .Select(conversation => (Guid?)conversation.Id)
+    .FirstOrDefaultAsync(cancellationToken);
+
+if (existingConversationId.HasValue)
+{
+    return new CreatePrivateConversationResult(
+        existingConversationId.Value,
+        (int)ConversationType.Private,
+        userIds);
+}
 
         var conversation = new Conversation(
             ConversationType.Private,

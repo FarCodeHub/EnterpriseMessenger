@@ -13,5 +13,28 @@
       "submitting": "Signing in...",
       "failed": "Login failed. Please check your username."
     }
-  }
+  },
+  "layout": {
+  "conversationsPlaceholder": "Conversation list will be here",
+  "logout": "Logout"
+},
+"conversations": {
+  "empty": {
+    "title": "No conversation selected",
+    "description": "Select a conversation from the list or start a new one."
+  },
+    "list": {
+    "loading": "Loading conversations...",
+    "empty": "No conversations yet.",
+    "noMessages": "No messages yet",
+"archived": "Archived"
+  },
+  "messages": {
+  "title": "Messages",
+  "loading": "Loading messages...",
+  "empty": "No messages yet.",
+  "deleted": "This message was deleted",
+  "edited": "edited"
+}
+}
 }

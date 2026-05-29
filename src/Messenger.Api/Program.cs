@@ -276,14 +276,24 @@ if (!app.Environment.IsEnvironment("Testing"))
     var seeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
     await seeder.SeedAsync(CancellationToken.None);
 }
-using (var scope = app.Services.CreateScope())
+
+
+
+
+try
 {
+    using var scope = app.Services.CreateScope();
+
     var indexer = scope.ServiceProvider.GetService<IMessageSearchIndexer>();
 
     if (indexer is not null)
     {
         await indexer.EnsureIndexAsync(CancellationToken.None);
     }
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "OpenSearch index initialization failed.");
 }
 
 try

@@ -4,10 +4,16 @@ public sealed record GetUserConversationResult(
     Guid Id,
     int Type,
     string? Title,
+    string DisplayTitle,
     DateTime CreatedAtUtc,
     Guid? LastMessageId,
     DateTime? LastMessageAtUtc,
+    string? LastMessagePreview,
+    Guid? LastMessageSenderUserId,
+    string? LastMessageSenderDisplayName,
     long LastReadSequenceNumber,
     int UnreadCount,
-    bool IsPinned
+    bool IsPinned,
+    bool IsMuted,
+    bool IsArchived
 );
