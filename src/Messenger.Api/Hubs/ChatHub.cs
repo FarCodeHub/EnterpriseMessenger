@@ -70,7 +70,7 @@ public async Task StopTyping(string conversationId)
     if (!Guid.TryParse(conversationId, out var parsedConversationId))
         throw new InvalidOperationException("Invalid conversation id.");
 
-  await _typingService.StartTypingAsync(
+  await _typingService.StopTypingAsync(
     parsedConversationId,
     userId,
     Context.ConnectionAborted);

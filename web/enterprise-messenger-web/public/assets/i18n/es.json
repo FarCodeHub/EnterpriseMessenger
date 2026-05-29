@@ -32,7 +32,12 @@
   "loading": "Cargando mensajes...",
   "empty": "Aún no hay mensajes.",
   "deleted": "Este mensaje fue eliminado",
-  "edited": "editado"
+  "edited": "editado",
+  "failed": "fallido",
+"input": {
+  "placeholder": "Escribe un mensaje...",
+  "send": "Enviar"
+}
 }
 }
 }

@@ -5,11 +5,12 @@ import { TranslateModule } from '@ngx-translate/core';
 import { ConversationsState } from '../../../state/conversations/conversations.state';
 import { AuthService } from '../../../core/auth/auth.service';
 import { MessagesState } from '../../../state/messages/messages.state';
-
+import { FormsModule } from '@angular/forms';
+import { signal } from '@angular/core';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
-  imports: [DatePipe, TranslateModule],
+  imports: [DatePipe, TranslateModule, FormsModule],
   template: `
     <div class="flex h-full min-h-0 flex-col bg-slate-950">
       <header class="border-b border-white/10 px-6 py-4">
@@ -77,34 +78,67 @@ import { MessagesState } from '../../../state/messages/messages.state';
                   }
                 }
 
-                <div class="mt-2 text-[11px] opacity-70">
-                  {{ message.createdAtUtc | date:'shortTime' }}
+<div class="mt-2 text-[11px] opacity-70">
+  {{ message.createdAtUtc | date:'shortTime' }}
 
-                  @if (message.editedAtUtc) {
-                    · {{ 'messages.edited' | translate }}
-                  }
-                </div>
+  @if (message.status === 'sending') {
+    · ...
+  }
+
+  @if (message.status === 'failed') {
+    · {{ 'messages.failed' | translate }}
+  }
+
+  @if (message.editedAtUtc) {
+    · {{ 'messages.edited' | translate }}
+  }
+</div>
               </div>
             </div>
           }
         </div>
       </section>
+
+
+
+<footer class="border-t border-white/10 bg-slate-900 px-4 py-3">
+<form class="flex items-end gap-3" (ngSubmit)="sendMessage()">
+    <textarea
+  rows="1"
+  [ngModel]="messageText()"
+  (ngModelChange)="messageText.set($event)"
+  name="messageText"
+  class="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-500"
+  [placeholder]="'messages.input.placeholder' | translate"
+></textarea>
+
+<button
+  type="submit"
+  class="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500"
+>
+  {{ 'messages.input.send' | translate }}
+</button>
+  </form>
+</footer>
+
+
     </div>
   `
 })
 export class ConversationChatComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
-private readonly conversationsState = inject(ConversationsState);
-readonly conversation = computed(() => {
-  const id = this.conversationId();
+  private readonly conversationsState = inject(ConversationsState);
+  readonly messageText = signal('');
+  readonly conversation = computed(() => {
+    const id = this.conversationId();
 
-  if (!id) {
-    return null;
-  }
+    if (!id) {
+      return null;
+    }
 
-  return this.conversationsState.getById(id);
-});
+    return this.conversationsState.getById(id);
+  });
   readonly messagesState = inject(MessagesState);
 
   readonly conversationId = computed(() => {
@@ -122,4 +156,26 @@ readonly conversation = computed(() => {
       this.messagesState.load(conversationId);
     }
   }
+
+
+  sendMessage(): void {
+    const conversationId = this.conversationId();
+    const body = this.messageText().trim();
+
+    if (!conversationId || !body) {
+      return;
+    }
+
+    this.messagesState.send({
+      conversationId,
+      clientMessageId: crypto.randomUUID(),
+      body,
+      replyToMessageId: null,
+      attachments: []
+    });
+
+    this.messageText.set('');
+  }
+
+
 }
