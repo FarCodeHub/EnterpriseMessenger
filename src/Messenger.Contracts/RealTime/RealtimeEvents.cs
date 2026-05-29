@@ -21,6 +21,9 @@ public const string PresenceRegistered = "presence.registered";
 public const string  MessageDeliveredACK = "message.delivered.ack";
 public const string  ConversationRead = "conversation.read";
 
+public const string  PresenceChanged = "presence.changed";
+public const string  PresenceSnapshot = "presence.snapshot";
+
 
     
 

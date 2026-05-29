@@ -30,4 +30,48 @@ public sealed class FakePresenceService : IPresenceService
     {
         return Task.FromResult(_connections.Any(x => x.StartsWith($"{userId}:")));
     }
+
+    public Task JoinConversationAsync(
+    Guid conversationId,
+    Guid userId,
+    string connectionId,
+    CancellationToken cancellationToken)
+{
+    return Task.CompletedTask;
+}
+
+public Task<bool> LeaveConversationAsync(
+    Guid conversationId,
+    Guid userId,
+    string connectionId,
+    CancellationToken cancellationToken)
+{
+    return Task.FromResult(true);
+}
+
+public Task<IReadOnlyCollection<Guid>> GetOnlineConversationUserIdsAsync(
+    Guid conversationId,
+    CancellationToken cancellationToken)
+{
+    return Task.FromResult<IReadOnlyCollection<Guid>>(Array.Empty<Guid>());
+}
+
+
+public Task<IReadOnlyCollection<Guid>> GetConnectionConversationIdsAsync(
+    string connectionId,
+    CancellationToken cancellationToken)
+{
+    return Task.FromResult<IReadOnlyCollection<Guid>>(Array.Empty<Guid>());
+}
+
+public Task RenewConversationPresenceAsync(
+    Guid conversationId,
+    Guid userId,
+    string connectionId,
+    CancellationToken cancellationToken)
+{
+    return Task.CompletedTask;
+}
+
+
 }

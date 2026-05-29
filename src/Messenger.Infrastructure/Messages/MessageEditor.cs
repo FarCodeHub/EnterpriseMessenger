@@ -78,13 +78,24 @@ await _messageSearchIndexer.IndexAsync(
         message.EditedAtUtc,
         IsDeleted: false),
     cancellationToken);
+var sender = await _dbContext.Users
+    .Where(x => x.Id == message.SenderUserId)
+    .Select(x => new
+    {
+        x.DisplayName,
+        x.UserName
+    })
+    .FirstOrDefaultAsync(cancellationToken);
 
+var senderUserDisplayName =
+    sender?.DisplayName ?? sender?.UserName;
 
         return new EditMessageResult(
             message.Id,
             message.ConversationId,
             message.SequenceNumber,
             message.SenderUserId,
+            senderUserDisplayName,
             message.Body,
             message.EditedAtUtc);
     }

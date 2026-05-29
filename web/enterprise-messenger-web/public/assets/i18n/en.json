@@ -30,6 +30,7 @@
 "archived": "Archived"
   },
   "messages": {
+    "typing": "Typing...",
   "title": "Messages",
   "loading": "Loading messages...",
   "empty": "No messages yet.",
@@ -41,5 +42,9 @@
   "send": "Send"
 }
 }
+},
+"presence": {
+  "online": "Online",
+  "offline": "Offline"
 }
 }
