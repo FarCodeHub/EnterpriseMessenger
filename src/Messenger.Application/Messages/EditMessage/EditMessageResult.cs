@@ -5,6 +5,7 @@ public sealed record EditMessageResult(
     Guid ConversationId,
     long SequenceNumber,
     Guid SenderUserId,
+    string? SenderDisplayName,
     string Body,
     DateTime? EditedAtUtc
 );

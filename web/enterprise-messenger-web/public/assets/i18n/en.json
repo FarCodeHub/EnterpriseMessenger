@@ -1,0 +1,50 @@
+{
+  "app": {
+    "name": "EnterpriseMessenger"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Sign in to continue",
+      "username": "Username",
+      "usernamePlaceholder": "e.g. admin",
+      "usernameRequired": "Username is required.",
+      "submit": "Sign in",
+      "submitting": "Signing in...",
+      "failed": "Login failed. Please check your username."
+    }
+  },
+  "layout": {
+  "conversationsPlaceholder": "Conversation list will be here",
+  "logout": "Logout"
+},
+"conversations": {
+  "empty": {
+    "title": "No conversation selected",
+    "description": "Select a conversation from the list or start a new one."
+  },
+    "list": {
+    "loading": "Loading conversations...",
+    "empty": "No conversations yet.",
+    "noMessages": "No messages yet",
+"archived": "Archived"
+  },
+  "messages": {
+    "typing": "Typing...",
+  "title": "Messages",
+  "loading": "Loading messages...",
+  "empty": "No messages yet.",
+  "deleted": "This message was deleted",
+  "edited": "edited",
+  "failed": "failed",
+"input": {
+  "placeholder": "Write a message...",
+  "send": "Send"
+}
+}
+},
+"presence": {
+  "online": "Online",
+  "offline": "Offline"
+}
+}

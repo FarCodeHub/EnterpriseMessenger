@@ -178,20 +178,25 @@ private async Task<SyncEventsResponse> GetSyncEventsAsync(
         return result!.Id;
     }
 
-    private async Task<Guid> CreatePrivateConversationAsync(Guid firstUserId, Guid secondUserId)
-    {
-        var request = new CreatePrivateConversationRequest(
-            firstUserId,
-            secondUserId);
+ 
 
-        var response = await _client.PostAsJsonAsync("/api/v1/conversations/private", request);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var result = await response.Content.ReadFromJsonAsync<CreateConversationResponse>();
-        result.Should().NotBeNull();
+    private async Task<Guid> CreatePrivateConversationAsync(
+    Guid firstUserId,
+    Guid secondUserId)
+{
+    var response = await _client.PostAsJsonAsync(
+        "/api/v1/conversations/private",
+        new CreatePrivateConversationRequest(firstUserId, secondUserId));
 
-        return result!.Id;
-    }
+    var body = await response.Content.ReadAsStringAsync();
+
+    response.StatusCode.Should().Be(HttpStatusCode.OK, body);
+
+    var result = await response.Content.ReadFromJsonAsync<CreateConversationResponse>();
+
+    return result!.Id;
+}
 
     private async Task<SendMessageResponse> SendMessageAsync(
         Guid conversationId,

@@ -15,8 +15,8 @@ services:
   redis:
     image: redis:7
     container_name: enterprise-messenger-redis
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     volumes:
       - enterprise_messenger_redis_data:/data
     command: redis-server --appendonly yes
@@ -53,7 +53,7 @@ services:
     image: enterprise-messenger-api:latest
     container_name: enterprise-messenger-api
     ports:
-      - "8080:8080"
+      - "8580:8080"
     environment:
       # ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
       ASPNETCORE_ENVIRONMENT: Development
@@ -72,14 +72,24 @@ services:
       SeedAdmin__DisplayName: ${SEED_ADMIN_DISPLAY_NAME}
       OpenSearch__Url: http://opensearch:9200
       OpenSearch__MessagesIndex: messenger-messages
-    
-    restart: unless-stopped
+
+  messenger-web:
+    build:
+      context: ./web/enterprise-messenger-web
+      dockerfile: Dockerfile
+    image: enterprise-messenger-web:latest
+    container_name: enterprise-messenger-web
+    ports:
+      - "4200:80"
     depends_on:
+      - messenger-api
       - postgres
       - redis
       - rabbitmq
       - minio
-
+      - opensearch
+    restart: unless-stopped
+    
   opensearch:
     image: opensearchproject/opensearch:2
     container_name: enterprise-messenger-opensearch

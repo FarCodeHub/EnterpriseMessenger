@@ -1,0 +1,48 @@
+{
+  "app": {
+    "name": "EnterpriseMessenger"
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar sesión",
+      "subtitle": "Inicia sesión para continuar",
+      "username": "Nombre de usuario",
+      "usernamePlaceholder": "por ejemplo admin",
+      "usernameRequired": "El nombre de usuario es obligatorio.",
+      "submit": "Entrar",
+      "submitting": "Entrando...",
+      "failed": "Error de inicio de sesión. Verifica tu usuario."
+    }
+  },
+  "layout": {
+  "conversationsPlaceholder": "La lista de conversaciones aparecerá aquí",
+  "logout": "Salir"
+},
+"conversations": {
+  "empty": {
+    "title": "No hay conversación seleccionada",
+    "description": "Selecciona una conversación de la lista o inicia una nueva."
+  },  "list": {
+    "loading": "Cargando conversaciones...",
+    "empty": "Aún no hay conversaciones.",
+    "noMessages": "Aún no hay mensajes",
+"archived": "Archivado"
+  },"messages": {
+    "typing": "Escribiendo...",
+  "title": "Mensajes",
+  "loading": "Cargando mensajes...",
+  "empty": "Aún no hay mensajes.",
+  "deleted": "Este mensaje fue eliminado",
+  "edited": "editado",
+  "failed": "fallido",
+"input": {
+  "placeholder": "Escribe un mensaje...",
+  "send": "Enviar"
+}
+}
+},
+"presence": {
+  "online": "En línea",
+  "offline": "Desconectado"
+}
+}

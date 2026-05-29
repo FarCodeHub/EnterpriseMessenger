@@ -1,4 +1,6 @@
 using Messenger.Application.Conversations.GetUserConversations;
+using Messenger.Domain.Conversations;
+using Messenger.Domain.Enums;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,6 +43,7 @@ public sealed class UserConversationReader : IUserConversationReader
         var conversations = await _dbContext.ConversationMembers
             .Where(member =>
                 member.UserId == userId &&
+                member.LeftAtUtc == null &&
                 member.IsArchived == isArchived)
             .Join(
                 _dbContext.Conversations,
@@ -55,7 +58,9 @@ public sealed class UserConversationReader : IUserConversationReader
                     conversation.LastMessageId,
                     conversation.LastMessageAtUtc,
                     member.LastReadSequenceNumber,
-                    member.IsPinned
+                    member.IsPinned,
+                    member.IsMuted,
+                    member.IsArchived
                 })
             .OrderByDescending(x => x.IsPinned)
             .ThenByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
@@ -66,7 +71,9 @@ public sealed class UserConversationReader : IUserConversationReader
             .ToList();
 
         var unreadCounts = await _dbContext.Messages
-            .Where(message => conversationIds.Contains(message.ConversationId))
+            .Where(message =>
+                conversationIds.Contains(message.ConversationId) &&
+                message.DeletedAtUtc == null)
             .GroupJoin(
                 _dbContext.ConversationMembers.Where(member => member.UserId == userId),
                 message => message.ConversationId,
@@ -91,17 +98,134 @@ public sealed class UserConversationReader : IUserConversationReader
                 x => x.Count,
                 cancellationToken);
 
+        var lastMessages = await _dbContext.Messages
+            .Where(message =>
+                conversationIds.Contains(message.ConversationId) &&
+                message.DeletedAtUtc == null)
+            .GroupBy(message => message.ConversationId)
+            .Select(group => group
+                .OrderByDescending(message => message.SequenceNumber)
+                .Select(message => new
+                {
+                    message.Id,
+                    message.ConversationId,
+                    message.Body,
+                    message.SenderUserId,
+                    message.CreatedAtUtc,
+                    message.SequenceNumber
+                })
+                .First())
+            .ToDictionaryAsync(
+                x => x.ConversationId,
+                x => x,
+                cancellationToken);
+
+        var senderUserIds = lastMessages.Values
+            .Select(x => x.SenderUserId)
+            .Distinct()
+            .ToList();
+
+        var senders = await _dbContext.Users
+            .Where(user => senderUserIds.Contains(user.Id))
+            .Select(user => new
+            {
+                user.Id,
+                user.DisplayName,
+                user.UserName
+            })
+            .ToDictionaryAsync(
+                x => x.Id,
+                x => x,
+                cancellationToken);
+
+        var otherUsers = await _dbContext.ConversationMembers
+            .Where(member =>
+                conversationIds.Contains(member.ConversationId) &&
+                member.UserId != userId &&
+                member.LeftAtUtc == null)
+            .Join(
+                _dbContext.Users,
+                member => member.UserId,
+                user => user.Id,
+                (member, user) => new
+                {
+                    member.ConversationId,
+                    user.Id,
+                    user.DisplayName,
+                    user.UserName
+                })
+            .GroupBy(x => x.ConversationId)
+            .Select(group => group.First())
+            .ToDictionaryAsync(
+                x => x.ConversationId,
+                x => x,
+                cancellationToken);
+
+
+
+
+
         return conversations
-            .Select(x => new GetUserConversationResult(
-                x.Id,
-                x.Type,
-                x.Title,
-                x.CreatedAtUtc,
-                x.LastMessageId,
-                x.LastMessageAtUtc,
-                x.LastReadSequenceNumber,
-                unreadCounts.TryGetValue(x.Id, out var count) ? count : 0,
-                x.IsPinned))
+            .Select(conversation =>
+            {
+                lastMessages.TryGetValue(conversation.Id, out var lastMessage);
+
+                var lastMessagePreview = string.IsNullOrWhiteSpace(lastMessage?.Body)
+                    ? null
+                    : lastMessage.Body;
+
+                string? lastMessageSenderDisplayName = null;
+
+                if (lastMessage is not null &&
+                    senders.TryGetValue(lastMessage.SenderUserId, out var sender))
+                {
+                    lastMessageSenderDisplayName =
+                        sender.DisplayName ?? sender.UserName;
+                }
+
+                var displayTitle = conversation.Title;
+
+ otherUsers.TryGetValue(conversation.Id, out var otherUser);
+
+             
+                if (string.IsNullOrWhiteSpace(displayTitle) && otherUser is not null)
+                {
+                    displayTitle = otherUser.DisplayName ?? otherUser.UserName;
+                }
+
+                if (string.IsNullOrWhiteSpace(displayTitle))
+                {
+                    displayTitle = conversation.Type == (int)ConversationType.Private
+                        ? "Unknown User"
+                        : "Untitled Group";
+                }
+
+                Guid? otherParticipantUserId =
+                    conversation.Type == (int)ConversationType.Private
+                        ? otherUser?.Id
+                        : null;
+
+
+
+
+                return new GetUserConversationResult(
+                    conversation.Id,
+                    conversation.Type,
+                    conversation.Title,
+                    displayTitle,
+                    otherParticipantUserId,
+                    conversation.CreatedAtUtc,
+                    conversation.LastMessageId,
+                    conversation.LastMessageAtUtc,
+                    lastMessagePreview,
+                    lastMessage?.SenderUserId,
+                    lastMessageSenderDisplayName,
+                    conversation.LastReadSequenceNumber,
+                    unreadCounts.TryGetValue(conversation.Id, out var count) ? count : 0,
+                    conversation.IsPinned,
+                    conversation.IsMuted,
+                    conversation.IsArchived);
+            })
             .ToList();
     }
 }
