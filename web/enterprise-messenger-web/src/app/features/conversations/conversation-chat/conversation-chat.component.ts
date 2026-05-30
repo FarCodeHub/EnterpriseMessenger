@@ -444,4 +444,8 @@ private async switchConversation(newConversationId: string | null): Promise<void
 
   this.chatSignalR.startPresenceRenewTimer(newConversationId);
 }
+
+
+
+
 }
