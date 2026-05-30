@@ -46,5 +46,15 @@
 "presence": {
   "online": "Online",
   "offline": "Offline"
+},
+"attachments": {
+  "sendMode": {
+    "title": "Send image as",
+    "asPhoto": "Send as photo",
+    "asFile": "Send as file"
+  }
+},
+"common": {
+  "cancel": "Cancel"
 }
 }

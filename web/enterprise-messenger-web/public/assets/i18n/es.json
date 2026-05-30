@@ -44,5 +44,12 @@
 "presence": {
   "online": "En línea",
   "offline": "Desconectado"
+},
+"attachments": {
+  "sendMode": {
+    "title": "Enviar imagen",
+    "asPhoto": "Enviar como foto",
+    "asFile": "Enviar como archivo"
+  }
 }
 }

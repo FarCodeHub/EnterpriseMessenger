@@ -15,6 +15,7 @@ public sealed record SendMessageResult(
 );
 
 public sealed record SendMessageAttachmentResult(
+    Guid? Id,
     string FileName,
     string ContentType,
     long Size,
