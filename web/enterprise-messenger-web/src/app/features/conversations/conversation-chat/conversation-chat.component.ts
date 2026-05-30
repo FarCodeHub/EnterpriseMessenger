@@ -11,12 +11,17 @@ import { ChatSignalRService } from '../../../core/signalr/chat-signalr.service';
 import { Subject, takeUntil } from 'rxjs';
 import { FilesApiService } from '../../../core/services/files-api.service';
 import { UploadFileResponse } from '../../files/models/upload-file-response';
-
+import { AttachmentPreviewComponent } from '../../messages/components/attachment-preview/attachment-preview.component';
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
-  imports: [DatePipe, TranslateModule, FormsModule],
+ imports: [
+  DatePipe,
+  TranslateModule,
+  FormsModule,
+  AttachmentPreviewComponent
+],
   template: `
   
 <div class="grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
@@ -96,16 +101,13 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
             <div class="whitespace-pre-wrap break-words text-start" dir="auto">
   {{ message.body }}
 </div>
-
-                  @if (message.attachments.length > 0) {
-                    <div class="mt-2 space-y-1">
-                      @for (attachment of message.attachments; track attachment.id) {
-                        <div class="rounded-lg bg-black/20 px-3 py-2 text-xs">
-                          📎 {{ attachment.fileName }}
-                        </div>
-                      }
-                    </div>
-                  }
+@if (message.attachments.length > 0) {
+  <div class="mt-2 flex flex-col gap-2">
+    @for (attachment of message.attachments; track attachment.id) {
+      <app-attachment-preview [attachment]="attachment" />
+    }
+  </div>
+}
                 }
 
 <div class="mt-2 text-[11px] opacity-70">
@@ -181,8 +183,8 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly filesApi = inject(FilesApiService);
 
-readonly selectedAttachments = signal<UploadFileResponse[]>([]);
-readonly isUploadingFile = signal(false);
+  readonly selectedAttachments = signal<UploadFileResponse[]>([]);
+  readonly isUploadingFile = signal(false);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
@@ -202,15 +204,15 @@ readonly isUploadingFile = signal(false);
 
     return this.conversationsState.getById(id);
   });
-readonly conversationPresenceUserId = computed(() => {
-  const conversation = this.conversation();
+  readonly conversationPresenceUserId = computed(() => {
+    const conversation = this.conversation();
 
-  if (!conversation || conversation.type !== 1) {
-    return null;
-  }
+    if (!conversation || conversation.type !== 1) {
+      return null;
+    }
 
-  return conversation.otherParticipantUserId;
-});
+    return conversation.otherParticipantUserId;
+  });
   readonly messagesState = inject(MessagesState);
 
   readonly conversationId = signal<string | null>(null);
@@ -224,11 +226,11 @@ readonly conversationPresenceUserId = computed(() => {
 
 
 
- this.route.paramMap
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(params => {
-    void this.switchConversation(params.get('conversationId'));
-  });
+    this.route.paramMap
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(params => {
+        void this.switchConversation(params.get('conversationId'));
+      });
 
 
     this.chatSignalR.presenceSnapshot$
@@ -241,17 +243,17 @@ readonly conversationPresenceUserId = computed(() => {
         );
 
 
-console.log('conversation:', this.conversation());
-console.log('conversationId:', this.conversationId());
-console.log('otherParticipantUserId:', this.conversationPresenceUserId());
-console.log('presence state:', this.presenceState.onlineUsersByConversation());
-console.log(
-  'is online:',
-  this.presenceState.isOnline(
-    this.conversationId(),
-    this.conversationPresenceUserId()
-  )
-);
+        console.log('conversation:', this.conversation());
+        console.log('conversationId:', this.conversationId());
+        console.log('otherParticipantUserId:', this.conversationPresenceUserId());
+        console.log('presence state:', this.presenceState.onlineUsersByConversation());
+        console.log(
+          'is online:',
+          this.presenceState.isOnline(
+            this.conversationId(),
+            this.conversationPresenceUserId()
+          )
+        );
 
 
       });
@@ -315,39 +317,48 @@ console.log(
       });
 
 
-this.chatSignalR.reconnected$
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(() => {
-    const conversationId = this.conversationId();
+    this.chatSignalR.reconnected$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        const conversationId = this.conversationId();
 
-    if (conversationId) {
-      this.chatSignalR.joinConversation(conversationId);
-      this.chatSignalR.startPresenceRenewTimer(conversationId);
-    }
-  });
+        if (conversationId) {
+          this.chatSignalR.joinConversation(conversationId);
+          this.chatSignalR.startPresenceRenewTimer(conversationId);
+        }
+      });
   }
 
 
   sendMessage(): void {
     const conversationId = this.conversationId();
     const body = this.messageText().trim();
+    const hasAttachments = this.selectedAttachments().length > 0;
 
-    if (!conversationId || !body) {
+    if (!conversationId || (!body && !hasAttachments)) {
       return;
     }
+
 
     this.messagesState.send({
       conversationId,
       clientMessageId: crypto.randomUUID(),
       body,
       replyToMessageId: null,
-      attachments: []
+      attachments: this.selectedAttachments().map(file => ({
+        fileName: file.fileName,
+        contentType: file.contentType,
+        size: file.size,
+        storagePath: file.storagePath
+      }))
     });
+
 
     this.scrollToBottom();
 
 
     this.messageText.set('');
+    this.selectedAttachments.set([]);
     if (conversationId && this.isTypingSent) {
       this.chatSignalR.stopTyping(conversationId);
       this.isTypingSent = false;
@@ -371,32 +382,32 @@ this.chatSignalR.reconnected$
 
   }
 
-ngOnDestroy(): void {
-  this.chatSignalR.stopPresenceRenewTimer();
+  ngOnDestroy(): void {
+    this.chatSignalR.stopPresenceRenewTimer();
 
-  if (this.activeConversationId) {
-    this.chatSignalR.leaveConversation(this.activeConversationId);
-    this.presenceState.clearConversation(this.activeConversationId);
+    if (this.activeConversationId) {
+      this.chatSignalR.leaveConversation(this.activeConversationId);
+      this.presenceState.clearConversation(this.activeConversationId);
+    }
+
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
-  this.destroy$.next();
-  this.destroy$.complete();
-}
 
-
-private scrollToBottom(): void {
-  requestAnimationFrame(() => {
+  private scrollToBottom(): void {
     requestAnimationFrame(() => {
-      const element = this.messagesContainer?.nativeElement;
+      requestAnimationFrame(() => {
+        const element = this.messagesContainer?.nativeElement;
 
-      if (!element) {
-        return;
-      }
+        if (!element) {
+          return;
+        }
 
-      element.scrollTop = element.scrollHeight;
+        element.scrollTop = element.scrollHeight;
+      });
     });
-  });
-}
+  }
 
   handleEnter(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
@@ -439,65 +450,65 @@ private scrollToBottom(): void {
     }, 1500);
   }
 
-private async switchConversation(newConversationId: string | null): Promise<void> {
-  const oldConversationId = this.activeConversationId;
+  private async switchConversation(newConversationId: string | null): Promise<void> {
+    const oldConversationId = this.activeConversationId;
 
-  this.chatSignalR.stopPresenceRenewTimer();
+    this.chatSignalR.stopPresenceRenewTimer();
 
-  if (oldConversationId && oldConversationId !== newConversationId) {
-    console.log('Leaving conversation:', oldConversationId);
+    if (oldConversationId && oldConversationId !== newConversationId) {
+      console.log('Leaving conversation:', oldConversationId);
 
-    await this.chatSignalR.leaveConversation(oldConversationId);
-    this.presenceState.clearConversation(oldConversationId);
-  }
-
-  this.activeConversationId = newConversationId;
-  this.conversationId.set(newConversationId);
-  this.messagesState.clear();
-
-  if (!newConversationId) {
-    return;
-  }
-
-  this.messagesState.load(newConversationId)
-    .pipe(takeUntil(this.destroy$))
-    .subscribe(() => {
-      this.scrollToBottom();
-    });
-
-  console.log('Joining conversation:', newConversationId);
-
-  await this.chatSignalR.joinConversation(newConversationId);
-
-  this.chatSignalR.startPresenceRenewTimer(newConversationId);
-}
-
-onFileSelected(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-
-  if (!file) {
-    return;
-  }
-
-  this.isUploadingFile.set(true);
-
-  this.filesApi.upload(file).subscribe({
-    next: response => {
-      this.selectedAttachments.set([
-        ...this.selectedAttachments(),
-        response
-      ]);
-
-      this.isUploadingFile.set(false);
-      input.value = '';
-    },
-    error: () => {
-      this.isUploadingFile.set(false);
-      input.value = '';
+      await this.chatSignalR.leaveConversation(oldConversationId);
+      this.presenceState.clearConversation(oldConversationId);
     }
-  });
-}
+
+    this.activeConversationId = newConversationId;
+    this.conversationId.set(newConversationId);
+    this.messagesState.clear();
+
+    if (!newConversationId) {
+      return;
+    }
+
+    this.messagesState.load(newConversationId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.scrollToBottom();
+      });
+
+    console.log('Joining conversation:', newConversationId);
+
+    await this.chatSignalR.joinConversation(newConversationId);
+
+    this.chatSignalR.startPresenceRenewTimer(newConversationId);
+  }
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    this.isUploadingFile.set(true);
+
+    this.filesApi.upload(file).subscribe({
+      next: response => {
+        this.selectedAttachments.set([
+          ...this.selectedAttachments(),
+          response
+        ]);
+
+        this.isUploadingFile.set(false);
+        input.value = '';
+      },
+      error: () => {
+        this.isUploadingFile.set(false);
+        input.value = '';
+      }
+    });
+  }
 
 
 }
