@@ -1,4 +1,5 @@
 export interface SendMessageAttachmentRequest {
+   fileId: string;
   fileName: string;
   contentType: string;
   size: number;

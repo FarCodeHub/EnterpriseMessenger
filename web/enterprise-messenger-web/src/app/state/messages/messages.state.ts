@@ -52,21 +52,28 @@ send(request: SendMessageRequest): void {
     deletedAtUtc: null,
     attachments: [],
     clientMessageId: request.clientMessageId,
-    status: 'sending'
+    receiptStatus: 'sending'
   };
 
   this.messagesSignal.set([...this.messagesSignal(), optimisticMessage]);
 
   this.messagesApi.sendMessage(request).subscribe({
-    next: message => {
-      this.messagesSignal.set(
-        this.messagesSignal().map(x =>
-          x.clientMessageId === request.clientMessageId
-            ? { ...message, clientMessageId: request.clientMessageId, status: 'sent' }
-            : x
-        )
-      );
-    },
+next: message => {
+  console.log('send message response:', message);
+  console.log('send message attachments:', message.attachments);
+
+  this.messagesSignal.set(
+    this.messagesSignal().map(x =>
+      x.clientMessageId === request.clientMessageId
+        ? {
+            ...message,
+            clientMessageId: request.clientMessageId,
+            receiptStatus: 'sent'
+          }
+        : x
+    )
+  );
+},
     error: () => {
       this.messagesSignal.set(
         this.messagesSignal().map(x =>
@@ -166,6 +173,33 @@ getLastSequenceNumber(): number | null {
   return Math.max(...messages.map(x => x.sequenceNumber));
 }
 
+handleMessageDelivered(conversationId: string, sequenceNumber: number): void {
+  this.messagesSignal.set(
+    this.messagesSignal().map(message =>
+      message.conversationId === conversationId &&
+      message.sequenceNumber <= sequenceNumber &&
+      message.receiptStatus !== 'seen'
+        ? {
+            ...message,
+            receiptStatus: 'delivered'
+          }
+        : message
+    )
+  );
+}
 
-
+handleMessageSeen(conversationId: string, sequenceNumber: number): void {
+  this.messagesSignal.set(
+    this.messagesSignal().map(message =>
+      message.conversationId === conversationId &&
+      message.sequenceNumber <= sequenceNumber
+        ? {
+            ...message,
+            receiptStatus: 'seen'
+          }
+        : message
+    )
+  );
+}
+ 
 }

@@ -48,6 +48,16 @@
 "presence": {
   "online": "آنلاین",
   "offline": "آفلاین"
+},
+"attachments": {
+  "sendMode": {
+    "title": "نحوه ارسال تصویر",
+    "asPhoto": "ارسال به عنوان عکس",
+    "asFile": "ارسال به عنوان فایل"
+  }
+},
+"common": {
+  "cancel": "انصراف"
 }
 
 }
