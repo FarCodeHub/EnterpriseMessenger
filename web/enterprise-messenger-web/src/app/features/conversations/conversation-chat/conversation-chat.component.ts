@@ -9,6 +9,8 @@ import { FormsModule } from '@angular/forms';
 import { PresenceState } from '../../../state/presence/presence.state';
 import { ChatSignalRService } from '../../../core/signalr/chat-signalr.service';
 import { Subject, takeUntil } from 'rxjs';
+import { FilesApiService } from '../../../core/services/files-api.service';
+import { UploadFileResponse } from '../../files/models/upload-file-response';
 
 import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 @Component({
@@ -130,8 +132,29 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
 
 
 <footer class="border-t border-white/10 bg-slate-900 px-4 py-3">
-  <form class="flex w-full items-end gap-3" (ngSubmit)="sendMessage()">
-<textarea
+  
+@if (selectedAttachments().length > 0) {
+  <div class="mx-auto mb-3 flex w-full max-w-4xl flex-wrap gap-2">
+    @for (attachment of selectedAttachments(); track attachment.fileId) {
+      <div class="rounded-xl bg-slate-800 px-3 py-2 text-xs text-slate-200">
+        📎 {{ attachment.fileName }}
+      </div>
+    }
+  </div>
+}
+
+<form class="flex w-full items-end gap-3" (ngSubmit)="sendMessage()">
+<label
+  class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-slate-800 text-slate-300 hover:bg-slate-700"
+>
+  📎
+  <input
+    type="file"
+    class="hidden"
+    (change)="onFileSelected($event)"
+  />
+</label>
+  <textarea
   rows="1"
   name="messageText"
   [ngModel]="messageText()"
@@ -156,6 +179,10 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
+  private readonly filesApi = inject(FilesApiService);
+
+readonly selectedAttachments = signal<UploadFileResponse[]>([]);
+readonly isUploadingFile = signal(false);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
@@ -445,7 +472,32 @@ private async switchConversation(newConversationId: string | null): Promise<void
   this.chatSignalR.startPresenceRenewTimer(newConversationId);
 }
 
+onFileSelected(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
 
+  if (!file) {
+    return;
+  }
+
+  this.isUploadingFile.set(true);
+
+  this.filesApi.upload(file).subscribe({
+    next: response => {
+      this.selectedAttachments.set([
+        ...this.selectedAttachments(),
+        response
+      ]);
+
+      this.isUploadingFile.set(false);
+      input.value = '';
+    },
+    error: () => {
+      this.isUploadingFile.set(false);
+      input.value = '';
+    }
+  });
+}
 
 
 }
