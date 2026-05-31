@@ -19,4 +19,5 @@ public sealed record GetUserConversationResult(
     int UnreadCount,
     bool IsPinned,
     bool IsMuted,
-    bool IsArchived);
+    bool IsArchived
+    );
