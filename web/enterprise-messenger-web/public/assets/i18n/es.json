@@ -28,6 +28,9 @@
     "noMessages": "Aún no hay mensajes",
 "archived": "Archivado"
   },"messages": {
+      "actions": {
+    "reply": "Responder"
+  },
     "typing": "Escribiendo...",
   "title": "Mensajes",
   "loading": "Cargando mensajes...",

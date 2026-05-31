@@ -83,17 +83,31 @@ import { MessageDto } from '../../messages/models/message.dto';
           </div>
         }
 
+
+
+
+
         <div class="space-y-3">
  
 
 
           @for (message of messagesState.messages(); track message.id) {
-            <div
-            [id]="'message-' + message.id"
-              class="group relative flex"
-              [class.justify-end]="message.senderUserId === currentUserId()"
-              [class.justify-start]="message.senderUserId !== currentUserId()"
-            >
+         
+<div
+  [id]="'message-' + message.id"
+  class="group flex items-center gap-2"
+  [class.justify-end]="message.senderUserId === currentUserId()"
+  [class.justify-start]="message.senderUserId !== currentUserId()"
+>
+
+  
+
+
+
+
+
+
+
 <div
   class="max-w-[70%] rounded-2xl text-sm shadow"
  [class.bg-blue-600]="message.senderUserId === currentUserId() && !isMediaOnlyMessage(message)"
@@ -264,6 +278,43 @@ import { MessageDto } from '../../messages/models/message.dto';
   </div>
 }
               </div>
+
+
+@if (message.senderUserId !== currentUserId()) {
+  <div class="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+    <button
+      type="button"
+      class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 shadow hover:bg-slate-600"
+      (click)="toggleActionMenu(message.id)"
+    >
+      ⋯
+    </button>
+
+    @if (openActionMenuMessageId() === message.id) {
+      <div class="absolute bottom-10 start-0 z-30 min-w-36 overflow-hidden rounded-xl bg-slate-800 py-1 text-sm text-slate-100 shadow-xl">
+        <button
+          type="button"
+          class="block w-full px-4 py-2 text-start hover:bg-white/10"
+          (click)="replyToMessage(message)"
+        >
+          {{ 'conversations.messages.actions.reply' | translate }}
+        </button>
+
+        <button
+          type="button"
+          class="block w-full px-4 py-2 text-start hover:bg-white/10"
+         
+          [disabled]="!message.body || message.body.trim().length === 0"
+          [class.opacity-50]="!message.body || message.body.trim().length === 0"
+        >
+          {{ 'conversations.messages.actions.copy' | translate }}
+        </button>
+      </div>
+    }
+  </div>
+}
+
+
             </div>
           }
         </div>
@@ -446,6 +497,7 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  readonly openActionMenuMessageId = signal<string | null>(null);
   readonly isAwayFromBottom = signal(false);
 readonly shouldShowBackToLatest = computed(() => {
   const conversation = this.conversation();
@@ -652,6 +704,22 @@ readonly shouldShowBackToLatest = computed(() => {
       this.markCurrentConversationAsSeenIfAllowed();
     }
   };
+
+
+  toggleActionMenu(messageId: string): void {
+  this.openActionMenuMessageId.update(current =>
+    current === messageId ? null : messageId
+  );
+}
+
+closeActionMenu(): void {
+  this.openActionMenuMessageId.set(null);
+}
+
+replyToMessage(message: MessageDto): void {
+  this.startReply(message);
+  this.closeActionMenu();
+}
 
   findReplyMessage(replyToMessageId: string | null): MessageDto | null {
     if (!replyToMessageId) {

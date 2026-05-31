@@ -30,6 +30,9 @@
 "archived": "Archived"
   },
   "messages": {
+      "actions": {
+    "reply": "Reply"
+  },
     "typing": "Typing...",
   "title": "Messages",
   "loading": "Loading messages...",
