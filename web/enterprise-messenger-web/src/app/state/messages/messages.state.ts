@@ -203,5 +203,27 @@ handleMessageSeen(conversationId: string, sequenceNumber: number): void {
     )
   );
 }
+
+
+loadAround(
+  conversationId: string,
+  sequenceNumber: number,
+  radius = 50
+): Observable<void> {
+  this.isLoadingSignal.set(true);
+
+  return this.messagesApi
+    .getConversationMessagesAround(conversationId, sequenceNumber, radius)
+    .pipe(
+      map(response => this.sortMessages(response)),
+      tap(messages => {
+        this.messagesSignal.set(messages);
+      }),
+      finalize(() => {
+        this.isLoadingSignal.set(false);
+      }),
+      map(() => void 0)
+    );
+}
  
 }

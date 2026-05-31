@@ -17,4 +17,14 @@ export class MessagesApiService extends BaseApiService {
   sendMessage(request: SendMessageRequest): Observable<MessageDto> {
   return this.post<MessageDto, SendMessageRequest>('/messages', request);
 }
+
+getConversationMessagesAround(
+  conversationId: string,
+  sequenceNumber: number,
+  radius = 50
+): Observable<MessageDto[]> {
+  return this.get<MessageDto[]>(
+    `/Messages/conversation/${conversationId}/around/${sequenceNumber}?radius=${radius}`
+  );
+}
 }

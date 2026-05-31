@@ -35,6 +35,9 @@
   "deleted": "Este mensaje fue eliminado",
   "edited": "editado",
   "failed": "fallido",
+  "reply": "responder",
+  "replyingTo": "Respondiendo a",
+  "replyingToMessage": "Respondiendo al mensaje",
 "input": {
   "placeholder": "Escribe un mensaje...",
   "send": "Enviar"

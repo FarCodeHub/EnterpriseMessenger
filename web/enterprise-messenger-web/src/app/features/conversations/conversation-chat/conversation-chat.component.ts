@@ -16,19 +16,19 @@ import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, 
 import imageCompression from 'browser-image-compression';
 import { SelectedAttachment } from '../../files/models/selected-attachment';
 import { HttpEventType } from '@angular/common/http';
-  import { MessageDto } from '../../messages/models/message.dto';
+import { MessageDto } from '../../messages/models/message.dto';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
- imports: [
-  DatePipe,
-  TranslateModule,
-  FormsModule,
-  AttachmentPreviewComponent
-],
+  imports: [
+    DatePipe,
+    TranslateModule,
+    FormsModule,
+    AttachmentPreviewComponent
+  ],
   template: `
   
-<div class="grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
+<div class="relative grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
 <header class="border-b border-white/10 px-6 py-4">
 <div class="flex flex-row-reverse items-start gap-3">
 <div
@@ -84,9 +84,13 @@ import { HttpEventType } from '@angular/common/http';
         }
 
         <div class="space-y-3">
+ 
+
+
           @for (message of messagesState.messages(); track message.id) {
             <div
-              class="flex"
+            [id]="'message-' + message.id"
+              class="group relative flex"
               [class.justify-end]="message.senderUserId === currentUserId()"
               [class.justify-start]="message.senderUserId !== currentUserId()"
             >
@@ -110,6 +114,10 @@ import { HttpEventType } from '@angular/common/http';
     class="text-start"
     [attr.dir]="getTextDirection(message.body)"
   >
+
+ 
+
+
     @if (!isMediaOnlyMessage(message) && isLongTextMessage(message)) {
       <div class="mb-1 inline-flex items-center gap-1 text-[12px] leading-none opacity-70">
         <span>
@@ -125,11 +133,35 @@ import { HttpEventType } from '@angular/common/http';
           </span>
         }
       </div>
+@if (message.replyToMessageId) {
+    <button
+    type="button"
+    class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
+    (click)="jumpToReplyMessage(message)"
+  >
+    @if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
+      <div class="font-semibold text-blue-300">
+        {{ 'messages.replyingTo' | translate }}
+      </div>
 
+      <div class="mt-1 line-clamp-2 text-slate-200">
+        {{ repliedMessage.body || '📎 Attachment' }}
+      </div>
+    } @else {
+      <div class="font-semibold text-blue-300">
+        {{ 'messages.replyingToMessage' | translate }}
+        #{{ message.replyToSequenceNumber }}
+      </div>
+    }
+  </button>
+}
       <div class="whitespace-pre-wrap break-words">
         {{ message.body }}
       </div>
-    } @else {
+    } 
+    
+    
+    @else {
       @if (!isMediaOnlyMessage(message)) {
         <span class="inline-flex items-center gap-1 pe-2 text-[12px] leading-none opacity-70 align-baseline">
           <span>
@@ -146,7 +178,28 @@ import { HttpEventType } from '@angular/common/http';
           }
         </span>
       }
+@if (message.replyToMessageId) {
+    <button
+    type="button"
+    class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
+    (click)="jumpToReplyMessage(message)"
+  >
+    @if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
+      <div class="font-semibold text-blue-300">
+        {{ 'messages.replyingTo' | translate }}
+      </div>
 
+      <div class="mt-1 line-clamp-2 text-slate-200">
+        {{ repliedMessage.body || '📎 Attachment' }}
+      </div>
+    } @else {
+      <div class="font-semibold text-blue-300">
+        {{ 'messages.replyingToMessage' | translate }}
+        #{{ message.replyToSequenceNumber }}
+      </div>
+    }
+  </button>
+}
       <span class="whitespace-pre-wrap break-words">
         {{ message.body }}
       </span>
@@ -216,7 +269,21 @@ import { HttpEventType } from '@angular/common/http';
         </div>
       </section>
 
+@if (shouldShowBackToLatest()) {
+  <button
+    type="button"
+    class="absolute bottom-24 end-6 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-white shadow-xl hover:bg-slate-600"
+    (click)="backToLatestMessages()"
+  >
+    @if ((conversation()?.unreadCount ?? 0) > 0) {
+      <span class="absolute -top-2 -end-2 rounded-full bg-blue-500 px-2 py-0.5 text-xs font-bold">
+        {{ conversation()?.unreadCount }}
+      </span>
+    }
 
+    <span class="text-xl leading-none">⌄</span>
+  </button>
+}
 
 <footer class="border-t border-white/10 bg-slate-900 px-4 py-3">
   
@@ -272,6 +339,39 @@ import { HttpEventType } from '@angular/common/http';
     }
   </div>
 }
+
+
+
+@if (replyingToMessage()) {
+  <div class="mb-3 w-full overflow-hidden rounded-xl border-s-4 border-blue-500 bg-slate-800 px-4 py-3">
+    <div class="flex min-w-0 items-start justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="text-xs font-semibold text-blue-400">
+          {{ 'messages.replyingTo' | translate }}
+        </div>
+
+        <div
+          class="mt-1 max-h-10 overflow-hidden break-words text-sm leading-5 text-slate-300"
+          dir="auto"
+        >
+          {{ replyingToMessage()?.body || '📎 Attachment' }}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="shrink-0 text-slate-400 hover:text-white"
+        (click)="cancelReply()"
+      >
+        ×
+      </button>
+    </div>
+  </div>
+}
+
+
+
+
 
 <form class="flex w-full items-end gap-3" (ngSubmit)="sendMessage()">
 <label
@@ -346,14 +446,21 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
-  
+  readonly isAwayFromBottom = signal(false);
+readonly shouldShowBackToLatest = computed(() => {
+  const conversation = this.conversation();
+
+  return this.isViewingAroundMessages() ||
+    this.isAwayFromBottom() ||
+    (conversation?.unreadCount ?? 0) > 0;
+});
   private lastDeliveredSequenceNumber: number | null = null;
-private lastSeenSequenceNumber: number | null = null;
+  private lastSeenSequenceNumber: number | null = null;
   private readonly destroy$ = new Subject<void>();
   private readonly filesApi = inject(FilesApiService);
   readonly pendingImageFile = signal<File | null>(null);
   readonly isSendModeOpen = signal(false);
-readonly selectedAttachments = signal<SelectedAttachment[]>([]);
+  readonly selectedAttachments = signal<SelectedAttachment[]>([]);
   readonly isUploadingFile = signal(false);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
@@ -364,6 +471,7 @@ readonly selectedAttachments = signal<SelectedAttachment[]>([]);
   readonly presenceState = inject(PresenceState);
   private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
   private isTypingSent = false;
+  readonly isViewingAroundMessages = signal(false);
   readonly messageText = signal('');
   readonly conversation = computed(() => {
     const id = this.conversationId();
@@ -375,8 +483,8 @@ readonly selectedAttachments = signal<SelectedAttachment[]>([]);
     return this.conversationsState.getById(id);
   });
   readonly hasUploadingAttachments = computed(() =>
-  this.selectedAttachments().some(x => x.isUploading)
-);
+    this.selectedAttachments().some(x => x.isUploading)
+  );
   readonly conversationPresenceUserId = computed(() => {
     const conversation = this.conversation();
 
@@ -393,14 +501,17 @@ readonly selectedAttachments = signal<SelectedAttachment[]>([]);
   readonly currentUserId = computed(() => {
     return this.authService.user()?.id;
   });
+  readonly replyingToMessage = signal<MessageDto | null>(null);
+
+
   @ViewChild('messagesContainer')
   private messagesContainer?: ElementRef<HTMLDivElement>;
   ngOnInit(): void {
 
-document.addEventListener(
-  'visibilitychange',
-  this.handleVisibilityChange
-);
+    document.addEventListener(
+      'visibilitychange',
+      this.handleVisibilityChange
+    );
 
     this.route.paramMap
       .pipe(takeUntil(this.destroy$))
@@ -417,7 +528,7 @@ document.addEventListener(
           event.conversationId,
           event.userIds
         );
- 
+
 
 
       });
@@ -446,7 +557,7 @@ document.addEventListener(
 
           this.scrollToBottom();
           this.markCurrentConversationAsDelivered();
-this.markCurrentConversationAsSeen();
+          this.markCurrentConversationAsSeen();
           this.chatSignalR.markAsDelivered(event.conversationId, event.sequenceNumber);
         }
       });
@@ -496,100 +607,116 @@ this.markCurrentConversationAsSeen();
 
 
 
-this.chatSignalR.messageDelivered$
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(event => {
-    const conversation = this.conversation();
+    this.chatSignalR.messageDelivered$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        const conversation = this.conversation();
 
-    if (
-      conversation &&
-      event.conversationId === conversation.id &&
-      event.userId === conversation.otherParticipantUserId
-    ) {
-      this.conversationsState.updateOtherParticipantDelivered(
-        event.conversationId,
-        event.sequenceNumber
-      );
+        if (
+          conversation &&
+          event.conversationId === conversation.id &&
+          event.userId === conversation.otherParticipantUserId
+        ) {
+          this.conversationsState.updateOtherParticipantDelivered(
+            event.conversationId,
+            event.sequenceNumber
+          );
+        }
+      });
+
+    this.chatSignalR.messageSeen$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        const conversation = this.conversation();
+
+        if (
+          conversation &&
+          event.conversationId === conversation.id &&
+          event.userId === conversation.otherParticipantUserId
+        ) {
+          this.conversationsState.updateOtherParticipantSeen(
+            event.conversationId,
+            event.sequenceNumber
+          );
+        }
+      });
+
+
+
+
+
+  }
+
+  private readonly handleVisibilityChange = (): void => {
+    if (document.visibilityState === 'visible') {
+      this.markCurrentConversationAsSeenIfAllowed();
     }
-  });
+  };
 
-this.chatSignalR.messageSeen$
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(event => {
-    const conversation = this.conversation();
-
-    if (
-      conversation &&
-      event.conversationId === conversation.id &&
-      event.userId === conversation.otherParticipantUserId
-    ) {
-      this.conversationsState.updateOtherParticipantSeen(
-        event.conversationId,
-        event.sequenceNumber
-      );
+  findReplyMessage(replyToMessageId: string | null): MessageDto | null {
+    if (!replyToMessageId) {
+      return null;
     }
-  });
 
-
-
-
-
+    return this.messagesState.messages()
+      .find(message => message.id === replyToMessageId) ?? null;
+  }
+  startReply(message: MessageDto): void {
+    this.replyingToMessage.set(message);
   }
 
-private readonly handleVisibilityChange = (): void => {
-  if (document.visibilityState === 'visible') {
-    this.markCurrentConversationAsSeenIfAllowed();
+  cancelReply(): void {
+    this.replyingToMessage.set(null);
   }
-};
-sendMessage(): void {
-  const conversationId = this.conversationId();
-  const rawBody = this.messageText().trim();
+  sendMessage(): void {
+    const conversationId = this.conversationId();
+    const rawBody = this.messageText().trim();
 
-  const attachments = this.selectedAttachments()
-    .filter(x => !x.isUploading && !x.error)
-    .map(file => ({
-      fileId: file.fileId,
-      fileName: file.fileName,
-      contentType: file.contentType,
-      size: file.size,
-      storagePath: file.storagePath
-    }));
+    const attachments = this.selectedAttachments()
+      .filter(x => !x.isUploading && !x.error)
+      .map(file => ({
+        fileId: file.fileId,
+        fileName: file.fileName,
+        contentType: file.contentType,
+        size: file.size,
+        storagePath: file.storagePath
+      }));
 
-  const hasAttachments = attachments.length > 0;
+    const hasAttachments = attachments.length > 0;
 
-  if (!conversationId || (!rawBody && !hasAttachments)) {
-    return;
+    if (!conversationId || (!rawBody && !hasAttachments)) {
+      return;
+    }
+
+    if (this.hasUploadingAttachments()) {
+      return;
+    }
+
+
+
+    this.messagesState.send({
+      conversationId,
+      clientMessageId: crypto.randomUUID(),
+      body: rawBody,
+      replyToMessageId: this.replyingToMessage()?.id ?? null,
+      attachments
+    });
+
+    this.messageText.set('');
+    this.selectedAttachments.set([]);
+    this.replyingToMessage.set(null);
+    if (conversationId && this.isTypingSent) {
+      this.chatSignalR.stopTyping(conversationId);
+      this.isTypingSent = false;
+    }
+
+    if (this.typingStopTimer) {
+      clearTimeout(this.typingStopTimer);
+      this.typingStopTimer = null;
+    }
+
+    this.scrollToBottom();
   }
-
-  if (this.hasUploadingAttachments()) {
-    return;
-  }
-console.log('message attachments payload:', attachments);
-  
-
-  this.messagesState.send({
-    conversationId,
-    clientMessageId: crypto.randomUUID(),
-    body:rawBody,
-    replyToMessageId: null,
-    attachments
-  });
-
-  this.messageText.set('');
-  this.selectedAttachments.set([]);
-
-  if (conversationId && this.isTypingSent) {
-    this.chatSignalR.stopTyping(conversationId);
-    this.isTypingSent = false;
-  }
-
-  if (this.typingStopTimer) {
-    clearTimeout(this.typingStopTimer);
-    this.typingStopTimer = null;
-  }
-
-  this.scrollToBottom();
-}
   ngOnDestroy(): void {
     this.chatSignalR.stopPresenceRenewTimer();
 
@@ -597,10 +724,10 @@ console.log('message attachments payload:', attachments);
       this.chatSignalR.leaveConversation(this.activeConversationId);
       this.presenceState.clearConversation(this.activeConversationId);
     }
-document.removeEventListener(
-  'visibilitychange',
-  this.handleVisibilityChange
-);
+    document.removeEventListener(
+      'visibilitychange',
+      this.handleVisibilityChange
+    );
     this.destroy$.next();
 
     this.destroy$.complete();
@@ -617,6 +744,7 @@ document.removeEventListener(
         }
 
         element.scrollTop = element.scrollHeight;
+        this.isAwayFromBottom.set(false);
       });
     });
   }
@@ -679,381 +807,470 @@ document.removeEventListener(
     this.messagesState.clear();
 
     this.lastDeliveredSequenceNumber = null;
-this.lastSeenSequenceNumber = null;
+    this.lastSeenSequenceNumber = null;
 
     if (!newConversationId) {
       return;
     }
 
-this.messagesState.load(newConversationId)
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(() => {
-    this.scrollToBottom();
+    this.messagesState.load(newConversationId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.scrollToBottom();
 
-    requestAnimationFrame(() => {
-      this.markCurrentConversationAsDelivered();
-      this.markCurrentConversationAsSeenIfAllowed();
-    });
-  });
- 
+        requestAnimationFrame(() => {
+          this.markCurrentConversationAsDelivered();
+          this.markCurrentConversationAsSeenIfAllowed();
+        });
+      });
+
     await this.chatSignalR.joinConversation(newConversationId);
 
     this.chatSignalR.startPresenceRenewTimer(newConversationId);
   }
 
-onFileSelected(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files ?? []);
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
 
-  input.value = '';
+    input.value = '';
 
-  if (files.length === 0) {
-    return;
-  }
-
-  files.forEach(file => {
-    if (file.type.startsWith('image/')) {
-      // فعلاً پیش‌فرض Send as Photo
-      void this.compressAndUploadImage(file);
+    if (files.length === 0) {
       return;
     }
 
-    this.uploadAttachment(file);
-  });
-}
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        // فعلاً پیش‌فرض Send as Photo
+        void this.compressAndUploadImage(file);
+        return;
+      }
 
-
-private async compressAndUploadImage(file: File): Promise<void> {
-  const tempId = this.addPendingAttachment(file);
-
-  try {
-
-const compressedFile = await imageCompression(file, {
-  maxSizeMB: 1,
-  maxWidthOrHeight: 1600,
-  useWebWorker: true,
-  fileType: 'image/jpeg',
-  initialQuality: 0.8
-});
-
-const renamedFile = new File(
-  [compressedFile],
-  file.name,
-  {
-    type: compressedFile.type,
-    lastModified: Date.now()
-  }
-);
-
-this.uploadAttachmentByTempId(tempId, renamedFile);
-  } catch {
-    this.updateSelectedAttachment(tempId, {
-      isUploading: false,
-      error: 'Compression failed'
+      this.uploadAttachment(file);
     });
   }
-}
 
 
-sendPendingImageAsFile(): void {
-  const file = this.pendingImageFile();
+  private async compressAndUploadImage(file: File): Promise<void> {
+    const tempId = this.addPendingAttachment(file);
 
-  if (!file) {
-    return;
-  }
+    try {
 
-  this.isSendModeOpen.set(false);
-  this.pendingImageFile.set(null);
+      const compressedFile = await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+        initialQuality: 0.8
+      });
 
-  this.uploadAttachment(file);
-}
+      const renamedFile = new File(
+        [compressedFile],
+        file.name,
+        {
+          type: compressedFile.type,
+          lastModified: Date.now()
+        }
+      );
 
-async sendPendingImageAsPhoto(): Promise<void> {
-  const file = this.pendingImageFile();
-
-  if (!file) {
-    return;
-  }
-
-  this.isSendModeOpen.set(false);
-  this.pendingImageFile.set(null);
-
-  const compressedFile = await imageCompression(file, {
-    maxSizeMB: 1,
-    maxWidthOrHeight: 1600,
-    useWebWorker: true,
-    fileType: 'image/jpeg',
-    initialQuality: 0.8
-  });
-
-  this.uploadAttachment(compressedFile);
-}
-
-cancelSendMode(): void {
-  this.isSendModeOpen.set(false);
-  this.pendingImageFile.set(null);
-}
-
- 
-private uploadAttachment(file: File): void {
-  const tempId = this.addPendingAttachment(file);
-  this.uploadAttachmentByTempId(tempId, file);
-}
-
-
-
-private updateSelectedAttachment(
-  fileId: string,
-  patch: Partial<SelectedAttachment>
-): void {
-  this.selectedAttachments.set(
-    this.selectedAttachments().map(item =>
-      item.fileId === fileId
-        ? { ...item, ...patch }
-        : item
-    )
-  );
-}
-removeSelectedAttachment(fileId: string): void {
-  const attachment = this.selectedAttachments()
-    .find(x => x.fileId === fileId);
-
-  if (attachment?.localPreviewUrl) {
-    URL.revokeObjectURL(attachment.localPreviewUrl);
-  }
-
-  this.selectedAttachments.set(
-    this.selectedAttachments().filter(x => x.fileId !== fileId)
-  );
-}
-
-isImageOnlyMessage(message: MessageDto): boolean {
-  return (
-    message.attachments.length > 0 &&
-    message.attachments.every(x => x.contentType.startsWith('image/')) &&
-    (!message.body || message.body.trim().length === 0)
-  );
-}
-private addPendingAttachment(file: File): string {
-  const tempId = crypto.randomUUID();
-
-  const localPreviewUrl = file.type.startsWith('image/')
-    ? URL.createObjectURL(file)
-    : undefined;
-
-  this.selectedAttachments.set([
-    ...this.selectedAttachments(),
-    {
-      fileId: tempId,
-      fileName: file.name,
-      contentType: file.type || 'application/octet-stream',
-      size: file.size,
-      storagePath: '',
-      progress: 0,
-      isUploading: true,
-      error: null,
-      localPreviewUrl
-    }
-  ]);
-
-  return tempId;
-}
-
-private uploadAttachmentByTempId(tempId: string, file: File): void {
-  this.filesApi.uploadWithProgress(file).subscribe({
-    next: event => {
-      if (event.type === HttpEventType.UploadProgress) {
-        const progress = event.total
-          ? Math.round((event.loaded / event.total) * 100)
-          : 0;
-
-        this.updateSelectedAttachment(tempId, { progress });
-      }
-
-      if (event.type === HttpEventType.Response && event.body) {
-        this.updateSelectedAttachment(tempId, {
-          fileId: event.body.fileId,
-          fileName: event.body.fileName,
-          contentType: event.body.contentType,
-          size: event.body.size,
-          storagePath: event.body.storagePath,
-          progress: 100,
-          isUploading: false,
-          error: null
-        });
-      }
-    },
-    error: () => {
+      this.uploadAttachmentByTempId(tempId, renamedFile);
+    } catch {
       this.updateSelectedAttachment(tempId, {
         isUploading: false,
-        error: 'Upload failed'
+        error: 'Compression failed'
       });
     }
-  });
-}
-isImageAlbumMessage(message: MessageDto): boolean {
-  return (
-    message.attachments.length > 1 &&
-    message.attachments.every(x => x.contentType.startsWith('image/'))
-  );
-}
-isMediaOnlyMessage(message: MessageDto): boolean {
-  return (
-    message.attachments.length > 0 &&
-    message.attachments.every(x => x.contentType.startsWith('image/')) &&
-    (!message.body || message.body.trim().length === 0)
-  );
-}
-
-
-getReceiptIcon(message: MessageDto): string {
-  const status = this.getReceiptStatus(message);
-
-  if (status === 'failed') {
-    return '!';
   }
 
-  if (status === 'sending') {
-    return '◷';
+
+  sendPendingImageAsFile(): void {
+    const file = this.pendingImageFile();
+
+    if (!file) {
+      return;
+    }
+
+    this.isSendModeOpen.set(false);
+    this.pendingImageFile.set(null);
+
+    this.uploadAttachment(file);
   }
 
-  if (status === 'seen') {
-    return '✓✓';
+  async sendPendingImageAsPhoto(): Promise<void> {
+    const file = this.pendingImageFile();
+
+    if (!file) {
+      return;
+    }
+
+    this.isSendModeOpen.set(false);
+    this.pendingImageFile.set(null);
+
+    const compressedFile = await imageCompression(file, {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1600,
+      useWebWorker: true,
+      fileType: 'image/jpeg',
+      initialQuality: 0.8
+    });
+
+    this.uploadAttachment(compressedFile);
   }
 
-  if (status === 'delivered') {
-    return '✓✓';
+  cancelSendMode(): void {
+    this.isSendModeOpen.set(false);
+    this.pendingImageFile.set(null);
   }
 
-  return '✓';
-}
-getReceiptStatus(message: MessageDto): 'sending' | 'failed' | 'sent' | 'delivered' | 'seen' {
-  if (message.receiptStatus === 'sending') {
-    return 'sending';
+
+  private uploadAttachment(file: File): void {
+    const tempId = this.addPendingAttachment(file);
+    this.uploadAttachmentByTempId(tempId, file);
   }
 
-  if (message.receiptStatus === 'failed') {
-    return 'failed';
+
+
+  private updateSelectedAttachment(
+    fileId: string,
+    patch: Partial<SelectedAttachment>
+  ): void {
+    this.selectedAttachments.set(
+      this.selectedAttachments().map(item =>
+        item.fileId === fileId
+          ? { ...item, ...patch }
+          : item
+      )
+    );
+  }
+  removeSelectedAttachment(fileId: string): void {
+    const attachment = this.selectedAttachments()
+      .find(x => x.fileId === fileId);
+
+    if (attachment?.localPreviewUrl) {
+      URL.revokeObjectURL(attachment.localPreviewUrl);
+    }
+
+    this.selectedAttachments.set(
+      this.selectedAttachments().filter(x => x.fileId !== fileId)
+    );
   }
 
-  if (message.senderUserId !== this.currentUserId()) {
+  isImageOnlyMessage(message: MessageDto): boolean {
+    return (
+      message.attachments.length > 0 &&
+      message.attachments.every(x => x.contentType.startsWith('image/')) &&
+      (!message.body || message.body.trim().length === 0)
+    );
+  }
+  private addPendingAttachment(file: File): string {
+    const tempId = crypto.randomUUID();
+
+    const localPreviewUrl = file.type.startsWith('image/')
+      ? URL.createObjectURL(file)
+      : undefined;
+
+    this.selectedAttachments.set([
+      ...this.selectedAttachments(),
+      {
+        fileId: tempId,
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        size: file.size,
+        storagePath: '',
+        progress: 0,
+        isUploading: true,
+        error: null,
+        localPreviewUrl
+      }
+    ]);
+
+    return tempId;
+  }
+
+  private uploadAttachmentByTempId(tempId: string, file: File): void {
+    this.filesApi.uploadWithProgress(file).subscribe({
+      next: event => {
+        if (event.type === HttpEventType.UploadProgress) {
+          const progress = event.total
+            ? Math.round((event.loaded / event.total) * 100)
+            : 0;
+
+          this.updateSelectedAttachment(tempId, { progress });
+        }
+
+        if (event.type === HttpEventType.Response && event.body) {
+          this.updateSelectedAttachment(tempId, {
+            fileId: event.body.fileId,
+            fileName: event.body.fileName,
+            contentType: event.body.contentType,
+            size: event.body.size,
+            storagePath: event.body.storagePath,
+            progress: 100,
+            isUploading: false,
+            error: null
+          });
+        }
+      },
+      error: () => {
+        this.updateSelectedAttachment(tempId, {
+          isUploading: false,
+          error: 'Upload failed'
+        });
+      }
+    });
+  }
+  isImageAlbumMessage(message: MessageDto): boolean {
+    return (
+      message.attachments.length > 1 &&
+      message.attachments.every(x => x.contentType.startsWith('image/'))
+    );
+  }
+  isMediaOnlyMessage(message: MessageDto): boolean {
+    return (
+      message.attachments.length > 0 &&
+      message.attachments.every(x => x.contentType.startsWith('image/')) &&
+      (!message.body || message.body.trim().length === 0)
+    );
+  }
+
+
+  getReceiptIcon(message: MessageDto): string {
+    const status = this.getReceiptStatus(message);
+
+    if (status === 'failed') {
+      return '!';
+    }
+
+    if (status === 'sending') {
+      return '◷';
+    }
+
+    if (status === 'seen') {
+      return '✓✓';
+    }
+
+    if (status === 'delivered') {
+      return '✓✓';
+    }
+
+    return '✓';
+  }
+  getReceiptStatus(message: MessageDto): 'sending' | 'failed' | 'sent' | 'delivered' | 'seen' {
+    if (message.receiptStatus === 'sending') {
+      return 'sending';
+    }
+
+    if (message.receiptStatus === 'failed') {
+      return 'failed';
+    }
+
+    if (message.senderUserId !== this.currentUserId()) {
+      return 'sent';
+    }
+
+    const conversation = this.conversation();
+
+    if (!conversation || conversation.type !== 1) {
+      return 'sent';
+    }
+
+    const seenCursor =
+      conversation.otherParticipantLastReadSequenceNumber ?? 0;
+
+    const deliveredCursor =
+      conversation.otherParticipantLastDeliveredSequenceNumber ?? 0;
+
+    if (message.sequenceNumber <= seenCursor) {
+      return 'seen';
+    }
+
+    if (message.sequenceNumber <= deliveredCursor) {
+      return 'delivered';
+    }
+
     return 'sent';
   }
 
-  const conversation = this.conversation();
 
-  if (!conversation || conversation.type !== 1) {
-    return 'sent';
+  private markCurrentConversationAsSeen(): void {
+    const conversationId = this.conversationId();
+    const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
+
+    if (!conversationId || !lastSequenceNumber) {
+      return;
+    }
+
+    this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
   }
 
-  const seenCursor =
-    conversation.otherParticipantLastReadSequenceNumber ?? 0;
+  private isNearBottom(): boolean {
+    const element = this.messagesContainer?.nativeElement;
 
-  const deliveredCursor =
-    conversation.otherParticipantLastDeliveredSequenceNumber ?? 0;
+    if (!element) {
+      return false;
+    }
 
-  if (message.sequenceNumber <= seenCursor) {
-    return 'seen';
+    const threshold = 120;
+
+    return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
   }
 
-  if (message.sequenceNumber <= deliveredCursor) {
-    return 'delivered';
+  private isDocumentVisible(): boolean {
+    return document.visibilityState === 'visible';
   }
 
-  return 'sent';
-}
- 
+  private markCurrentConversationAsDelivered(): void {
+    const conversationId = this.conversationId();
+    const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
-private markCurrentConversationAsSeen(): void {
-  const conversationId = this.conversationId();
-  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
+    if (!conversationId || !lastSequenceNumber) {
+      return;
+    }
 
-  if (!conversationId || !lastSequenceNumber) {
-    return;
+    if (
+      this.lastDeliveredSequenceNumber !== null &&
+      lastSequenceNumber <= this.lastDeliveredSequenceNumber
+    ) {
+      return;
+    }
+
+    this.lastDeliveredSequenceNumber = lastSequenceNumber;
+    this.chatSignalR.markAsDelivered(conversationId, lastSequenceNumber);
   }
 
-  this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
-}
+  private markCurrentConversationAsSeenIfAllowed(): void {
+    const conversationId = this.conversationId();
+    const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
-private isNearBottom(): boolean {
-  const element = this.messagesContainer?.nativeElement;
+    if (!conversationId || !lastSequenceNumber) {
+      return;
+    }
 
-  if (!element) {
-    return false;
+    if (!this.isDocumentVisible()) {
+      return;
+    }
+
+    if (!this.isNearBottom()) {
+      return;
+    }
+
+    if (
+      this.lastSeenSequenceNumber !== null &&
+      lastSequenceNumber <= this.lastSeenSequenceNumber
+    ) {
+      return;
+    }
+
+    this.lastSeenSequenceNumber = lastSequenceNumber;
+    this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
   }
-
-  const threshold = 120;
-
-  return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
-}
-
-private isDocumentVisible(): boolean {
-  return document.visibilityState === 'visible';
-}
-
-private markCurrentConversationAsDelivered(): void {
-  const conversationId = this.conversationId();
-  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
-
-  if (!conversationId || !lastSequenceNumber) {
-    return;
-  }
-
-  if (
-    this.lastDeliveredSequenceNumber !== null &&
-    lastSequenceNumber <= this.lastDeliveredSequenceNumber
-  ) {
-    return;
-  }
-
-  this.lastDeliveredSequenceNumber = lastSequenceNumber;
-  this.chatSignalR.markAsDelivered(conversationId, lastSequenceNumber);
-}
-
-private markCurrentConversationAsSeenIfAllowed(): void {
-  const conversationId = this.conversationId();
-  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
-
-  if (!conversationId || !lastSequenceNumber) {
-    return;
-  }
-
-  if (!this.isDocumentVisible()) {
-    return;
-  }
-
-  if (!this.isNearBottom()) {
-    return;
-  }
-
-  if (
-    this.lastSeenSequenceNumber !== null &&
-    lastSequenceNumber <= this.lastSeenSequenceNumber
-  ) {
-    return;
-  }
-
-  this.lastSeenSequenceNumber = lastSequenceNumber;
-  this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
-}
 onMessagesScroll(): void {
+  this.isAwayFromBottom.set(!this.isNearBottom());
   this.markCurrentConversationAsSeenIfAllowed();
 }
 
 
-getTextDirection(text: string | null | undefined): 'rtl' | 'ltr' {
-  if (!text) {
-    return 'rtl';
+  getTextDirection(text: string | null | undefined): 'rtl' | 'ltr' {
+    if (!text) {
+      return 'rtl';
+    }
+
+    const rtlRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+
+    return rtlRegex.test(text) ? 'rtl' : 'ltr';
   }
 
-  const rtlRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+  isLongTextMessage(message: MessageDto): boolean {
+    const body = message.body?.trim() ?? '';
 
-  return rtlRegex.test(text) ? 'rtl' : 'ltr';
-}
+    return body.includes('\n') || body.length > 45;
+  }
 
-isLongTextMessage(message: MessageDto): boolean {
-  const body = message.body?.trim() ?? '';
+  scrollToMessage(messageId: string | null): void {
+    if (!messageId) {
+      return;
+    }
 
-  return body.includes('\n') || body.length > 45;
-}
+    const element = document.getElementById(`message-${messageId}`);
+
+    if (!element) {
+      return;
+    }
+
+    element.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+
+    element.classList.add('ring-2', 'ring-blue-400');
+
+    setTimeout(() => {
+      element.classList.remove('ring-2', 'ring-blue-400');
+    }, 1200);
+  }
+  private scrollToMessageById(messageId: string): void {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const element = document.getElementById(`message-${messageId}`);
+
+        if (!element) {
+          return;
+        }
+
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+
+        element.classList.add('ring-2', 'ring-blue-400');
+
+        setTimeout(() => {
+          element.classList.remove('ring-2', 'ring-blue-400');
+        }, 1200);
+      });
+    });
+  }
+
+  jumpToReplyMessage(message: MessageDto): void {
+    if (!message.replyToMessageId || !message.replyToSequenceNumber) {
+      return;
+    }
+
+    const existingElement = document.getElementById(
+      `message-${message.replyToMessageId}`
+    );
+
+    if (existingElement) {
+      this.scrollToMessageById(message.replyToMessageId);
+      return;
+    }
+
+    this.messagesState
+      .loadAround(
+        message.conversationId,
+        message.replyToSequenceNumber,
+        50
+      )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.isViewingAroundMessages.set(true);
+        this.scrollToMessageById(message.replyToMessageId!);
+      });
+  }
+  backToLatestMessages(): void {
+    const conversationId = this.conversationId();
+
+    if (!conversationId) {
+      return;
+    }
+
+    this.messagesState.load(conversationId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.isViewingAroundMessages.set(false);
+        this.scrollToBottom();
+        this.markCurrentConversationAsDelivered();
+        this.markCurrentConversationAsSeenIfAllowed();
+      });
+  }
 }
