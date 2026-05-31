@@ -66,9 +66,11 @@ import { HttpEventType } from '@angular/common/http';
   </div>
 }
 <section
-  #messagesContainer
+   #messagesContainer
   dir="ltr"
-  class="min-h-0 overflow-y-auto px-6 py-4 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]">
+  class="min-h-0 overflow-y-auto px-6 py-4"
+  (scroll)="onMessagesScroll()"
+  >
         @if (messagesState.isLoading()) {
           <div class="text-sm text-slate-400">
             {{ 'messages.loading' | translate }}
@@ -104,8 +106,51 @@ import { HttpEventType } from '@angular/common/http';
                   </div>
                 } @else {
 @if (message.body && message.body.trim().length > 0) {
-  <div class="whitespace-pre-wrap break-words text-start" dir="auto">
-    {{ message.body }}
+  <div
+    class="text-start"
+    [attr.dir]="getTextDirection(message.body)"
+  >
+    @if (!isMediaOnlyMessage(message) && isLongTextMessage(message)) {
+      <div class="mb-1 inline-flex items-center gap-1 text-[12px] leading-none opacity-70">
+        <span>
+          {{ message.createdAtUtc | date:'shortTime' }}
+        </span>
+
+        @if (message.senderUserId === currentUserId()) {
+          <span
+            class="font-bold tracking-[-0.18em]"
+           [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
+          >
+            {{ getReceiptIcon(message) }}
+          </span>
+        }
+      </div>
+
+      <div class="whitespace-pre-wrap break-words">
+        {{ message.body }}
+      </div>
+    } @else {
+      @if (!isMediaOnlyMessage(message)) {
+        <span class="inline-flex items-center gap-1 pe-2 text-[12px] leading-none opacity-70 align-baseline">
+          <span>
+            {{ message.createdAtUtc | date:'shortTime' }}
+          </span>
+
+          @if (message.senderUserId === currentUserId()) {
+            <span
+              class="font-bold tracking-[-0.18em]"
+             [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
+            >
+              {{ getReceiptIcon(message) }}
+            </span>
+          }
+        </span>
+      }
+
+      <span class="whitespace-pre-wrap break-words">
+        {{ message.body }}
+      </span>
+    }
   </div>
 }
 @if (message.attachments.length > 0) {
@@ -135,7 +180,7 @@ import { HttpEventType } from '@angular/common/http';
       @if (message.senderUserId === currentUserId()) {
   <span
     class="ms-1"
-    [class.text-sky-300]="message.receiptStatus === 'seen'"
+    [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
   >
     {{ getReceiptIcon(message) }}
   </span>
@@ -146,18 +191,23 @@ import { HttpEventType } from '@angular/common/http';
 }
                 }
 
-@if (!isImageOnlyMessage(message)) {
-  <div class="mt-2 text-[11px] opacity-70">
-    {{ message.createdAtUtc | date:'shortTime' }}
+@if (
+  !isMediaOnlyMessage(message) &&
+  (!message.body || message.body.trim().length === 0)
+) {
+  <div class="mt-2 flex items-center gap-1 text-[12px] opacity-70">
+    @if (message.senderUserId === currentUserId()) {
+      <span
+        class="font-bold tracking-[-0.18em]"
+        [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
+      >
+        {{ getReceiptIcon(message) }}
+      </span>
+    }
 
-@if (message.senderUserId === currentUserId()) {
-  <span
-    class="ms-1"
-    [class.text-sky-300]="message.receiptStatus === 'seen'"
-  >
-    {{ getReceiptIcon(message) }}
-  </span>
-}
+    <span>
+      {{ message.createdAtUtc | date:'shortTime' }}
+    </span>
   </div>
 }
               </div>
@@ -297,6 +347,8 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
   
+  private lastDeliveredSequenceNumber: number | null = null;
+private lastSeenSequenceNumber: number | null = null;
   private readonly destroy$ = new Subject<void>();
   private readonly filesApi = inject(FilesApiService);
   readonly pendingImageFile = signal<File | null>(null);
@@ -345,7 +397,10 @@ readonly selectedAttachments = signal<SelectedAttachment[]>([]);
   private messagesContainer?: ElementRef<HTMLDivElement>;
   ngOnInit(): void {
 
-
+document.addEventListener(
+  'visibilitychange',
+  this.handleVisibilityChange
+);
 
     this.route.paramMap
       .pipe(takeUntil(this.destroy$))
@@ -362,19 +417,7 @@ readonly selectedAttachments = signal<SelectedAttachment[]>([]);
           event.conversationId,
           event.userIds
         );
-
-
-        console.log('conversation:', this.conversation());
-        console.log('conversationId:', this.conversationId());
-        console.log('otherParticipantUserId:', this.conversationPresenceUserId());
-        console.log('presence state:', this.presenceState.onlineUsersByConversation());
-        console.log(
-          'is online:',
-          this.presenceState.isOnline(
-            this.conversationId(),
-            this.conversationPresenceUserId()
-          )
-        );
+ 
 
 
       });
@@ -456,8 +499,14 @@ this.markCurrentConversationAsSeen();
 this.chatSignalR.messageDelivered$
   .pipe(takeUntil(this.destroy$))
   .subscribe(event => {
-    if (event.conversationId === this.conversationId()) {
-      this.messagesState.handleMessageDelivered(
+    const conversation = this.conversation();
+
+    if (
+      conversation &&
+      event.conversationId === conversation.id &&
+      event.userId === conversation.otherParticipantUserId
+    ) {
+      this.conversationsState.updateOtherParticipantDelivered(
         event.conversationId,
         event.sequenceNumber
       );
@@ -467,8 +516,14 @@ this.chatSignalR.messageDelivered$
 this.chatSignalR.messageSeen$
   .pipe(takeUntil(this.destroy$))
   .subscribe(event => {
-    if (event.conversationId === this.conversationId()) {
-      this.messagesState.handleMessageSeen(
+    const conversation = this.conversation();
+
+    if (
+      conversation &&
+      event.conversationId === conversation.id &&
+      event.userId === conversation.otherParticipantUserId
+    ) {
+      this.conversationsState.updateOtherParticipantSeen(
         event.conversationId,
         event.sequenceNumber
       );
@@ -481,7 +536,11 @@ this.chatSignalR.messageSeen$
 
   }
 
-
+private readonly handleVisibilityChange = (): void => {
+  if (document.visibilityState === 'visible') {
+    this.markCurrentConversationAsSeenIfAllowed();
+  }
+};
 sendMessage(): void {
   const conversationId = this.conversationId();
   const rawBody = this.messageText().trim();
@@ -538,8 +597,12 @@ console.log('message attachments payload:', attachments);
       this.chatSignalR.leaveConversation(this.activeConversationId);
       this.presenceState.clearConversation(this.activeConversationId);
     }
-
+document.removeEventListener(
+  'visibilitychange',
+  this.handleVisibilityChange
+);
     this.destroy$.next();
+
     this.destroy$.complete();
   }
 
@@ -615,6 +678,9 @@ console.log('message attachments payload:', attachments);
     this.conversationId.set(newConversationId);
     this.messagesState.clear();
 
+    this.lastDeliveredSequenceNumber = null;
+this.lastSeenSequenceNumber = null;
+
     if (!newConversationId) {
       return;
     }
@@ -623,12 +689,13 @@ this.messagesState.load(newConversationId)
   .pipe(takeUntil(this.destroy$))
   .subscribe(() => {
     this.scrollToBottom();
-    this.markCurrentConversationAsDelivered();
-    this.markCurrentConversationAsSeen();
+
+    requestAnimationFrame(() => {
+      this.markCurrentConversationAsDelivered();
+      this.markCurrentConversationAsSeenIfAllowed();
+    });
   });
-
-    console.log('Joining conversation:', newConversationId);
-
+ 
     await this.chatSignalR.joinConversation(newConversationId);
 
     this.chatSignalR.startPresenceRenewTimer(newConversationId);
@@ -840,35 +907,62 @@ isMediaOnlyMessage(message: MessageDto): boolean {
 
 
 getReceiptIcon(message: MessageDto): string {
-  if ( message.receiptStatus === 'failed') {
-    return '❌';
+  const status = this.getReceiptStatus(message);
+
+  if (status === 'failed') {
+    return '!';
   }
 
-  if (message.receiptStatus === 'sending') {
-    return '⏳';
+  if (status === 'sending') {
+    return '◷';
   }
 
-  if (message.receiptStatus === 'seen') {
+  if (status === 'seen') {
     return '✓✓';
   }
 
-  if (message.receiptStatus === 'delivered') {
+  if (status === 'delivered') {
     return '✓✓';
   }
 
   return '✓';
 }
-
-private markCurrentConversationAsDelivered(): void {
-  const conversationId = this.conversationId();
-  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
-
-  if (!conversationId || !lastSequenceNumber) {
-    return;
+getReceiptStatus(message: MessageDto): 'sending' | 'failed' | 'sent' | 'delivered' | 'seen' {
+  if (message.receiptStatus === 'sending') {
+    return 'sending';
   }
 
-  this.chatSignalR.markAsDelivered(conversationId, lastSequenceNumber);
+  if (message.receiptStatus === 'failed') {
+    return 'failed';
+  }
+
+  if (message.senderUserId !== this.currentUserId()) {
+    return 'sent';
+  }
+
+  const conversation = this.conversation();
+
+  if (!conversation || conversation.type !== 1) {
+    return 'sent';
+  }
+
+  const seenCursor =
+    conversation.otherParticipantLastReadSequenceNumber ?? 0;
+
+  const deliveredCursor =
+    conversation.otherParticipantLastDeliveredSequenceNumber ?? 0;
+
+  if (message.sequenceNumber <= seenCursor) {
+    return 'seen';
+  }
+
+  if (message.sequenceNumber <= deliveredCursor) {
+    return 'delivered';
+  }
+
+  return 'sent';
 }
+ 
 
 private markCurrentConversationAsSeen(): void {
   const conversationId = this.conversationId();
@@ -881,6 +975,85 @@ private markCurrentConversationAsSeen(): void {
   this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
 }
 
+private isNearBottom(): boolean {
+  const element = this.messagesContainer?.nativeElement;
+
+  if (!element) {
+    return false;
+  }
+
+  const threshold = 120;
+
+  return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
+}
+
+private isDocumentVisible(): boolean {
+  return document.visibilityState === 'visible';
+}
+
+private markCurrentConversationAsDelivered(): void {
+  const conversationId = this.conversationId();
+  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
+
+  if (!conversationId || !lastSequenceNumber) {
+    return;
+  }
+
+  if (
+    this.lastDeliveredSequenceNumber !== null &&
+    lastSequenceNumber <= this.lastDeliveredSequenceNumber
+  ) {
+    return;
+  }
+
+  this.lastDeliveredSequenceNumber = lastSequenceNumber;
+  this.chatSignalR.markAsDelivered(conversationId, lastSequenceNumber);
+}
+
+private markCurrentConversationAsSeenIfAllowed(): void {
+  const conversationId = this.conversationId();
+  const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
+
+  if (!conversationId || !lastSequenceNumber) {
+    return;
+  }
+
+  if (!this.isDocumentVisible()) {
+    return;
+  }
+
+  if (!this.isNearBottom()) {
+    return;
+  }
+
+  if (
+    this.lastSeenSequenceNumber !== null &&
+    lastSequenceNumber <= this.lastSeenSequenceNumber
+  ) {
+    return;
+  }
+
+  this.lastSeenSequenceNumber = lastSequenceNumber;
+  this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
+}
+onMessagesScroll(): void {
+  this.markCurrentConversationAsSeenIfAllowed();
+}
 
 
+getTextDirection(text: string | null | undefined): 'rtl' | 'ltr' {
+  if (!text) {
+    return 'rtl';
+  }
+
+  const rtlRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+
+  return rtlRegex.test(text) ? 'rtl' : 'ltr';
+}
+
+isLongTextMessage(message: MessageDto): boolean {
+  const body = message.body?.trim() ?? '';
+
+  return body.includes('\n') || body.length > 45;
+}
 }

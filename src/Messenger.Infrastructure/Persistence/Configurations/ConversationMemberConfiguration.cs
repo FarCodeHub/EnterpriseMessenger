@@ -20,7 +20,9 @@ public sealed class ConversationMemberConfiguration : IEntityTypeConfiguration<C
         builder.Property(x => x.Role)
     .IsRequired()
     .HasConversion<int>();
-
+builder.Property(x => x.LastDeliveredSequenceNumber)
+    .HasDefaultValue(0)
+    .IsRequired();
 builder.HasIndex(x => new { x.ConversationId, x.Role });
     }
 }

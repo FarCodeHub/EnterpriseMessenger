@@ -8,7 +8,7 @@ public class ConversationMember : BaseEntity
     public Guid ConversationId { get; private set; }
 
     public Guid UserId { get; private set; }
-
+    public long LastDeliveredSequenceNumber { get; private set; }
     public long LastReadSequenceNumber { get; private set; }
     public bool IsMuted { get; private set; }
     public bool IsPinned { get; private set; }
@@ -20,15 +20,15 @@ public class ConversationMember : BaseEntity
     {
     }
 
-public ConversationMember(
-    Guid conversationId,
-    Guid userId,
-    ConversationMemberRole role = ConversationMemberRole.Member)
-{
-    ConversationId = conversationId;
-    UserId = userId;
-    Role = role;
-}
+    public ConversationMember(
+        Guid conversationId,
+        Guid userId,
+        ConversationMemberRole role = ConversationMemberRole.Member)
+    {
+        ConversationId = conversationId;
+        UserId = userId;
+        Role = role;
+    }
 
     public void UpdateLastReadSequenceNumber(long sequenceNumber)
     {
@@ -74,19 +74,26 @@ public ConversationMember(
     }
 
     public void PromoteToAdmin()
-{
-    Role = ConversationMemberRole.Admin;
-}
-
-public void DemoteToMember()
-{
-    Role = ConversationMemberRole.Member;
-}
-public void MarkAsRead(long sequenceNumber)
-{
-    if (sequenceNumber > LastReadSequenceNumber)
     {
-        LastReadSequenceNumber = sequenceNumber;
+        Role = ConversationMemberRole.Admin;
     }
-}
+
+    public void DemoteToMember()
+    {
+        Role = ConversationMemberRole.Member;
+    }
+    public void MarkAsRead(long sequenceNumber)
+    {
+        if (sequenceNumber > LastReadSequenceNumber)
+        {
+            LastReadSequenceNumber = sequenceNumber;
+        }
+    }
+    public void MarkAsDelivered(long sequenceNumber)
+    {
+        if (sequenceNumber > LastDeliveredSequenceNumber)
+        {
+            LastDeliveredSequenceNumber = sequenceNumber;
+        }
+    }
 }

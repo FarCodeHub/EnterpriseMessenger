@@ -42,7 +42,7 @@ send(request: SendMessageRequest): void {
   const optimisticMessage: MessageDto = {
     id: request.clientMessageId,
     conversationId: request.conversationId,
-    sequenceNumber: Number.MAX_SAFE_INTEGER,
+    sequenceNumber: -1,
     senderUserId: '',
     body: request.body,
     replyToMessageId: request.replyToMessageId,
@@ -164,13 +164,15 @@ handleMessageDeleted(event: MessageDeletedEvent): void {
 
 
 getLastSequenceNumber(): number | null {
-  const messages = this.messagesSignal();
+const realSequenceNumbers = this.messagesSignal()
+  .map(x => x.sequenceNumber)
+  .filter(x => x > 0 && Number.isSafeInteger(x));
 
-  if (messages.length === 0) {
+  if (realSequenceNumbers.length === 0) {
     return null;
   }
 
-  return Math.max(...messages.map(x => x.sequenceNumber));
+  return Math.max(...realSequenceNumbers);
 }
 
 handleMessageDelivered(conversationId: string, sequenceNumber: number): void {

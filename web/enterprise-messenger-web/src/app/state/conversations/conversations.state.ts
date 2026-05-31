@@ -81,6 +81,46 @@ console.log('after update:', updated[index].lastMessageSenderDisplayName);
     this.conversationsSignal.set(updated);
   }
 
+updateOtherParticipantDelivered(
+  conversationId: string,
+  sequenceNumber: number
+): void {
+  this.conversationsSignal.set(
+    this.conversationsSignal().map(conversation => {
+      if (conversation.id !== conversationId) {
+        return conversation;
+      }
 
+      return {
+        ...conversation,
+        otherParticipantLastDeliveredSequenceNumber: Math.max(
+          conversation.otherParticipantLastDeliveredSequenceNumber ?? 0,
+          sequenceNumber
+        )
+      };
+    })
+  );
+}
+
+updateOtherParticipantSeen(
+  conversationId: string,
+  sequenceNumber: number
+): void {
+  this.conversationsSignal.set(
+    this.conversationsSignal().map(conversation => {
+      if (conversation.id !== conversationId) {
+        return conversation;
+      }
+
+      return {
+        ...conversation,
+        otherParticipantLastReadSequenceNumber: Math.max(
+          conversation.otherParticipantLastReadSequenceNumber ?? 0,
+          sequenceNumber
+        )
+      };
+    })
+  );
+}
 
 }
