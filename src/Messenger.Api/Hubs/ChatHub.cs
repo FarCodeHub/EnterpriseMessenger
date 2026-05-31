@@ -174,89 +174,89 @@ public sealed class ChatHub : Hub
         await base.OnConnectedAsync();
     }
 
- public override async Task OnDisconnectedAsync(Exception? exception)
-{
-    var userId = GetCurrentUserId();
-
-    IReadOnlyCollection<Guid> conversationIds;
-
-    try
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        conversationIds = await _presenceService.GetConnectionConversationIdsAsync(
-            Context.ConnectionId,
-            Context.ConnectionAborted);
-    }
-    catch
-    {
-        conversationIds = Array.Empty<Guid>();
-    }
+        var userId = GetCurrentUserId();
 
-    foreach (var conversationId in conversationIds)
-    {
-        var isOfflineInConversation = await _presenceService.LeaveConversationAsync(
-            conversationId,
+        IReadOnlyCollection<Guid> conversationIds;
+
+        try
+        {
+            conversationIds = await _presenceService.GetConnectionConversationIdsAsync(
+                Context.ConnectionId,
+                Context.ConnectionAborted);
+        }
+        catch
+        {
+            conversationIds = Array.Empty<Guid>();
+        }
+
+        foreach (var conversationId in conversationIds)
+        {
+            var isOfflineInConversation = await _presenceService.LeaveConversationAsync(
+                conversationId,
+                userId,
+                Context.ConnectionId,
+                Context.ConnectionAborted);
+
+            if (!isOfflineInConversation)
+                continue;
+
+            await Clients
+                .Group($"conversation:{conversationId}")
+                .SendAsync(
+                    RealtimeEvents.PresenceChanged,
+                    new
+                    {
+                        ConversationId = conversationId,
+                        UserId = userId,
+                        IsOnline = false
+                    },
+                    CancellationToken.None);
+        }
+
+        await _presenceService.RemoveConnectionAsync(
             userId,
             Context.ConnectionId,
+            CancellationToken.None);
+
+        await base.OnDisconnectedAsync(exception);
+    }
+    public async Task LeaveConversation(string conversationId)
+    {
+        if (!Guid.TryParse(conversationId, out var parsedConversationId))
+            throw new HubException("Invalid conversationId.");
+
+        var currentUserId = GetCurrentUserId();
+
+        var groupName = $"conversation:{parsedConversationId}";
+
+        var isOfflineInConversation = await _presenceService.LeaveConversationAsync(
+            parsedConversationId,
+            currentUserId,
+            Context.ConnectionId,
             Context.ConnectionAborted);
 
-        if (!isOfflineInConversation)
-            continue;
+        if (isOfflineInConversation)
+        {
+            await Clients
+                .OthersInGroup(groupName)
+                .SendAsync(
+                    RealtimeEvents.PresenceChanged,
+                    new
+                    {
+                        ConversationId = parsedConversationId,
+                        UserId = currentUserId,
+                        IsOnline = false
+                    },
+                    Context.ConnectionAborted);
+        }
 
-        await Clients
-            .Group($"conversation:{conversationId}")
-            .SendAsync(
-                RealtimeEvents.PresenceChanged,
-                new
-                {
-                    ConversationId = conversationId,
-                    UserId = userId,
-                    IsOnline = false
-                },
-                CancellationToken.None);
+        await Groups.RemoveFromGroupAsync(
+            Context.ConnectionId,
+            groupName,
+            Context.ConnectionAborted);
     }
-
-    await _presenceService.RemoveConnectionAsync(
-        userId,
-        Context.ConnectionId,
-        CancellationToken.None);
-
-    await base.OnDisconnectedAsync(exception);
-}
-public async Task LeaveConversation(string conversationId)
-{
-    if (!Guid.TryParse(conversationId, out var parsedConversationId))
-        throw new HubException("Invalid conversationId.");
-
-    var currentUserId = GetCurrentUserId();
-
-    var groupName = $"conversation:{parsedConversationId}";
-
-    var isOfflineInConversation = await _presenceService.LeaveConversationAsync(
-        parsedConversationId,
-        currentUserId,
-        Context.ConnectionId,
-        Context.ConnectionAborted);
-
-    if (isOfflineInConversation)
-    {
-        await Clients
-            .OthersInGroup(groupName)
-            .SendAsync(
-                RealtimeEvents.PresenceChanged,
-                new
-                {
-                    ConversationId = parsedConversationId,
-                    UserId = currentUserId,
-                    IsOnline = false
-                },
-                Context.ConnectionAborted);
-    }
-
-    await Groups.RemoveFromGroupAsync(
-        Context.ConnectionId,
-        groupName,
-        Context.ConnectionAborted);
-}
 
 
 
@@ -429,27 +429,23 @@ public async Task LeaveConversation(string conversationId)
     }
 
 
-public async Task RenewPresence(string conversationId)
-{
-    if (!Guid.TryParse(conversationId, out var parsedConversationId))
-        throw new HubException("Invalid conversationId.");
+    public async Task RenewPresence(string conversationId)
+    {
+        if (!Guid.TryParse(conversationId, out var parsedConversationId))
+            throw new HubException("Invalid conversationId.");
 
-    var currentUserId = GetCurrentUserId();
+        var currentUserId = GetCurrentUserId();
 
-    await _permissionChecker.EnsureActiveMemberAsync(
-        parsedConversationId,
-        currentUserId,
-        Context.ConnectionAborted);
+        await _permissionChecker.EnsureActiveMemberAsync(
+            parsedConversationId,
+            currentUserId,
+            Context.ConnectionAborted);
 
-    await _presenceService.RenewConversationPresenceAsync(
-        parsedConversationId,
-        currentUserId,
-        Context.ConnectionId,
-        Context.ConnectionAborted);
-}
-
-
-
-
+        await _presenceService.RenewConversationPresenceAsync(
+            parsedConversationId,
+            currentUserId,
+            Context.ConnectionId,
+            Context.ConnectionAborted);
+    }
 
 }

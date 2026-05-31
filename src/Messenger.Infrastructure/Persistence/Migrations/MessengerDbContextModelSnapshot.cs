@@ -184,6 +184,11 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("JoinedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<long>("LastDeliveredSequenceNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.Property<long>("LastReadSequenceNumber")
                         .HasColumnType("bigint");
 

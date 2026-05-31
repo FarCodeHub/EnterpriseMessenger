@@ -40,6 +40,13 @@ public sealed class ReadReceiptService : IReadReceiptService
             throw new InvalidOperationException("Conversation member not found.");
 
         member.MarkAsRead(sequenceNumber);
+var lastSequenceNumber = await _dbContext.Messages
+    .Where(x => x.ConversationId == conversationId)
+    .MaxAsync(x => (long?)x.SequenceNumber, cancellationToken) ?? 0;
+
+if (sequenceNumber > lastSequenceNumber)
+    throw new InvalidOperationException("Invalid sequence number.");
+
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
