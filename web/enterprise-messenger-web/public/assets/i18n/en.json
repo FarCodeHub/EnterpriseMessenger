@@ -30,6 +30,9 @@
 "archived": "Archived"
   },
   "messages": {
+      "actions": {
+    "reply": "Reply"
+  },
     "typing": "Typing...",
   "title": "Messages",
   "loading": "Loading messages...",
@@ -37,6 +40,9 @@
   "deleted": "This message was deleted",
   "edited": "edited",
   "failed": "failed",
+   "reply": "reply",
+   "replyingTo": "Replying to",
+   "replyingToMessage": "Replying to message",
 "input": {
   "placeholder": "Write a message...",
   "send": "Send"
