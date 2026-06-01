@@ -398,7 +398,7 @@ import { MessageDto } from '../../messages/models/message.dto';
     <div class="flex min-w-0 items-start justify-between gap-3">
       <div class="min-w-0 flex-1">
         <div class="text-xs font-semibold text-blue-400">
-          {{ 'messages.replyingTo' | translate }}
+          {{ 'conversations.messages.replyingTo' | translate }}
         </div>
 
         <div

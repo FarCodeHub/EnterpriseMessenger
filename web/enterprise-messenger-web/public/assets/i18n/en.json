@@ -31,7 +31,8 @@
   },
   "messages": {
       "actions": {
-    "reply": "Reply"
+    "reply": "Reply",
+    "copy": "Copy"
   },
     "typing": "Typing...",
   "title": "Messages",

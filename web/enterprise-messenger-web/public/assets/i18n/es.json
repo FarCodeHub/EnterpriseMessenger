@@ -29,7 +29,7 @@
 "archived": "Archivado"
   },"messages": {
       "actions": {
-    "reply": "Responder"
+    "reply": "Responder","copy": "Copiar"
   },
     "typing": "Escribiendo...",
   "title": "Mensajes",

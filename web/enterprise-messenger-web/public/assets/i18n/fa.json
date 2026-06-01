@@ -31,7 +31,8 @@
     },
     "messages": {
         "actions": {
-    "reply": "پاسخ"
+    "reply": "پاسخ",
+    "copy": "کپی"
         },
    "typing": "در حال تایپ...",
   "title": "پیام‌ها",
