@@ -60,7 +60,8 @@ public sealed class UserConversationReader : IUserConversationReader
                     member.LastReadSequenceNumber,
                     member.IsPinned,
                     member.IsMuted,
-                    member.IsArchived
+                    member.IsArchived,
+                    member.LastDeliveredSequenceNumber,
                 })
             .OrderByDescending(x => x.IsPinned)
             .ThenByDescending(x => x.LastMessageAtUtc ?? x.CreatedAtUtc)
@@ -152,7 +153,9 @@ public sealed class UserConversationReader : IUserConversationReader
                     member.ConversationId,
                     user.Id,
                     user.DisplayName,
-                    user.UserName
+                    user.UserName,
+                    member.LastReadSequenceNumber,
+                    member.LastDeliveredSequenceNumber
                 })
             .GroupBy(x => x.ConversationId)
             .Select(group => group.First())
@@ -185,9 +188,9 @@ public sealed class UserConversationReader : IUserConversationReader
 
                 var displayTitle = conversation.Title;
 
- otherUsers.TryGetValue(conversation.Id, out var otherUser);
+                otherUsers.TryGetValue(conversation.Id, out var otherUser);
 
-             
+
                 if (string.IsNullOrWhiteSpace(displayTitle) && otherUser is not null)
                 {
                     displayTitle = otherUser.DisplayName ?? otherUser.UserName;
@@ -221,6 +224,9 @@ public sealed class UserConversationReader : IUserConversationReader
                     lastMessage?.SenderUserId,
                     lastMessageSenderDisplayName,
                     conversation.LastReadSequenceNumber,
+                    conversation.LastDeliveredSequenceNumber,
+                    otherUser?.LastReadSequenceNumber,
+                    otherUser?.LastDeliveredSequenceNumber,
                     unreadCounts.TryGetValue(conversation.Id, out var count) ? count : 0,
                     conversation.IsPinned,
                     conversation.IsMuted,

@@ -42,7 +42,7 @@ send(request: SendMessageRequest): void {
   const optimisticMessage: MessageDto = {
     id: request.clientMessageId,
     conversationId: request.conversationId,
-    sequenceNumber: Number.MAX_SAFE_INTEGER,
+    sequenceNumber: -1,
     senderUserId: '',
     body: request.body,
     replyToMessageId: request.replyToMessageId,
@@ -52,21 +52,28 @@ send(request: SendMessageRequest): void {
     deletedAtUtc: null,
     attachments: [],
     clientMessageId: request.clientMessageId,
-    status: 'sending'
+    receiptStatus: 'sending'
   };
 
   this.messagesSignal.set([...this.messagesSignal(), optimisticMessage]);
 
   this.messagesApi.sendMessage(request).subscribe({
-    next: message => {
-      this.messagesSignal.set(
-        this.messagesSignal().map(x =>
-          x.clientMessageId === request.clientMessageId
-            ? { ...message, clientMessageId: request.clientMessageId, status: 'sent' }
-            : x
-        )
-      );
-    },
+next: message => {
+  console.log('send message response:', message);
+  console.log('send message attachments:', message.attachments);
+
+  this.messagesSignal.set(
+    this.messagesSignal().map(x =>
+      x.clientMessageId === request.clientMessageId
+        ? {
+            ...message,
+            clientMessageId: request.clientMessageId,
+            receiptStatus: 'sent'
+          }
+        : x
+    )
+  );
+},
     error: () => {
       this.messagesSignal.set(
         this.messagesSignal().map(x =>
@@ -157,15 +164,66 @@ handleMessageDeleted(event: MessageDeletedEvent): void {
 
 
 getLastSequenceNumber(): number | null {
-  const messages = this.messagesSignal();
+const realSequenceNumbers = this.messagesSignal()
+  .map(x => x.sequenceNumber)
+  .filter(x => x > 0 && Number.isSafeInteger(x));
 
-  if (messages.length === 0) {
+  if (realSequenceNumbers.length === 0) {
     return null;
   }
 
-  return Math.max(...messages.map(x => x.sequenceNumber));
+  return Math.max(...realSequenceNumbers);
+}
+
+handleMessageDelivered(conversationId: string, sequenceNumber: number): void {
+  this.messagesSignal.set(
+    this.messagesSignal().map(message =>
+      message.conversationId === conversationId &&
+      message.sequenceNumber <= sequenceNumber &&
+      message.receiptStatus !== 'seen'
+        ? {
+            ...message,
+            receiptStatus: 'delivered'
+          }
+        : message
+    )
+  );
+}
+
+handleMessageSeen(conversationId: string, sequenceNumber: number): void {
+  this.messagesSignal.set(
+    this.messagesSignal().map(message =>
+      message.conversationId === conversationId &&
+      message.sequenceNumber <= sequenceNumber
+        ? {
+            ...message,
+            receiptStatus: 'seen'
+          }
+        : message
+    )
+  );
 }
 
 
+loadAround(
+  conversationId: string,
+  sequenceNumber: number,
+  radius = 50
+): Observable<void> {
+  this.isLoadingSignal.set(true);
 
+  return this.messagesApi
+    .getConversationMessagesAround(conversationId, sequenceNumber, radius)
+    .pipe(
+      map(response => this.sortMessages(response)),
+      tap(messages => {
+        this.messagesSignal.set(messages);
+      }),
+      finalize(() => {
+        this.isLoadingSignal.set(false);
+      }),
+      map(() => void 0)
+    );
+}
+ 
 }

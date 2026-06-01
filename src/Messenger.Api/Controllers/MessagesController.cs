@@ -59,8 +59,7 @@ public sealed class MessagesController : ControllerBase
         SendMessageRequest request,
         CancellationToken cancellationToken)
     {
-
-
+ 
         var currentUserId = GetCurrentUserId();
         var command = new SendMessageCommand(
             request.ConversationId,
@@ -68,8 +67,8 @@ public sealed class MessagesController : ControllerBase
             request.ClientMessageId,
             request.Body,
             request.ReplyToMessageId,
-            request.Attachments?.Select(x =>
-                new SendMessageAttachmentCommand(
+            request.Attachments?.Select(x =>new SendMessageAttachmentCommand(
+                   x.Id,
                     x.FileName,
                     x.ContentType,
                     x.Size,

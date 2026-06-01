@@ -9,6 +9,7 @@ public sealed record SendMessageRequest(
 );
 
 public sealed record SendMessageAttachmentRequest(
+    Guid? Id,
     string FileName,
     string ContentType,
     long Size,

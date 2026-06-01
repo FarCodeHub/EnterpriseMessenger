@@ -28,6 +28,9 @@
     "noMessages": "Aún no hay mensajes",
 "archived": "Archivado"
   },"messages": {
+      "actions": {
+    "reply": "Responder"
+  },
     "typing": "Escribiendo...",
   "title": "Mensajes",
   "loading": "Cargando mensajes...",
@@ -35,6 +38,9 @@
   "deleted": "Este mensaje fue eliminado",
   "edited": "editado",
   "failed": "fallido",
+  "reply": "responder",
+  "replyingTo": "Respondiendo a",
+  "replyingToMessage": "Respondiendo al mensaje",
 "input": {
   "placeholder": "Escribe un mensaje...",
   "send": "Enviar"
@@ -44,5 +50,12 @@
 "presence": {
   "online": "En línea",
   "offline": "Desconectado"
+},
+"attachments": {
+  "sendMode": {
+    "title": "Enviar imagen",
+    "asPhoto": "Enviar como foto",
+    "asFile": "Enviar como archivo"
+  }
 }
 }

@@ -13,5 +13,5 @@ export interface MessageDto {
   deletedAtUtc: string | null;
   attachments: MessageAttachmentDto[];
   clientMessageId?: string;
-  status?: 'sending' | 'sent' | 'failed';
+receiptStatus?: 'sending' | 'sent' | 'delivered' | 'seen' | 'failed';
 }

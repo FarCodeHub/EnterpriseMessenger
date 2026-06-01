@@ -43,10 +43,16 @@ public sealed class MessageSender : IMessageSender
         SendMessageCommand command,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(command.Body))
-            throw new InvalidOperationException("Message body is required.");
+var hasBody = !string.IsNullOrWhiteSpace(command.Body);
 
+var hasAttachments =
+    command.Attachments?.Any() == true;
 
+if (!hasBody && !hasAttachments)
+{
+    throw new InvalidOperationException(
+        "Message must contain text or attachment.");
+}
 
 
         await _permissionChecker.EnsureActiveMemberAsync(
@@ -120,19 +126,24 @@ public sealed class MessageSender : IMessageSender
 
         _dbContext.Messages.Add(message);
 
-        if (command.Attachments is not null && command.Attachments.Count > 0)
-        {
-            foreach (var attachment in command.Attachments)
-            {
-                _dbContext.Attachments.Add(
-                    new Messenger.Domain.Attachments.Attachment(
-                        message.Id,
-                        attachment.FileName,
-                        attachment.ContentType,
-                        attachment.Size,
-                        attachment.StoragePath));
-            }
-        }
+
+var createdAttachments = new List<Messenger.Domain.Attachments.Attachment>();
+
+if (command.Attachments is not null && command.Attachments.Count > 0)
+{
+    foreach (var attachment in command.Attachments)
+    {
+        var createdAttachment = new Messenger.Domain.Attachments.Attachment(
+            message.Id,
+            attachment.FileName,
+            attachment.ContentType,
+            attachment.Size,
+            attachment.StoragePath);
+
+        createdAttachments.Add(createdAttachment);
+        _dbContext.Attachments.Add(createdAttachment);
+    }
+}
 
         var conversation = await _dbContext.Conversations
             .FirstAsync(x => x.Id == command.ConversationId, cancellationToken);
@@ -211,23 +222,24 @@ await _messageSearchIndexer.IndexAsync(
     cancellationToken);
 
 
-        return new SendMessageResult(
-            message.Id,
-            message.ConversationId,
-            message.SequenceNumber,
-            message.SenderUserId,
-            message.ClientMessageId,
-            message.Body,
-            message.ReplyToMessageId,
-            message.ReplyToSequenceNumber,
-            message.CreatedAtUtc,
-            false,
-            command.Attachments?.Select(x =>
-                new SendMessageAttachmentResult(
-                    x.FileName,
-                    x.ContentType,
-                    x.Size,
-                    x.StoragePath)).ToList());
+return new SendMessageResult(
+    message.Id,
+    message.ConversationId,
+    message.SequenceNumber,
+    message.SenderUserId,
+    message.ClientMessageId,
+    message.Body,
+    message.ReplyToMessageId,
+    message.ReplyToSequenceNumber,
+    message.CreatedAtUtc,
+    false,
+    createdAttachments.Select(x =>
+        new SendMessageAttachmentResult(
+            x.Id,
+            x.FileName,
+            x.ContentType,
+            x.Size,
+            x.StoragePath)).ToList());
     }
 
 
