@@ -32,7 +32,9 @@
   "messages": {
       "actions": {
     "reply": "Reply",
-    "copy": "Copy"
+    "copy": "Copy",
+    "edit": "Edit",
+    "delete": "Delete"
   },
     "typing": "Typing...",
   "title": "Messages",

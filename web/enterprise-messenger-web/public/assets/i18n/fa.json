@@ -32,7 +32,9 @@
     "messages": {
         "actions": {
     "reply": "پاسخ",
-    "copy": "کپی"
+    "copy": "کپی",
+        "edit": "ویرایش",
+    "delete": "حذف"
         },
    "typing": "در حال تایپ...",
   "title": "پیام‌ها",

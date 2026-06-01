@@ -98,16 +98,27 @@ import { MessageDto } from '../../messages/models/message.dto';
   class="group flex items-center gap-2"
   [class.justify-end]="message.senderUserId === currentUserId()"
   [class.justify-start]="message.senderUserId !== currentUserId()"
->
+ 
+
+
+  >
 
   
 
+@if (message.senderUserId === currentUserId()) {
+  <div class="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+    <button
+      type="button"
+      class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 shadow hover:bg-slate-600"
+     (click)="toggleActionMenu($event, message)"
+    >
+      ⋯
+    </button>
 
 
-
-
-
-
+  </div>
+}
+ 
 <div
   class="max-w-[70%] rounded-2xl text-sm shadow"
  [class.bg-blue-600]="message.senderUserId === currentUserId() && !isMediaOnlyMessage(message)"
@@ -280,45 +291,81 @@ import { MessageDto } from '../../messages/models/message.dto';
               </div>
 
 
-@if (message.senderUserId !== currentUserId()) {
+  
+  @if (message.senderUserId !== currentUserId()) {
   <div class="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
     <button
       type="button"
       class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 shadow hover:bg-slate-600"
-      (click)="toggleActionMenu(message.id)"
+      (click)="toggleActionMenu($event, message)"
     >
       ⋯
     </button>
 
-    @if (openActionMenuMessageId() === message.id) {
-      <div class="absolute bottom-10 start-0 z-30 min-w-36 overflow-hidden rounded-xl bg-slate-800 py-1 text-sm text-slate-100 shadow-xl">
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start hover:bg-white/10"
-          (click)="replyToMessage(message)"
-        >
-          {{ 'conversations.messages.actions.reply' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start hover:bg-white/10"
-         
-          [disabled]="!message.body || message.body.trim().length === 0"
-          [class.opacity-50]="!message.body || message.body.trim().length === 0"
-        >
-          {{ 'conversations.messages.actions.copy' | translate }}
-        </button>
-      </div>
-    }
+ 
   </div>
 }
-
 
             </div>
           }
         </div>
       </section>
+
+
+
+
+@if (actionMenuMessage(); as actionMessage) {
+  @if (actionMenuPosition(); as pos) {
+    <button
+      type="button"
+      class="fixed inset-0 z-40 cursor-default bg-transparent"
+      (click)="closeActionMenu()"
+      aria-label="Close menu"
+    ></button>
+
+    <div
+      class="fixed z-50 min-w-40 overflow-hidden rounded-xl bg-slate-800 py-1 text-sm text-slate-100 shadow-2xl"
+      [style.left.px]="pos.x"
+      [style.top.px]="pos.y"
+    >
+      <button
+        type="button"
+        class="block w-full px-4 py-2 text-start hover:bg-white/10"
+        (click)="replyToMessage(actionMessage)"
+      >
+        {{ 'conversations.messages.actions.reply' | translate }}
+      </button>
+
+      <button
+        type="button"
+        class="block w-full px-4 py-2 text-start hover:bg-white/10"
+        (click)="copyMessage(actionMessage)"
+        [disabled]="!actionMessage.body || actionMessage.body.trim().length === 0"
+        [class.opacity-50]="!actionMessage.body || actionMessage.body.trim().length === 0"
+      >
+        {{ 'conversations.messages.actions.copy' | translate }}
+      </button>
+
+      @if (actionMessage.senderUserId === currentUserId()) {
+        <button
+          type="button"
+          class="block w-full px-4 py-2 text-start hover:bg-white/10"
+          (click)="startEditMessage(actionMessage)"
+        >
+          {{ 'conversations.messages.actions.edit' | translate }}
+        </button>
+
+        <button
+          type="button"
+          class="block w-full px-4 py-2 text-start text-red-300 hover:bg-red-500/10"
+          (click)="deleteMessage(actionMessage)"
+        >
+          {{ 'conversations.messages.actions.delete' | translate }}
+        </button>
+      }
+    </div>
+  }
+}
 
 @if (shouldShowBackToLatest()) {
   <button
@@ -497,15 +544,17 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  readonly actionMenuPosition = signal<{ x: number; y: number } | null>(null);
+readonly actionMenuMessage = signal<MessageDto | null>(null);
   readonly openActionMenuMessageId = signal<string | null>(null);
   readonly isAwayFromBottom = signal(false);
-readonly shouldShowBackToLatest = computed(() => {
-  const conversation = this.conversation();
+  readonly shouldShowBackToLatest = computed(() => {
+    const conversation = this.conversation();
 
-  return this.isViewingAroundMessages() ||
-    this.isAwayFromBottom() ||
-    (conversation?.unreadCount ?? 0) > 0;
-});
+    return this.isViewingAroundMessages() ||
+      this.isAwayFromBottom() ||
+      (conversation?.unreadCount ?? 0) > 0;
+  });
   private lastDeliveredSequenceNumber: number | null = null;
   private lastSeenSequenceNumber: number | null = null;
   private readonly destroy$ = new Subject<void>();
@@ -705,21 +754,44 @@ readonly shouldShowBackToLatest = computed(() => {
     }
   };
 
+toggleActionMenu(event: MouseEvent, message: MessageDto): void {
+  event.stopPropagation();
 
-  toggleActionMenu(messageId: string): void {
-  this.openActionMenuMessageId.update(current =>
-    current === messageId ? null : messageId
-  );
+  if (this.openActionMenuMessageId() === message.id) {
+    this.closeActionMenu();
+    return;
+  }
+
+  this.openActionMenuMessageId.set(message.id);
+  this.actionMenuMessage.set(message);
+
+  const menuWidth = 160;
+  const menuHeight = message.senderUserId === this.currentUserId() ? 180 : 100;
+
+  let x = event.clientX;
+  let y = event.clientY;
+
+  if (x + menuWidth > window.innerWidth) {
+    x = window.innerWidth - menuWidth - 12;
+  }
+
+  if (y + menuHeight > window.innerHeight) {
+    y = window.innerHeight - menuHeight - 12;
+  }
+
+  this.actionMenuPosition.set({ x, y });
 }
 
 closeActionMenu(): void {
   this.openActionMenuMessageId.set(null);
+  this.actionMenuMessage.set(null);
+  this.actionMenuPosition.set(null);
 }
 
-replyToMessage(message: MessageDto): void {
-  this.startReply(message);
-  this.closeActionMenu();
-}
+  replyToMessage(message: MessageDto): void {
+    this.startReply(message);
+    this.closeActionMenu();
+  }
 
   findReplyMessage(replyToMessageId: string | null): MessageDto | null {
     if (!replyToMessageId) {
@@ -1232,10 +1304,10 @@ replyToMessage(message: MessageDto): void {
     this.lastSeenSequenceNumber = lastSequenceNumber;
     this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
   }
-onMessagesScroll(): void {
-  this.isAwayFromBottom.set(!this.isNearBottom());
-  this.markCurrentConversationAsSeenIfAllowed();
-}
+  onMessagesScroll(): void {
+    this.isAwayFromBottom.set(!this.isNearBottom());
+    this.markCurrentConversationAsSeenIfAllowed();
+  }
 
 
   getTextDirection(text: string | null | undefined): 'rtl' | 'ltr' {
@@ -1341,4 +1413,34 @@ onMessagesScroll(): void {
         this.markCurrentConversationAsSeenIfAllowed();
       });
   }
+  isMyMessage(message: MessageDto): boolean {
+    return message.senderUserId === this.currentUserId();
+  }
+
+  startEditMessage(message: MessageDto): void {
+    console.log('edit message:', message);
+    this.closeActionMenu();
+  }
+
+  deleteMessage(message: MessageDto): void {
+    console.log('delete message:', message);
+    this.closeActionMenu();
+  }
+  copyMessage(message: MessageDto): void {
+    if (!message.body) {
+      return;
+    }
+  }
+shouldOpenMenuUp(messageId: string): boolean {
+  const element = document.getElementById(`message-${messageId}`);
+
+  if (!element) {
+    return false;
+  }
+
+  const rect = element.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+
+  return viewportHeight - rect.bottom < 180;
+}
 }

@@ -29,7 +29,10 @@
 "archived": "Archivado"
   },"messages": {
       "actions": {
-    "reply": "Responder","copy": "Copiar"
+    "reply": "Responder",
+    "copy": "Copiar",
+     "edit": "Editar",
+    "delete": "Eliminar"
   },
     "typing": "Escribiendo...",
   "title": "Mensajes",
