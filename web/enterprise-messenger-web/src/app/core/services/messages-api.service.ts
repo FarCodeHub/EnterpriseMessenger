@@ -3,7 +3,7 @@ import { Observable } from 'rxjs';
 import { SendMessageRequest } from '../../features/messages/models/send-message.request';
 import { BaseApiService } from '../api/base-api.service';
 import { MessageDto } from '../../features/messages/models/message.dto';
-
+import { ForwardMessageRequest } from '../../features/messages/models/forward-message.request';
 @Injectable({
   providedIn: 'root'
 })
@@ -25,6 +25,15 @@ getConversationMessagesAround(
 ): Observable<MessageDto[]> {
   return this.get<MessageDto[]>(
     `/Messages/conversation/${conversationId}/around/${sequenceNumber}?radius=${radius}`
+  );
+}
+
+
+
+forwardMessage(request: ForwardMessageRequest): Observable<MessageDto[]> {
+  return this.post<MessageDto[], ForwardMessageRequest>(
+    '/Messages/forward',
+    request
   );
 }
 }

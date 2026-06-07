@@ -12,7 +12,7 @@ import { TranslateLoader, TranslateModule } from '@ngx-translate/core';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { routes } from './app.routes';
 import { HttpTranslateLoader } from './core/i18n/http-translate-loader';
-
+ 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
@@ -22,6 +22,9 @@ export const appConfig: ApplicationConfig = {
     }),
 
     provideRouter(routes),
+        provideHttpClient(
+      withInterceptors([])
+    ),
 
 provideHttpClient(
   withInterceptors([authInterceptor])

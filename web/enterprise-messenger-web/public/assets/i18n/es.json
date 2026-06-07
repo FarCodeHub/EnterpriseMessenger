@@ -29,8 +29,17 @@
 "archived": "Archivado"
   },"messages": {
       "actions": {
-    "reply": "Responder"
+    "reply": "Responder",
+    "copy": "Copiar",
+     "edit": "Editar",
+    "delete": "Eliminar",
+    "forward": "Forward"
   },
+  "forward": {
+  "title": "Reenviar a",
+  "send": "Enviar",
+  "forwardedFrom": "Reenviado de"
+},
     "typing": "Escribiendo...",
   "title": "Mensajes",
   "loading": "Cargando mensajes...",
@@ -57,5 +66,9 @@
     "asPhoto": "Enviar como foto",
     "asFile": "Enviar como archivo"
   }
+},
+"common": {
+  "cancel": "Cancelar",
+  "sending": "enviando ... "
 }
 }

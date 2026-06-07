@@ -241,6 +241,12 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("EditedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ForwardedFromMessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ForwardedFromUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("ReplyToMessageId")
                         .HasColumnType("uuid");
 

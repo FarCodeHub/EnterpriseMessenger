@@ -11,5 +11,8 @@ public sealed record MessageListItemResult(
     DateTime CreatedAtUtc,
     DateTime? EditedAtUtc,
     DateTime? DeletedAtUtc,
+    Guid? ForwardedFromMessageId,
+Guid? ForwardedFromUserId,
+string? ForwardedFromDisplayName,
     IReadOnlyCollection<MessageAttachmentResult> Attachments
 );
