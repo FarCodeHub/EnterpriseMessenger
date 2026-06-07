@@ -12,6 +12,7 @@ export interface MessageCreatedEvent {
   createdAtUtc: string;
   attachments: MessageAttachmentDto[];
   isDuplicate: boolean;
+  
 }
 
 export interface MessageEditedEvent {

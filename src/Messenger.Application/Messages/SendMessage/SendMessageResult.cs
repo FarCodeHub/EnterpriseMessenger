@@ -11,6 +11,9 @@ public sealed record SendMessageResult(
     long? ReplyToSequenceNumber,
     DateTime CreatedAtUtc,
     bool IsDuplicate,
+    Guid? ForwardedFromMessageId,
+    Guid? ForwardedFromUserId,
+    string? ForwardedFromDisplayName,
     List<SendMessageAttachmentResult>? Attachments
 );
 

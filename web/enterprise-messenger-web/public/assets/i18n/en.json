@@ -34,8 +34,15 @@
     "reply": "Reply",
     "copy": "Copy",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "forward": "Forward"
+    
   },
+  "forward": {
+  "title": "Forward to",
+  "send": "Send",
+  "forwardedFrom": "Forwarded from"
+},
     "typing": "Typing...",
   "title": "Messages",
   "loading": "Loading messages...",
@@ -64,6 +71,7 @@
   }
 },
 "common": {
-  "cancel": "Cancel"
+  "cancel": "Cancel",
+   "sending": "sending ..."
 }
 }

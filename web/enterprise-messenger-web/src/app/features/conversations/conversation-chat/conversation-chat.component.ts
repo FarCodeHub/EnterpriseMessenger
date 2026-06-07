@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { TypingState } from '../../../state/messages/typing.state';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ConversationsState } from '../../../state/conversations/conversations.state';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -17,6 +17,7 @@ import imageCompression from 'browser-image-compression';
 import { SelectedAttachment } from '../../files/models/selected-attachment';
 import { HttpEventType } from '@angular/common/http';
 import { MessageDto } from '../../messages/models/message.dto';
+import { MessagesApiService } from '../../../core/services/messages-api.service';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -97,11 +98,7 @@ import { MessageDto } from '../../messages/models/message.dto';
   [id]="'message-' + message.id"
   class="group flex items-center gap-2"
   [class.justify-end]="message.senderUserId === currentUserId()"
-  [class.justify-start]="message.senderUserId !== currentUserId()"
- 
-
-
-  >
+  [class.justify-start]="message.senderUserId !== currentUserId()">
 
   
 
@@ -134,6 +131,19 @@ import { MessageDto } from '../../messages/models/message.dto';
                     {{ 'messages.deleted' | translate }}
                   </div>
                 } @else {
+
+  @if (message.forwardedFromMessageId) {
+    <div
+      class="mb-2 text-xs font-semibold text-blue-300"
+      [class.px-2]="isMediaOnlyMessage(message)"
+      [class.pt-2]="isMediaOnlyMessage(message)"
+    >
+      {{ 'conversations.messages.forward.forwardedFrom' | translate }}
+      {{ message.forwardedFromDisplayName || 'Unknown' }}
+    </div>
+  }
+
+
 @if (message.body && message.body.trim().length > 0) {
   <div
     class="text-start"
@@ -172,7 +182,8 @@ import { MessageDto } from '../../messages/models/message.dto';
       <div class="mt-1 line-clamp-2 text-slate-200">
         {{ repliedMessage.body || '📎 Attachment' }}
       </div>
-    } @else {
+    } 
+    @else {
       <div class="font-semibold text-blue-300">
         {{ 'messages.replyingToMessage' | translate }}
         #{{ message.replyToSequenceNumber }}
@@ -310,10 +321,88 @@ import { MessageDto } from '../../messages/models/message.dto';
           }
         </div>
       </section>
+ @if (isForwardModalOpen()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div class="w-full max-w-md overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div>
+          <h3 class="text-base font-bold">
+            {{ 'conversations.messages.forward.title' | translate }}
+          </h3>
 
+          <p class="mt-1 text-xs text-slate-400">
+            {{ forwardingMessage()?.body || '📎 Attachment' }}
+          </p>
+        </div>
 
+        <button
+          type="button"
+          class="text-slate-400 hover:text-white"
+          (click)="cancelForwardMessage()"
+        >
+          ×
+        </button>
+      </div>
 
+      <div class="max-h-80 overflow-y-auto p-3">
+        @for (conversation of conversationsState.conversations(); track conversation.id) {
+          @if (conversation.id !== conversationId()) {
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-start hover:bg-white/10"
+              (click)="toggleForwardTarget(conversation.id)"
+            >
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
+                {{ conversation.displayTitle.charAt(0) }}
+              </div>
 
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-semibold">
+                  {{ conversation.displayTitle }}
+                </div>
+
+                <div class="truncate text-xs text-slate-400">
+                  {{ conversation.lastMessagePreview || ('conversations.list.noMessages' | translate) }}
+                </div>
+              </div>
+
+              @if (isForwardTargetSelected(conversation.id)) {
+                <div class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold">
+                  ✓
+                </div>
+              } @else {
+                <div class="h-6 w-6 rounded-full border border-slate-500"></div>
+              }
+            </button>
+          }
+        }
+      </div>
+
+      <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
+        <button
+          type="button"
+          class="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
+          (click)="cancelForwardMessage()"
+        >
+          {{ 'common.cancel' | translate }}
+        </button>
+
+<button
+  type="button"
+  class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+  [disabled]="selectedForwardConversationIds().length === 0 || isForwarding()"
+  (click)="forwardSelectedMessage()"
+>
+  @if (isForwarding()) {
+    {{ 'common.sending' | translate }}
+  } @else {
+    {{ 'conversations.messages.forward.send' | translate }}
+  }
+</button>
+      </div>
+    </div>
+  </div>
+}
 @if (actionMenuMessage(); as actionMessage) {
   @if (actionMenuPosition(); as pos) {
     <button
@@ -335,6 +424,14 @@ import { MessageDto } from '../../messages/models/message.dto';
       >
         {{ 'conversations.messages.actions.reply' | translate }}
       </button>
+
+      <button
+  type="button"
+  class="block w-full px-4 py-2 text-start hover:bg-white/10"
+  (click)="startForwardMessage(actionMessage)"
+>
+  {{ 'conversations.messages.actions.forward' | translate }}
+</button>
 
       <button
         type="button"
@@ -544,8 +641,12 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  private readonly router = inject(Router);
+  private readonly messagesApi = inject(MessagesApiService);
+  readonly isForwarding = signal(false);
+  readonly selectedForwardConversationIds = signal<string[]>([]);
   readonly actionMenuPosition = signal<{ x: number; y: number } | null>(null);
-readonly actionMenuMessage = signal<MessageDto | null>(null);
+  readonly actionMenuMessage = signal<MessageDto | null>(null);
   readonly openActionMenuMessageId = signal<string | null>(null);
   readonly isAwayFromBottom = signal(false);
   readonly shouldShowBackToLatest = computed(() => {
@@ -566,7 +667,8 @@ readonly actionMenuMessage = signal<MessageDto | null>(null);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
-  private readonly conversationsState = inject(ConversationsState);
+  
+  readonly conversationsState = inject(ConversationsState);
   private readonly chatSignalR = inject(ChatSignalRService);
   readonly typingState = inject(TypingState);
   readonly presenceState = inject(PresenceState);
@@ -603,6 +705,9 @@ readonly actionMenuMessage = signal<MessageDto | null>(null);
     return this.authService.user()?.id;
   });
   readonly replyingToMessage = signal<MessageDto | null>(null);
+readonly forwardingMessage = signal<MessageDto | null>(null);
+readonly isForwardModalOpen = signal(false);
+
 
 
   @ViewChild('messagesContainer')
@@ -747,6 +852,17 @@ readonly actionMenuMessage = signal<MessageDto | null>(null);
 
 
   }
+  startForwardMessage(message: MessageDto): void {
+  this.forwardingMessage.set(message);
+  this.isForwardModalOpen.set(true);
+  this.closeActionMenu();
+}
+
+cancelForwardMessage(): void {
+  this.forwardingMessage.set(null);
+  this.isForwardModalOpen.set(false);
+  this.selectedForwardConversationIds.set([]);
+}
 
   private readonly handleVisibilityChange = (): void => {
     if (document.visibilityState === 'visible') {
@@ -754,39 +870,39 @@ readonly actionMenuMessage = signal<MessageDto | null>(null);
     }
   };
 
-toggleActionMenu(event: MouseEvent, message: MessageDto): void {
-  event.stopPropagation();
+  toggleActionMenu(event: MouseEvent, message: MessageDto): void {
+    event.stopPropagation();
 
-  if (this.openActionMenuMessageId() === message.id) {
-    this.closeActionMenu();
-    return;
+    if (this.openActionMenuMessageId() === message.id) {
+      this.closeActionMenu();
+      return;
+    }
+
+    this.openActionMenuMessageId.set(message.id);
+    this.actionMenuMessage.set(message);
+
+    const menuWidth = 160;
+    const menuHeight = message.senderUserId === this.currentUserId() ? 180 : 100;
+
+    let x = event.clientX;
+    let y = event.clientY;
+
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 12;
+    }
+
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 12;
+    }
+
+    this.actionMenuPosition.set({ x, y });
   }
 
-  this.openActionMenuMessageId.set(message.id);
-  this.actionMenuMessage.set(message);
-
-  const menuWidth = 160;
-  const menuHeight = message.senderUserId === this.currentUserId() ? 180 : 100;
-
-  let x = event.clientX;
-  let y = event.clientY;
-
-  if (x + menuWidth > window.innerWidth) {
-    x = window.innerWidth - menuWidth - 12;
+  closeActionMenu(): void {
+    this.openActionMenuMessageId.set(null);
+    this.actionMenuMessage.set(null);
+    this.actionMenuPosition.set(null);
   }
-
-  if (y + menuHeight > window.innerHeight) {
-    y = window.innerHeight - menuHeight - 12;
-  }
-
-  this.actionMenuPosition.set({ x, y });
-}
-
-closeActionMenu(): void {
-  this.openActionMenuMessageId.set(null);
-  this.actionMenuMessage.set(null);
-  this.actionMenuPosition.set(null);
-}
 
   replyToMessage(message: MessageDto): void {
     this.startReply(message);
@@ -1431,16 +1547,66 @@ closeActionMenu(): void {
       return;
     }
   }
-shouldOpenMenuUp(messageId: string): boolean {
-  const element = document.getElementById(`message-${messageId}`);
+  shouldOpenMenuUp(messageId: string): boolean {
+    const element = document.getElementById(`message-${messageId}`);
 
-  if (!element) {
-    return false;
+    if (!element) {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+
+    return viewportHeight - rect.bottom < 180;
+  }
+  toggleForwardTarget(conversationId: string): void {
+  const current = this.selectedForwardConversationIds();
+
+  if (current.includes(conversationId)) {
+    this.selectedForwardConversationIds.set(
+      current.filter(x => x !== conversationId)
+    );
+    return;
   }
 
-  const rect = element.getBoundingClientRect();
-  const viewportHeight = window.innerHeight;
+  this.selectedForwardConversationIds.set([
+    ...current,
+    conversationId
+  ]);
+}
 
-  return viewportHeight - rect.bottom < 180;
+isForwardTargetSelected(conversationId: string): boolean {
+  return this.selectedForwardConversationIds().includes(conversationId);
+}
+forwardSelectedMessage(): void {
+  const message = this.forwardingMessage();
+  const targetConversationIds = this.selectedForwardConversationIds();
+
+  if (!message || targetConversationIds.length === 0) {
+    return;
+  }
+
+  this.isForwarding.set(true);
+
+  this.messagesApi.forwardMessage({
+    sourceMessageId: message.id,
+    targetConversationIds,
+    comment: null
+  }).subscribe({
+    next: () => {
+      const targetConversationId = targetConversationIds[0];
+
+      this.isForwarding.set(false);
+      this.cancelForwardMessage();
+
+ this.router.navigate([
+  '/app/conversations',
+  targetConversationId
+]);
+    },
+    error: () => {
+      this.isForwarding.set(false);
+    }
+  });
 }
 }
