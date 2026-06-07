@@ -100,7 +100,20 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
   [class.justify-end]="message.senderUserId === currentUserId()"
   [class.justify-start]="message.senderUserId !== currentUserId()">
 
-  
+  @if (isMessageSelectionMode()) {
+  <button
+    type="button"
+    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs"
+    [class.border-blue-400]="isMessageSelected(message)"
+    [class.bg-blue-500]="isMessageSelected(message)"
+    [class.text-white]="isMessageSelected(message)"
+    [class.border-slate-500]="!isMessageSelected(message)"
+    [class.text-transparent]="!isMessageSelected(message)"
+    (click)="toggleMessageSelection(message)"
+  >
+    ✓
+  </button>
+}
 
 @if (message.senderUserId === currentUserId()) {
   <div class="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
@@ -321,6 +334,38 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
           }
         </div>
       </section>
+
+
+@if (isMessageSelectionMode()) {
+  <div class="border-t border-white/10 bg-slate-900 px-4 py-3">
+    <div class="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">
+      <button
+        type="button"
+        class="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
+        (click)="cancelMessageSelection()"
+      >
+        {{ 'common.cancel' | translate }}
+      </button>
+
+      <div class="text-sm text-slate-300">
+        {{ selectedMessageIds().length }}
+        {{ 'conversations.messages.selection.selected' | translate }}
+      </div>
+
+      <button
+        type="button"
+        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+        (click)="startForwardSelectedMessages()"
+      >
+        {{ 'conversations.messages.actions.forward' | translate }}
+      </button>
+    </div>
+  </div>
+}
+
+
+
+
  @if (isForwardModalOpen()) {
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
     <div class="w-full max-w-md overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl">
@@ -431,6 +476,15 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
   (click)="startForwardMessage(actionMessage)"
 >
   {{ 'conversations.messages.actions.forward' | translate }}
+</button>
+
+
+<button
+  type="button"
+  class="block w-full px-4 py-2 text-start hover:bg-white/10"
+  (click)="startMessageSelection(actionMessage)"
+>
+  {{ 'conversations.messages.actions.select' | translate }}
 </button>
 
       <button
@@ -641,6 +695,8 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  readonly isMessageSelectionMode = signal(false);
+readonly selectedMessageIds = signal<string[]>([]);
   private readonly router = inject(Router);
   private readonly messagesApi = inject(MessagesApiService);
   readonly isForwarding = signal(false);
@@ -1578,15 +1634,56 @@ cancelForwardMessage(): void {
 isForwardTargetSelected(conversationId: string): boolean {
   return this.selectedForwardConversationIds().includes(conversationId);
 }
+ 
+
 forwardSelectedMessage(): void {
-  const message = this.forwardingMessage();
   const targetConversationIds = this.selectedForwardConversationIds();
 
-  if (!message || targetConversationIds.length === 0) {
+  if (targetConversationIds.length === 0) {
     return;
   }
 
   this.isForwarding.set(true);
+
+  if (this.isMessageSelectionMode()) {
+    const sourceMessageIds = this.selectedMessageIds();
+
+    if (sourceMessageIds.length === 0) {
+      this.isForwarding.set(false);
+      return;
+    }
+
+    this.messagesApi.forwardMessagesBatch({
+      sourceMessageIds,
+      targetConversationIds,
+      comment: null
+    }).subscribe({
+      next: () => {
+        const targetConversationId = targetConversationIds[0];
+
+        this.isForwarding.set(false);
+        this.cancelForwardMessage();
+        this.cancelMessageSelection();
+
+        this.router.navigate([
+          '/app/conversations',
+          targetConversationId
+        ]);
+      },
+      error: () => {
+        this.isForwarding.set(false);
+      }
+    });
+
+    return;
+  }
+
+  const message = this.forwardingMessage();
+
+  if (!message) {
+    this.isForwarding.set(false);
+    return;
+  }
 
   this.messagesApi.forwardMessage({
     sourceMessageId: message.id,
@@ -1599,14 +1696,59 @@ forwardSelectedMessage(): void {
       this.isForwarding.set(false);
       this.cancelForwardMessage();
 
- this.router.navigate([
-  '/app/conversations',
-  targetConversationId
-]);
+      this.router.navigate([
+        '/app/conversations',
+        targetConversationId
+      ]);
     },
     error: () => {
       this.isForwarding.set(false);
     }
   });
+}
+
+
+
+startMessageSelection(message: MessageDto): void {
+  this.isMessageSelectionMode.set(true);
+  this.selectedMessageIds.set([message.id]);
+  this.closeActionMenu();
+}
+
+cancelMessageSelection(): void {
+  this.isMessageSelectionMode.set(false);
+  this.selectedMessageIds.set([]);
+}
+
+toggleMessageSelection(message: MessageDto): void {
+  const current = this.selectedMessageIds();
+
+  if (current.includes(message.id)) {
+    const next = current.filter(x => x !== message.id);
+
+    this.selectedMessageIds.set(next);
+
+    if (next.length === 0) {
+      this.isMessageSelectionMode.set(false);
+    }
+
+    return;
+  }
+
+  this.selectedMessageIds.set([...current, message.id]);
+}
+
+isMessageSelected(message: MessageDto): boolean {
+  return this.selectedMessageIds().includes(message.id);
+}
+
+startForwardSelectedMessages(): void {
+  if (this.selectedMessageIds().length === 0) {
+    return;
+  }
+
+  this.forwardingMessage.set(null);
+  this.isForwardModalOpen.set(true);
+  this.closeActionMenu();
 }
 }

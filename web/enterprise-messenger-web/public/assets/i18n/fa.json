@@ -30,12 +30,16 @@
       "archived": "آرشیو شده"
     },
     "messages": {
+      "selection": {
+  "selected": "پیام انتخاب شده"
+},
         "actions": {
     "reply": "پاسخ",
     "copy": "کپی",
         "edit": "ویرایش",
     "delete": "حذف",
-    "forward": "ارسال به دیگران"
+    "forward": "ارسال به دیگران",
+    "select": "انتخاب"
         },
         "forward": {
   "title": "ارسال به",
