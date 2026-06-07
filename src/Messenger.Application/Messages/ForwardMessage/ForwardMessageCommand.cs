@@ -5,3 +5,9 @@ public sealed record ForwardMessageCommand(
     Guid CurrentUserId,
     IReadOnlyCollection<Guid> TargetConversationIds,
     string? Comment);
+
+    public sealed record ForwardMessagesCommand(
+    IReadOnlyCollection<Guid> SourceMessageIds,
+    Guid CurrentUserId,
+    IReadOnlyCollection<Guid> TargetConversationIds,
+    string? Comment);

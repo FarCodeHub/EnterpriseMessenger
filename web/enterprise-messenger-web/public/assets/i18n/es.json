@@ -28,12 +28,16 @@
     "noMessages": "Aún no hay mensajes",
 "archived": "Archivado"
   },"messages": {
+    "selection": {
+  "selected": "seleccionados"
+},
       "actions": {
     "reply": "Responder",
     "copy": "Copiar",
      "edit": "Editar",
     "delete": "Eliminar",
-    "forward": "Forward"
+    "forward": "Forward",
+    "select": "Seleccionar"
   },
   "forward": {
   "title": "Reenviar a",

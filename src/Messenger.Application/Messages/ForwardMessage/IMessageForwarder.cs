@@ -7,4 +7,8 @@ public interface IMessageForwarder
     Task<IReadOnlyCollection<SendMessageResult>> ForwardAsync(
         ForwardMessageCommand command,
         CancellationToken cancellationToken);
+
+Task<IReadOnlyCollection<SendMessageResult>> ForwardBatchAsync(
+    ForwardMessagesCommand command,
+    CancellationToken cancellationToken);
 }

@@ -4,6 +4,7 @@ import { SendMessageRequest } from '../../features/messages/models/send-message.
 import { BaseApiService } from '../api/base-api.service';
 import { MessageDto } from '../../features/messages/models/message.dto';
 import { ForwardMessageRequest } from '../../features/messages/models/forward-message.request';
+import { ForwardMessagesBatchRequest } from '../../features/messages/models/forward-messages-batch.request';
 @Injectable({
   providedIn: 'root'
 })
@@ -33,6 +34,15 @@ getConversationMessagesAround(
 forwardMessage(request: ForwardMessageRequest): Observable<MessageDto[]> {
   return this.post<MessageDto[], ForwardMessageRequest>(
     '/Messages/forward',
+    request
+  );
+}
+
+forwardMessagesBatch(
+  request: ForwardMessagesBatchRequest
+): Observable<MessageDto[]> {
+  return this.post<MessageDto[], ForwardMessagesBatchRequest>(
+    '/Messages/forward-batch',
     request
   );
 }
