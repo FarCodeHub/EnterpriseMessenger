@@ -141,7 +141,7 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
 >
                 @if (message.deletedAtUtc) {
                   <div class="italic text-slate-300">
-                    {{ 'messages.deleted' | translate }}
+                    {{ 'conversations.messages.deleted' | translate }}
                   </div>
                 } @else {
 
@@ -171,7 +171,11 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
         <span>
           {{ message.createdAtUtc | date:'shortTime' }}
         </span>
-
+@if (message.editedAtUtc) {
+  <span class="ms-1">
+    {{ 'conversations.messages.edited' | translate }}
+  </span>
+}
         @if (message.senderUserId === currentUserId()) {
           <span
             class="font-bold tracking-[-0.18em]"
@@ -187,18 +191,35 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
     class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
     (click)="jumpToReplyMessage(message)"
   >
-    @if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
-      <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingTo' | translate }}
-      </div>
+@if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
 
-      <div class="mt-1 line-clamp-2 text-slate-200">
-        {{ repliedMessage.body || '📎 Attachment' }}
-      </div>
-    } 
+  <div class="font-semibold text-blue-300">
+    {{ 'conversations.messages.replyingTo' | translate }}
+  </div>
+
+  @if (repliedMessage.deletedAtUtc) {
+
+    <div class="mt-1 italic text-slate-400">
+      {{ 'conversations.messages.deleted' | translate }}
+    </div>
+
+  } @else {
+
+    <div class="mt-1 line-clamp-2 text-slate-200">
+      {{
+        repliedMessage.body
+          ? repliedMessage.body
+          : (repliedMessage.attachments.length > 0
+              ? '📎 Attachment'
+              : '')
+      }}
+    </div>
+
+  }
+}
     @else {
       <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingToMessage' | translate }}
+        {{ 'conversations.messages.replyingToMessage' | translate }}
         #{{ message.replyToSequenceNumber }}
       </div>
     }
@@ -216,7 +237,11 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
           <span>
             {{ message.createdAtUtc | date:'shortTime' }}
           </span>
-
+@if (message.editedAtUtc) {
+  <span class="ms-1">
+    {{ 'conversations.messages.edited' | translate }}
+  </span>
+}
           @if (message.senderUserId === currentUserId()) {
             <span
               class="font-bold tracking-[-0.18em]"
@@ -233,17 +258,37 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
     class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
     (click)="jumpToReplyMessage(message)"
   >
-    @if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
-      <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingTo' | translate }}
-      </div>
+@if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
 
-      <div class="mt-1 line-clamp-2 text-slate-200">
-        {{ repliedMessage.body || '📎 Attachment' }}
-      </div>
-    } @else {
+  <div class="font-semibold text-blue-300">
+    {{ 'conversations.messages.replyingTo' | translate }}
+  </div>
+
+  @if (repliedMessage.deletedAtUtc) {
+
+    <div class="mt-1 italic text-slate-400">
+      {{ 'conversations.messages.deleted' | translate }}
+    </div>
+
+  } @else {
+
+    <div class="mt-1 line-clamp-2 text-slate-200">
+      {{
+        repliedMessage.body
+          ? repliedMessage.body
+          : (repliedMessage.attachments.length > 0
+              ? '📎 Attachment'
+              : '')
+      }}
+    </div>
+
+  }
+}
+    
+    
+    @else {
       <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingToMessage' | translate }}
+        {{ 'conversations.messages.replyingToMessage' | translate }}
         #{{ message.replyToSequenceNumber }}
       </div>
     }
@@ -310,6 +355,11 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
     <span>
       {{ message.createdAtUtc | date:'shortTime' }}
     </span>
+    @if (message.editedAtUtc) {
+  <span class="ms-1">
+    {{ 'conversations.messages.edited' | translate }}
+  </span>
+}
   </div>
 }
               </div>
@@ -619,7 +669,32 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
 }
 
 
+@if (editingMessage()) {
+  <div class="mb-3 w-full overflow-hidden rounded-xl border-s-4 border-amber-500 bg-slate-800 px-4 py-3">
+    <div class="flex min-w-0 items-start justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="text-xs font-semibold text-amber-400">
+          {{ 'conversations.messages.editing' | translate }}
+        </div>
 
+        <div
+          class="mt-1 max-h-10 overflow-hidden break-words text-sm leading-5 text-slate-300"
+          dir="auto"
+        >
+          {{ editingMessage()?.body }}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="shrink-0 text-slate-400 hover:text-white"
+        (click)="cancelEditMessage()"
+      >
+        ×
+      </button>
+    </div>
+  </div>
+}
 
 
 <form class="flex w-full items-end gap-3" (ngSubmit)="sendMessage()">
@@ -648,7 +723,11 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   [class.opacity-50]="hasUploadingAttachments()"
 [class.cursor-not-allowed]="hasUploadingAttachments()"
   class="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
+ @if (editingMessage()) {
+  {{ 'conversations.messages.input.save' | translate }}
+} @else {
   {{ 'conversations.messages.input.send' | translate }}
+}
 </button>
   </form>
 </footer>
@@ -695,6 +774,7 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  readonly editingMessage = signal<MessageDto | null>(null);
   readonly isMessageSelectionMode = signal(false);
 readonly selectedMessageIds = signal<string[]>([]);
   private readonly router = inject(Router);
@@ -983,6 +1063,26 @@ cancelForwardMessage(): void {
   sendMessage(): void {
     const conversationId = this.conversationId();
     const rawBody = this.messageText().trim();
+
+    const editingMessage = this.editingMessage();
+
+if (editingMessage) {
+  if (!rawBody) {
+    return;
+  }
+
+  this.messagesApi.editMessage(editingMessage.id, {
+    body: rawBody
+  }).subscribe({
+    next: editedMessage => {
+      this.messagesState.handleMessageEdited(editedMessage);
+      this.editingMessage.set(null);
+      this.messageText.set('');
+    }
+  });
+
+  return;
+}
 
     const attachments = this.selectedAttachments()
       .filter(x => !x.isUploading && !x.error)
@@ -1589,15 +1689,31 @@ cancelForwardMessage(): void {
     return message.senderUserId === this.currentUserId();
   }
 
-  startEditMessage(message: MessageDto): void {
-    console.log('edit message:', message);
-    this.closeActionMenu();
+startEditMessage(message: MessageDto): void {
+  if (!message.body || message.body.trim().length === 0) {
+    return;
   }
 
-  deleteMessage(message: MessageDto): void {
-    console.log('delete message:', message);
-    this.closeActionMenu();
-  }
+  this.editingMessage.set(message);
+  this.messageText.set(message.body);
+  this.closeActionMenu();
+}
+
+cancelEditMessage(): void {
+  this.editingMessage.set(null);
+  this.messageText.set('');
+}
+
+deleteMessage(message: MessageDto): void {
+  this.messagesApi.deleteMessage(message.id).subscribe({
+    next: () => {
+      this.closeActionMenu();
+    },
+    error: () => {
+      this.closeActionMenu();
+    }
+  });
+}
   copyMessage(message: MessageDto): void {
     if (!message.body) {
       return;

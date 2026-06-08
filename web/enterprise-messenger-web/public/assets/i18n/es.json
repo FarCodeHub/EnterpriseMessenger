@@ -15,64 +15,69 @@
     }
   },
   "layout": {
-  "conversationsPlaceholder": "La lista de conversaciones aparecerá aquí",
-  "logout": "Salir"
-},
-"conversations": {
-  "empty": {
-    "title": "No hay conversación seleccionada",
-    "description": "Selecciona una conversación de la lista o inicia una nueva."
-  },  "list": {
-    "loading": "Cargando conversaciones...",
-    "empty": "Aún no hay conversaciones.",
-    "noMessages": "Aún no hay mensajes",
-"archived": "Archivado"
-  },"messages": {
-    "selection": {
-  "selected": "seleccionados"
-},
-      "actions": {
-    "reply": "Responder",
-    "copy": "Copiar",
-     "edit": "Editar",
-    "delete": "Eliminar",
-    "forward": "Forward",
-    "select": "Seleccionar"
+    "conversationsPlaceholder": "La lista de conversaciones aparecerá aquí",
+    "logout": "Salir"
   },
-  "forward": {
-  "title": "Reenviar a",
-  "send": "Enviar",
-  "forwardedFrom": "Reenviado de"
-},
-    "typing": "Escribiendo...",
-  "title": "Mensajes",
-  "loading": "Cargando mensajes...",
-  "empty": "Aún no hay mensajes.",
-  "deleted": "Este mensaje fue eliminado",
-  "edited": "editado",
-  "failed": "fallido",
-  "reply": "responder",
-  "replyingTo": "Respondiendo a",
-  "replyingToMessage": "Respondiendo al mensaje",
-"input": {
-  "placeholder": "Escribe un mensaje...",
-  "send": "Enviar"
-}
-}
-},
-"presence": {
-  "online": "En línea",
-  "offline": "Desconectado"
-},
-"attachments": {
-  "sendMode": {
-    "title": "Enviar imagen",
-    "asPhoto": "Enviar como foto",
-    "asFile": "Enviar como archivo"
+  "conversations": {
+    "empty": {
+      "title": "No hay conversación seleccionada",
+      "description": "Selecciona una conversación de la lista o inicia una nueva."
+    },
+    "list": {
+      "loading": "Cargando conversaciones...",
+      "empty": "Aún no hay conversaciones.",
+      "noMessages": "Aún no hay mensajes",
+      "archived": "Archivado"
+    },
+    "messages": {
+      "selection": {
+        "selected": "seleccionados"
+      },
+      "actions": {
+        "reply": "Responder",
+        "copy": "Copiar",
+        "edit": "Editar",
+        "delete": "Eliminar",
+        "forward": "Forward",
+        "select": "Seleccionar"
+      },
+      "forward": {
+        "title": "Reenviar a",
+        "send": "Enviar",
+        "forwardedFrom": "Reenviado de"
+      },
+      "typing": "Escribiendo...",
+      "title": "Mensajes",
+      "loading": "Cargando mensajes...",
+      "empty": "Aún no hay mensajes.",
+      "deleted": "Este mensaje fue eliminado",
+      "edited": "editado",
+      "failed": "fallido",
+      "reply": "responder",
+      "replyingTo": "Respondiendo a",
+      "replyingToMessage": "Respondiendo al mensaje",
+      "editing": "Editando mensaje",
+      "input": {
+        "placeholder": "Escribe un mensaje...",
+        "send": "Enviar",
+        "save": "Guardar"
+      }
+    }
+  },
+  "presence": {
+    "online": "En línea",
+    "offline": "Desconectado",
+    "lastSeenRecently":"Visto por última vez recientemente"
+  },
+  "attachments": {
+    "sendMode": {
+      "title": "Enviar imagen",
+      "asPhoto": "Enviar como foto",
+      "asFile": "Enviar como archivo"
+    }
+  },
+  "common": {
+    "cancel": "Cancelar",
+    "sending": "enviando ... "
   }
-},
-"common": {
-  "cancel": "Cancelar",
-  "sending": "enviando ... "
-}
 }

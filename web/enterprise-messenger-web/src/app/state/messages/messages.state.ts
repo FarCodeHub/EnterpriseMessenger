@@ -134,7 +134,11 @@ private sortMessages(messages: MessageDto[]): MessageDto[] {
   });
 }
 
-handleMessageEdited(event: MessageEditedEvent): void {
+handleMessageEdited(event: {
+  id: string;
+  body: string;
+  editedAtUtc: string | null;
+}): void {
   this.messagesSignal.set(
     this.messagesSignal().map(message =>
       message.id === event.id
@@ -148,14 +152,18 @@ handleMessageEdited(event: MessageEditedEvent): void {
   );
 }
 
-handleMessageDeleted(event: MessageDeletedEvent): void {
+handleMessageDeleted(event: {
+  id: string;
+  deletedAtUtc: string;
+}): void {
   this.messagesSignal.set(
     this.messagesSignal().map(message =>
       message.id === event.id
         ? {
             ...message,
-            deletedAtUtc: event.deletedAtUtc,
-            body: ''
+            body: '',
+            attachments: [],
+            deletedAtUtc: event.deletedAtUtc
           }
         : message
     )
