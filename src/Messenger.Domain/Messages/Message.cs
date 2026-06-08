@@ -18,7 +18,7 @@ public class Message : BaseEntity
     public Guid? ForwardedFromMessageId { get; private set; }
 
     public Guid? ForwardedFromUserId { get; private set; }
-    public string Body { get; private set; }
+    public string Body { get; private set; }= null!;
     public DateTime? EditedAtUtc { get; private set; }
     public DateTime? DeletedAtUtc { get; private set; }
     private Message()

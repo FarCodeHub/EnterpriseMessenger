@@ -15,67 +15,69 @@
     }
   },
   "layout": {
-  "conversationsPlaceholder": "Conversation list will be here",
-  "logout": "Logout"
-},
-"conversations": {
-  "empty": {
-    "title": "No conversation selected",
-    "description": "Select a conversation from the list or start a new one."
+    "conversationsPlaceholder": "Conversation list will be here",
+    "logout": "Logout"
   },
+  "conversations": {
+    "empty": {
+      "title": "No conversation selected",
+      "description": "Select a conversation from the list or start a new one."
+    },
     "list": {
-    "loading": "Loading conversations...",
-    "empty": "No conversations yet.",
-    "noMessages": "No messages yet",
-"archived": "Archived"
-  },
-  "messages": {
-    "selection": {
-  "selected": "selected"
-},
+      "loading": "Loading conversations...",
+      "empty": "No conversations yet.",
+      "noMessages": "No messages yet",
+      "archived": "Archived"
+    },
+    "messages": {
+      "selection": {
+        "selected": "selected"
+      },
       "actions": {
-    "reply": "Reply",
-    "copy": "Copy",
-    "edit": "Edit",
-    "delete": "Delete",
-    "forward": "Forward",
-    "select": "Select"
-    
+        "reply": "Reply",
+        "copy": "Copy",
+        "edit": "Edit",
+        "delete": "Delete",
+        "forward": "Forward",
+        "select": "Select"
+      },
+      "forward": {
+        "title": "Forward to",
+        "send": "Send",
+        "forwardedFrom": "Forwarded from"
+      },
+      "typing": "Typing...",
+      "title": "Messages",
+      "loading": "Loading messages...",
+      "empty": "No messages yet.",
+      "deleted": "This message was deleted",
+      "edited": "edited",
+      "failed": "failed",
+      "reply": "reply",
+      "replyingTo": "Replying to",
+      "replyingToMessage": "Replying to message",
+      "editing": "Editing message",
+      "input": {
+        "placeholder": "Write a message...",
+        "send": "Send",
+        "save": "Save"
+      }
+    }
   },
-  "forward": {
-  "title": "Forward to",
-  "send": "Send",
-  "forwardedFrom": "Forwarded from"
-},
-    "typing": "Typing...",
-  "title": "Messages",
-  "loading": "Loading messages...",
-  "empty": "No messages yet.",
-  "deleted": "This message was deleted",
-  "edited": "edited",
-  "failed": "failed",
-   "reply": "reply",
-   "replyingTo": "Replying to",
-   "replyingToMessage": "Replying to message",
-"input": {
-  "placeholder": "Write a message...",
-  "send": "Send"
-}
-}
-},
-"presence": {
-  "online": "Online",
-  "offline": "Offline"
-},
-"attachments": {
-  "sendMode": {
-    "title": "Send image as",
-    "asPhoto": "Send as photo",
-    "asFile": "Send as file"
+  "presence": {
+    "online": "Online",
+    "offline": "Offline",
+    "lastSeenRecently":"Last Seen Recently"
+  },
+  "attachments": {
+    "sendMode": {
+      "title": "Send image as",
+      "asPhoto": "Send as photo",
+      "asFile": "Send as file"
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "sending": "sending ..."
   }
-},
-"common": {
-  "cancel": "Cancel",
-   "sending": "sending ..."
-}
 }

@@ -16,8 +16,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
 using Messenger.Contracts.Realtime;
 using Messenger.Application.Messages.ForwardMessage;
-using Messenger.Application.Messages.ForwardMessage;
-using Messenger.Contracts.Messages;
 
 namespace Messenger.Api.Controllers;
 

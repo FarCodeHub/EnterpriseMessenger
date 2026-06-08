@@ -14,18 +14,18 @@ public static class RealtimeEvents
     public const string PresenceOffline = "presence.offline";
 
     public const string MessageSeen = "message.seen";
-public const string MessageSeenACK = "message.seen.ack";
-    
+    public const string MessageSeenACK = "message.seen.ack";
+
     public const string MessageDelivered = "message.delivered";
-public const string PresenceRegistered = "presence.registered";
-public const string  MessageDeliveredACK = "message.delivered.ack";
-public const string  ConversationRead = "conversation.read";
+    public const string PresenceRegistered = "presence.registered";
+    public const string MessageDeliveredACK = "message.delivered.ack";
+    public const string ConversationRead = "conversation.read";
 
-public const string  PresenceChanged = "presence.changed";
-public const string  PresenceSnapshot = "presence.snapshot";
+    public const string PresenceChanged = "presence.changed";
+    public const string PresenceSnapshot = "presence.snapshot";
 
 
-    
+
 
     public const string ConversationJoined = "conversation.joined";
     public const string HubError = "hub.error";

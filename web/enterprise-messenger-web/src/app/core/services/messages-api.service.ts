@@ -5,6 +5,7 @@ import { BaseApiService } from '../api/base-api.service';
 import { MessageDto } from '../../features/messages/models/message.dto';
 import { ForwardMessageRequest } from '../../features/messages/models/forward-message.request';
 import { ForwardMessagesBatchRequest } from '../../features/messages/models/forward-messages-batch.request';
+import { EditMessageRequest } from '../../features/messages/models/edit-message.request';
 @Injectable({
   providedIn: 'root'
 })
@@ -29,7 +30,11 @@ getConversationMessagesAround(
   );
 }
 
-
+deleteMessage(messageId: string): Observable<void> {
+  return this.delete<void>(
+    `/Messages/${messageId}`
+  );
+}
 
 forwardMessage(request: ForwardMessageRequest): Observable<MessageDto[]> {
   return this.post<MessageDto[], ForwardMessageRequest>(
@@ -46,4 +51,17 @@ forwardMessagesBatch(
     request
   );
 }
+
+
+editMessage(
+  messageId: string,
+  request: EditMessageRequest
+): Observable<MessageDto> {
+  return this.put<MessageDto, EditMessageRequest>(
+    `/Messages/${messageId}`,
+    request
+  );
+}
+
+
 }

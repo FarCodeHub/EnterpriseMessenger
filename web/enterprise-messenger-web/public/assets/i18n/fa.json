@@ -31,54 +31,53 @@
     },
     "messages": {
       "selection": {
-  "selected": "پیام انتخاب شده"
-},
-        "actions": {
-    "reply": "پاسخ",
-    "copy": "کپی",
+        "selected": "پیام انتخاب شده"
+      },
+      "actions": {
+        "reply": "پاسخ",
+        "copy": "کپی",
         "edit": "ویرایش",
-    "delete": "حذف",
-    "forward": "ارسال به دیگران",
-    "select": "انتخاب"
-        },
-        "forward": {
-  "title": "ارسال به",
-  "send": "ارسال",
-   "forwardedFrom": "ارسال شده از"
-},
-   "typing": "در حال تایپ...",
-  "title": "پیام‌ها",
-  "loading": "در حال دریافت پیام‌ها...",
-  "empty": "هنوز پیامی وجود ندارد.",
-  "deleted": "این پیام حذف شده است",
-  "edited": "ویرایش شده",
-  "failed": "ارسال ناموفق",
-   "reply": "پاسخ",
-   "replyingTo": "در پاسخ به",
-   "replyingToMessage": "در پاسخ به پیام",
-  "input": {
-  "placeholder": "پیام خود را بنویسید...",
-  "send": "ارسال" 
-  
-}
-}
-
+        "delete": "حذف",
+        "forward": "ارسال به دیگران",
+        "select": "انتخاب"
+      },
+      "forward": {
+        "title": "ارسال به",
+        "send": "ارسال",
+        "forwardedFrom": "ارسال شده از"
+      },
+      "typing": "در حال تایپ...",
+      "title": "پیام‌ها",
+      "loading": "در حال دریافت پیام‌ها...",
+      "empty": "هنوز پیامی وجود ندارد.",
+      "deleted": "این پیام حذف شده است",
+      "edited": "ویرایش شده",
+      "failed": "ارسال ناموفق",
+      "reply": "پاسخ",
+      "replyingTo": "در پاسخ به",
+      "replyingToMessage": "در پاسخ به پیام",
+      "editing": "در حال ویرایش پیام",
+      "input": {
+        "placeholder": "پیام خود را بنویسید...",
+        "send": "ارسال",
+        "save": "ذخیره"
+      }
+    }
   },
-
-"presence": {
-  "online": "آنلاین",
-  "offline": "آفلاین"
-},
-"attachments": {
-  "sendMode": {
-    "title": "نحوه ارسال تصویر",
-    "asPhoto": "ارسال به عنوان عکس",
-    "asFile": "ارسال به عنوان فایل"
-  }
-},
-"common": {
-  "cancel": "انصراف",
+  "presence": {
+    "online": "آنلاین",
+    "offline": "آفلاین",
+    "lastSeenRecently":"اخیرا اینجا بوده ..."
+  },
+  "attachments": {
+    "sendMode": {
+      "title": "نحوه ارسال تصویر",
+      "asPhoto": "ارسال به عنوان عکس",
+      "asFile": "ارسال به عنوان فایل"
+    }
+  },
+  "common": {
+    "cancel": "انصراف",
     "sending": "در حال ارسال ..."
-}
-
+  }
 }
