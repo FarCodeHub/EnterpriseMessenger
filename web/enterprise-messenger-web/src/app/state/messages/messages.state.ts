@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { SendMessageRequest } from '../../features/messages/models/send-message.request';
 import { MessagesApiService } from '../../core/services/messages-api.service';
 import { MessageDto } from '../../features/messages/models/message.dto';
@@ -7,9 +7,11 @@ import {
   MessageDeletedEvent,
   MessageEditedEvent
 } from '../../core/signalr/chat-signalr.models';
- 
+ import { PendingOperationsRepository } from '../../core/offline/pending-operations.repository';
 import { OfflineMessagesRepository } from '../../core/offline/offline-messages.repository';
-import { Observable, finalize, from, map, of, switchMap, tap } from 'rxjs';
+ 
+import { AuthService } from '../../core/auth/auth.service';
+import { Observable, catchError, finalize, from, map, of, switchMap, tap } from 'rxjs';
 @Injectable({
   providedIn: 'root'
 })
@@ -18,28 +20,65 @@ export class MessagesState {
   private readonly offlineMessages = inject(OfflineMessagesRepository);
   private readonly messagesSignal = signal<MessageDto[]>([]);
   private readonly isLoadingSignal = signal(false);
-
+private readonly pendingOperations = inject(PendingOperationsRepository);
   readonly messages = this.messagesSignal.asReadonly();
   readonly isLoading = this.isLoadingSignal.asReadonly();
-
+    private readonly authService = inject(AuthService);
+  readonly currentUserId = computed(() => {
+    return this.authService.user()?.id;
+  });
  
+handleSyncedMessage(message: MessageDto): void {
+  const current = this.messagesSignal();
 
+  const existingIndex = current.findIndex(x =>
+    x.id === message.id ||
+    (
+      !!message.clientMessageId &&
+      x.clientMessageId === message.clientMessageId
+    )
+  );
 
-load(conversationId: string): Observable<void> {
+  const syncedMessage: MessageDto = {
+    ...message,
+    receiptStatus: 'sent'
+  };
+
+  if (existingIndex >= 0) {
+    const updated = [...current];
+    updated[existingIndex] = syncedMessage;
+    this.messagesSignal.set(this.sortMessages(updated));
+    return;
+  }
+
+  this.messagesSignal.set(
+    this.sortMessages([...current, syncedMessage])
+  );
+
+void this.offlineMessages.save(syncedMessage);
+
+}
+
+ load(conversationId: string): Observable<void> {
   this.isLoadingSignal.set(true);
 
   return from(this.offlineMessages.getByConversationId(conversationId)).pipe(
     tap(cachedMessages => {
-      if (cachedMessages.length > 0) {
-        this.messagesSignal.set(this.sortMessages(cachedMessages));
-      }
+      console.log('cached messages for conversation:', conversationId, cachedMessages);
+
+      this.messagesSignal.set(this.sortMessages(cachedMessages));
     }),
     switchMap(() => {
       if (!navigator.onLine) {
         return of(null);
       }
 
-      return this.messagesApi.getConversationMessages(conversationId, 50);
+      return this.messagesApi.getConversationMessages(conversationId, 50).pipe(
+        catchError(error => {
+          console.error('load messages from API failed:', error);
+          return of(null);
+        })
+      );
     }),
     tap(response => {
       if (!response) {
@@ -65,53 +104,80 @@ load(conversationId: string): Observable<void> {
     this.messagesSignal.set([]);
   }
 
-  send(request: SendMessageRequest): void {
-    const optimisticMessage: MessageDto = {
-      id: request.clientMessageId,
-      conversationId: request.conversationId,
-      sequenceNumber: -1,
-      senderUserId: '',
-      body: request.body,
-      replyToMessageId: request.replyToMessageId,
-      replyToSequenceNumber: null,
-      createdAtUtc: new Date().toISOString(),
-      editedAtUtc: null,
-      deletedAtUtc: null,
-      attachments: [],
-      clientMessageId: request.clientMessageId,
-      receiptStatus: 'sending'
-    };
+ send(request: SendMessageRequest): void {
+  const currentUserId = this.authService.user()?.id;
 
-    this.messagesSignal.set([...this.messagesSignal(), optimisticMessage]);
-
-    this.messagesApi.sendMessage(request).subscribe({
-      next: message => {
-        console.log('send message response:', message);
-        console.log('send message attachments:', message.attachments);
-
-        this.messagesSignal.set(
-          this.messagesSignal().map(x =>
-            x.clientMessageId === request.clientMessageId
-              ? {
-                ...message,
-                clientMessageId: request.clientMessageId,
-                receiptStatus: 'sent'
-              }
-              : x
-          )
-        );
-      },
-      error: () => {
-        this.messagesSignal.set(
-          this.messagesSignal().map(x =>
-            x.clientMessageId === request.clientMessageId
-              ? { ...x, status: 'failed' }
-              : x
-          )
-        );
-      }
-    });
+  if (!currentUserId) {
+    return;
   }
+
+  const optimisticMessage: MessageDto = {
+    id: request.clientMessageId,
+    conversationId: request.conversationId,
+    sequenceNumber: -1,
+    senderUserId: currentUserId,
+    body: request.body,
+    replyToMessageId: request.replyToMessageId,
+    replyToSequenceNumber: null,
+    createdAtUtc: new Date().toISOString(),
+    editedAtUtc: null,
+    deletedAtUtc: null,
+    attachments: [],
+    clientMessageId: request.clientMessageId,
+    receiptStatus: 'sending',
+   
+  };
+
+  this.messagesSignal.set(
+    this.sortMessages([
+      ...this.messagesSignal(),
+      optimisticMessage
+    ])
+  );
+
+  void this.offlineMessages.save(optimisticMessage, 'pending');
+
+  if (!navigator.onLine) {
+    void this.pendingOperations.add('sendMessage', request);
+    return;
+  }
+
+  this.messagesApi.sendMessage(request).subscribe({
+    next: message => {
+      const sentMessage: MessageDto = {
+        ...message,
+        clientMessageId: request.clientMessageId,
+        receiptStatus: 'sent',
+        
+      };
+
+      this.messagesSignal.set(
+        this.sortMessages(
+          this.messagesSignal().map(x =>
+            x.clientMessageId === request.clientMessageId
+              ? sentMessage
+              : x
+          )
+        )
+      );
+
+      void this.offlineMessages.save(sentMessage);
+    },
+    error: () => {
+      this.messagesSignal.set(
+        this.messagesSignal().map(x =>
+          x.clientMessageId === request.clientMessageId
+            ? {
+                ...x,
+                status: 'failed',
+                receiptStatus: 'failed'
+              }
+            : x
+        )
+      );
+    }
+  });
+}
 
 
 handleMessageCreated(event: MessageCreatedEvent): void {
@@ -157,15 +223,18 @@ handleMessageCreated(event: MessageCreatedEvent): void {
   void this.offlineMessages.save(message);
 }
 
-  private sortMessages(messages: MessageDto[]): MessageDto[] {
-    return [...messages].sort((a, b) => {
-      if (a.sequenceNumber !== b.sequenceNumber) {
-        return a.sequenceNumber - b.sequenceNumber;
-      }
+private sortMessages(messages: MessageDto[]): MessageDto[] {
+  return [...messages].sort((a, b) => {
+    const aSeq = a.sequenceNumber > 0 ? a.sequenceNumber : Number.MAX_SAFE_INTEGER;
+    const bSeq = b.sequenceNumber > 0 ? b.sequenceNumber : Number.MAX_SAFE_INTEGER;
 
-      return new Date(a.createdAtUtc).getTime() - new Date(b.createdAtUtc).getTime();
-    });
-  }
+    if (aSeq !== bSeq) {
+      return aSeq - bSeq;
+    }
+
+    return new Date(a.createdAtUtc).getTime() - new Date(b.createdAtUtc).getTime();
+  });
+}
 
 handleMessageEdited(event: {
   id: string;

@@ -18,6 +18,8 @@ import { SelectedAttachment } from '../../files/models/selected-attachment';
 import { HttpEventType } from '@angular/common/http';
 import { MessageDto } from '../../messages/models/message.dto';
 import { MessagesApiService } from '../../../core/services/messages-api.service';
+import { OfflineSyncService } from '../../../core/offline/offline-sync.service';
+import { PendingOperationsRepository } from '../../../core/offline/pending-operations.repository';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -774,9 +776,11 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  private readonly pendingOperations = inject(PendingOperationsRepository);
+  private readonly offlineSync = inject(OfflineSyncService);
   readonly editingMessage = signal<MessageDto | null>(null);
   readonly isMessageSelectionMode = signal(false);
-readonly selectedMessageIds = signal<string[]>([]);
+  readonly selectedMessageIds = signal<string[]>([]);
   private readonly router = inject(Router);
   private readonly messagesApi = inject(MessagesApiService);
   readonly isForwarding = signal(false);
@@ -803,7 +807,7 @@ readonly selectedMessageIds = signal<string[]>([]);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
-  
+
   readonly conversationsState = inject(ConversationsState);
   private readonly chatSignalR = inject(ChatSignalRService);
   readonly typingState = inject(TypingState);
@@ -841,8 +845,8 @@ readonly selectedMessageIds = signal<string[]>([]);
     return this.authService.user()?.id;
   });
   readonly replyingToMessage = signal<MessageDto | null>(null);
-readonly forwardingMessage = signal<MessageDto | null>(null);
-readonly isForwardModalOpen = signal(false);
+  readonly forwardingMessage = signal<MessageDto | null>(null);
+  readonly isForwardModalOpen = signal(false);
 
 
 
@@ -936,6 +940,16 @@ readonly isForwardModalOpen = signal(false);
       });
 
 
+
+this.offlineSync.messageSynced$
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(message => {
+    if (message.conversationId === this.conversationId()) {
+      this.messagesState.handleSyncedMessage(message);
+    }
+  });
+
+
     this.chatSignalR.reconnected$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
@@ -989,16 +1003,16 @@ readonly isForwardModalOpen = signal(false);
 
   }
   startForwardMessage(message: MessageDto): void {
-  this.forwardingMessage.set(message);
-  this.isForwardModalOpen.set(true);
-  this.closeActionMenu();
-}
+    this.forwardingMessage.set(message);
+    this.isForwardModalOpen.set(true);
+    this.closeActionMenu();
+  }
 
-cancelForwardMessage(): void {
-  this.forwardingMessage.set(null);
-  this.isForwardModalOpen.set(false);
-  this.selectedForwardConversationIds.set([]);
-}
+  cancelForwardMessage(): void {
+    this.forwardingMessage.set(null);
+    this.isForwardModalOpen.set(false);
+    this.selectedForwardConversationIds.set([]);
+  }
 
   private readonly handleVisibilityChange = (): void => {
     if (document.visibilityState === 'visible') {
@@ -1066,20 +1080,34 @@ cancelForwardMessage(): void {
 
     const editingMessage = this.editingMessage();
 
-if (editingMessage) {
+ if (editingMessage) {
   if (!rawBody) {
+    return;
+  }
+
+  const editedAtUtc = new Date().toISOString();
+
+  this.messagesState.handleMessageEdited({
+    id: editingMessage.id,
+    body: rawBody,
+    editedAtUtc
+  });
+
+  this.editingMessage.set(null);
+  this.messageText.set('');
+
+  if (!navigator.onLine) {
+    void this.pendingOperations.add('editMessage', {
+      messageId: editingMessage.id,
+      body: rawBody
+    });
+
     return;
   }
 
   this.messagesApi.editMessage(editingMessage.id, {
     body: rawBody
-  }).subscribe({
-    next: editedMessage => {
-      this.messagesState.handleMessageEdited(editedMessage);
-      this.editingMessage.set(null);
-      this.messageText.set('');
-    }
-  });
+  }).subscribe();
 
   return;
 }
@@ -1225,16 +1253,23 @@ if (editingMessage) {
       return;
     }
 
-    this.messagesState.load(newConversationId)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.scrollToBottom();
+this.messagesState.load(newConversationId)
+  .pipe(takeUntil(this.destroy$))
+  .subscribe({
+    next: () => {
+      console.log('messages loaded for:', newConversationId);
 
-        requestAnimationFrame(() => {
-          this.markCurrentConversationAsDelivered();
-          this.markCurrentConversationAsSeenIfAllowed();
-        });
+      this.scrollToBottom();
+
+      requestAnimationFrame(() => {
+        this.markCurrentConversationAsDelivered();
+        this.markCurrentConversationAsSeenIfAllowed();
       });
+    },
+    error: error => {
+      console.error('messagesState.load failed:', error);
+    }
+  });
 
     await this.chatSignalR.joinConversation(newConversationId);
 
@@ -1689,31 +1724,31 @@ if (editingMessage) {
     return message.senderUserId === this.currentUserId();
   }
 
-startEditMessage(message: MessageDto): void {
-  if (!message.body || message.body.trim().length === 0) {
-    return;
+  startEditMessage(message: MessageDto): void {
+    if (!message.body || message.body.trim().length === 0) {
+      return;
+    }
+
+    this.editingMessage.set(message);
+    this.messageText.set(message.body);
+    this.closeActionMenu();
   }
 
-  this.editingMessage.set(message);
-  this.messageText.set(message.body);
-  this.closeActionMenu();
-}
+  cancelEditMessage(): void {
+    this.editingMessage.set(null);
+    this.messageText.set('');
+  }
 
-cancelEditMessage(): void {
-  this.editingMessage.set(null);
-  this.messageText.set('');
-}
-
-deleteMessage(message: MessageDto): void {
-  this.messagesApi.deleteMessage(message.id).subscribe({
-    next: () => {
-      this.closeActionMenu();
-    },
-    error: () => {
-      this.closeActionMenu();
-    }
-  });
-}
+  deleteMessage(message: MessageDto): void {
+    this.messagesApi.deleteMessage(message.id).subscribe({
+      next: () => {
+        this.closeActionMenu();
+      },
+      error: () => {
+        this.closeActionMenu();
+      }
+    });
+  }
   copyMessage(message: MessageDto): void {
     if (!message.body) {
       return;
@@ -1732,45 +1767,77 @@ deleteMessage(message: MessageDto): void {
     return viewportHeight - rect.bottom < 180;
   }
   toggleForwardTarget(conversationId: string): void {
-  const current = this.selectedForwardConversationIds();
+    const current = this.selectedForwardConversationIds();
 
-  if (current.includes(conversationId)) {
-    this.selectedForwardConversationIds.set(
-      current.filter(x => x !== conversationId)
-    );
-    return;
+    if (current.includes(conversationId)) {
+      this.selectedForwardConversationIds.set(
+        current.filter(x => x !== conversationId)
+      );
+      return;
+    }
+
+    this.selectedForwardConversationIds.set([
+      ...current,
+      conversationId
+    ]);
   }
 
-  this.selectedForwardConversationIds.set([
-    ...current,
-    conversationId
-  ]);
-}
-
-isForwardTargetSelected(conversationId: string): boolean {
-  return this.selectedForwardConversationIds().includes(conversationId);
-}
- 
-
-forwardSelectedMessage(): void {
-  const targetConversationIds = this.selectedForwardConversationIds();
-
-  if (targetConversationIds.length === 0) {
-    return;
+  isForwardTargetSelected(conversationId: string): boolean {
+    return this.selectedForwardConversationIds().includes(conversationId);
   }
 
-  this.isForwarding.set(true);
 
-  if (this.isMessageSelectionMode()) {
-    const sourceMessageIds = this.selectedMessageIds();
+  forwardSelectedMessage(): void {
+    const targetConversationIds = this.selectedForwardConversationIds();
 
-    if (sourceMessageIds.length === 0) {
+    if (targetConversationIds.length === 0) {
+      return;
+    }
+
+    this.isForwarding.set(true);
+
+    if (this.isMessageSelectionMode()) {
+      const sourceMessageIds = this.selectedMessageIds();
+
+      if (sourceMessageIds.length === 0) {
+        this.isForwarding.set(false);
+        return;
+      }
+
+      this.messagesApi.forwardMessagesBatch({
+        sourceMessageIds,
+        targetConversationIds,
+        comment: null
+      }).subscribe({
+        next: () => {
+          const targetConversationId = targetConversationIds[0];
+
+          this.isForwarding.set(false);
+          this.cancelForwardMessage();
+          this.cancelMessageSelection();
+
+          this.router.navigate([
+            '/app/conversations',
+            targetConversationId
+          ]);
+        },
+        error: () => {
+          this.isForwarding.set(false);
+        }
+      });
+
+      return;
+    }
+
+    const message = this.forwardingMessage();
+
+    if (!message) {
       this.isForwarding.set(false);
       return;
     }
 
-    this.messagesApi.forwardMessagesBatch({
-      sourceMessageIds,
+    this.messagesApi.forwardMessage({
+      sourceMessageId: message.id,
       targetConversationIds,
       comment: null
     }).subscribe({
@@ -1779,7 +1846,6 @@ forwardSelectedMessage(): void {
 
         this.isForwarding.set(false);
         this.cancelForwardMessage();
-        this.cancelMessageSelection();
 
         this.router.navigate([
           '/app/conversations',
@@ -1790,81 +1856,50 @@ forwardSelectedMessage(): void {
         this.isForwarding.set(false);
       }
     });
-
-    return;
   }
 
-  const message = this.forwardingMessage();
 
-  if (!message) {
-    this.isForwarding.set(false);
-    return;
+
+  startMessageSelection(message: MessageDto): void {
+    this.isMessageSelectionMode.set(true);
+    this.selectedMessageIds.set([message.id]);
+    this.closeActionMenu();
   }
 
-  this.messagesApi.forwardMessage({
-    sourceMessageId: message.id,
-    targetConversationIds,
-    comment: null
-  }).subscribe({
-    next: () => {
-      const targetConversationId = targetConversationIds[0];
+  cancelMessageSelection(): void {
+    this.isMessageSelectionMode.set(false);
+    this.selectedMessageIds.set([]);
+  }
 
-      this.isForwarding.set(false);
-      this.cancelForwardMessage();
+  toggleMessageSelection(message: MessageDto): void {
+    const current = this.selectedMessageIds();
 
-      this.router.navigate([
-        '/app/conversations',
-        targetConversationId
-      ]);
-    },
-    error: () => {
-      this.isForwarding.set(false);
-    }
-  });
-}
+    if (current.includes(message.id)) {
+      const next = current.filter(x => x !== message.id);
 
+      this.selectedMessageIds.set(next);
 
+      if (next.length === 0) {
+        this.isMessageSelectionMode.set(false);
+      }
 
-startMessageSelection(message: MessageDto): void {
-  this.isMessageSelectionMode.set(true);
-  this.selectedMessageIds.set([message.id]);
-  this.closeActionMenu();
-}
-
-cancelMessageSelection(): void {
-  this.isMessageSelectionMode.set(false);
-  this.selectedMessageIds.set([]);
-}
-
-toggleMessageSelection(message: MessageDto): void {
-  const current = this.selectedMessageIds();
-
-  if (current.includes(message.id)) {
-    const next = current.filter(x => x !== message.id);
-
-    this.selectedMessageIds.set(next);
-
-    if (next.length === 0) {
-      this.isMessageSelectionMode.set(false);
+      return;
     }
 
-    return;
+    this.selectedMessageIds.set([...current, message.id]);
   }
 
-  this.selectedMessageIds.set([...current, message.id]);
-}
-
-isMessageSelected(message: MessageDto): boolean {
-  return this.selectedMessageIds().includes(message.id);
-}
-
-startForwardSelectedMessages(): void {
-  if (this.selectedMessageIds().length === 0) {
-    return;
+  isMessageSelected(message: MessageDto): boolean {
+    return this.selectedMessageIds().includes(message.id);
   }
 
-  this.forwardingMessage.set(null);
-  this.isForwardModalOpen.set(true);
-  this.closeActionMenu();
-}
+  startForwardSelectedMessages(): void {
+    if (this.selectedMessageIds().length === 0) {
+      return;
+    }
+
+    this.forwardingMessage.set(null);
+    this.isForwardModalOpen.set(true);
+    this.closeActionMenu();
+  }
 }
