@@ -138,4 +138,43 @@ updateOtherParticipantSeen(
   );
 }
 
+
+
+
+  updateLastMessageLocally(input: {
+  conversationId: string;
+  body: string;
+  senderUserId: string;
+  senderDisplayName?: string | null;
+  createdAtUtc: string;
+}): void {
+  const updated = this.conversationsSignal().map(conversation =>
+    conversation.id === input.conversationId
+      ? {
+          ...conversation,
+          lastMessagePreview: input.body,
+          lastMessageAtUtc: input.createdAtUtc,
+          lastMessageSenderUserId: input.senderUserId,
+          lastMessageSenderDisplayName:
+            input.senderDisplayName ?? conversation.lastMessageSenderDisplayName
+        }
+      : conversation
+  );
+
+  this.conversationsSignal.set(
+    [...updated].sort((a, b) =>
+      new Date(b.lastMessageAtUtc ?? '').getTime() -
+      new Date(a.lastMessageAtUtc ?? '').getTime()
+    )
+  );
+
+  const updatedConversation = updated.find(x => x.id === input.conversationId);
+
+  if (updatedConversation) {
+    void this.offlineConversations.save(updatedConversation);
+  }
+}
+
+
+
 }

@@ -8,16 +8,22 @@ import { SendMessageRequest } from '../../features/messages/models/send-message.
 import { Subject } from 'rxjs';
 import { MessageDto } from '../../features/messages/models/message.dto';
 import { EditMessageRequest } from '../../features/messages/models/edit-message.request';
+import { FilesApiService } from '../services/files-api.service';
 @Injectable({
     providedIn: 'root'
 })
 export class OfflineSyncService {
+    private readonly filesApi = inject(FilesApiService);
+    readonly messageSyncFailed$ = new Subject<string>();
     private readonly networkStatus = inject(NetworkStatusService);
     private readonly pendingOperations = inject(PendingOperationsRepository);
     private readonly messagesApi = inject(MessagesApiService);
     private readonly offlineMessages = inject(OfflineMessagesRepository);
     readonly messageSynced$ = new Subject<MessageDto>();
     private isSyncing = false;
+    private retryTimer: ReturnType<typeof setTimeout> | null = null;
+    private retryDelayMs = 3000;
+    private readonly maxRetryDelayMs = 60000;
 
     constructor() {
         void this.pendingOperations.resetProcessingToPending();
@@ -30,6 +36,7 @@ export class OfflineSyncService {
     }
 
     async syncPendingOperations(): Promise<void> {
+        console.log('Sync started. Online:', this.networkStatus.isOnline());
         if (this.isSyncing) {
             return;
         }
@@ -42,6 +49,7 @@ export class OfflineSyncService {
 
         try {
             const operations = await this.pendingOperations.getPending();
+            console.log('Pending operations:', operations);
 
             for (const operation of operations) {
                 await this.pendingOperations.markProcessing(operation.id);
@@ -62,9 +70,35 @@ export class OfflineSyncService {
                         });
                     }
 
+                    if (operation.type === 'sendMessageWithAttachments') {
+                        await this.syncSendMessageWithAttachments(operation.payload as {
+                            conversationId: string;
+                            clientMessageId: string;
+                            body: string;
+                            replyToMessageId: string | null;
+                            files: File[];
+                        });
+                    }
+
                     await this.pendingOperations.remove(operation.id);
-                } catch {
+                    this.retryDelayMs = 3000;
+                } catch (error) {
+                    console.warn('Pending operation sync failed:', operation, error);
+
                     await this.pendingOperations.markFailed(operation.id);
+
+                    const updatedOperation = await this.pendingOperations.getById(operation.id);
+
+                    if (
+                        updatedOperation?.status === 'failed' &&
+                        operation.type === 'sendMessage'
+                    ) {
+                        const payload = operation.payload as SendMessageRequest;
+
+                        this.messageSyncFailed$.next(payload.clientMessageId);
+                    } else {
+                        this.scheduleRetry();
+                    }
                 }
             }
         } finally {
@@ -95,5 +129,71 @@ export class OfflineSyncService {
         await firstValueFrom(
             this.messagesApi.editMessage(messageId, request)
         );
+    }
+
+
+    private scheduleRetry(): void {
+        if (!this.networkStatus.isOnline()) {
+            return;
+        }
+
+        if (this.retryTimer) {
+            return;
+        }
+
+        this.retryTimer = setTimeout(() => {
+            this.retryTimer = null;
+            void this.syncPendingOperations();
+        }, this.retryDelayMs);
+
+        this.retryDelayMs = Math.min(
+            this.retryDelayMs * 2,
+            this.maxRetryDelayMs
+        );
+    }
+
+    private async syncSendMessageWithAttachments(input: {
+        conversationId: string;
+        clientMessageId: string;
+        body: string;
+        replyToMessageId: string | null;
+        files: File[];
+    }): Promise<void> {
+        const uploadedAttachments = [];
+
+        for (const file of input.files) {
+            const uploaded = await firstValueFrom(
+                this.filesApi.upload(file)
+            );
+
+            uploadedAttachments.push({
+                fileId: uploaded.fileId,
+                fileName: uploaded.fileName,
+                contentType: uploaded.contentType,
+                size: uploaded.size,
+                storagePath: uploaded.storagePath
+            });
+        }
+
+        const message = await firstValueFrom(
+            this.messagesApi.sendMessage({
+                conversationId: input.conversationId,
+                clientMessageId: input.clientMessageId,
+                body: input.body,
+                replyToMessageId: input.replyToMessageId,
+                attachments: uploadedAttachments
+            })
+        );
+
+        const syncedMessage: MessageDto = {
+            ...message,
+            clientMessageId: input.clientMessageId,
+            receiptStatus: 'sent',
+
+        };
+
+        await this.offlineMessages.save(syncedMessage);
+
+        this.messageSynced$.next(syncedMessage);
     }
 }

@@ -1,5 +1,5 @@
 import { Component, Input, OnInit, inject, signal } from '@angular/core';
-
+import { MediaCacheService } from '../../../../core/offline/media-cache.service';
 import { AttachmentUrlService } from '../../../../core/services/attachment-url.service';
 import { MessageAttachmentDto } from '../../models/message-attachment.dto';
 
@@ -73,7 +73,7 @@ import { MessageAttachmentDto } from '../../models/message-attachment.dto';
 })
 export class AttachmentPreviewComponent implements OnInit {
     private readonly attachmentUrlService = inject(AttachmentUrlService);
-
+private readonly mediaCache = inject(MediaCacheService);
     @Input({ required: true })
     attachment!: MessageAttachmentDto;
     @Input()
@@ -82,6 +82,8 @@ export class AttachmentPreviewComponent implements OnInit {
     readonly isViewerOpen = signal(false);
     readonly rotation = signal(0);
     readonly zoom = signal(1);
+    readonly isOffline = signal(false);
+readonly hasError = signal(false);
 
     openViewer(): void {
         this.rotation.set(0);
@@ -111,17 +113,41 @@ export class AttachmentPreviewComponent implements OnInit {
     isImage(): boolean {
         return this.attachment.contentType.startsWith('image/');
     }
+async ngOnInit(): Promise<void> {
+  if (!this.attachment.id) {
+    return;
+  }
 
-    ngOnInit(): void {
-        if (!this.attachment.id) {
-            return;
+  const cachedUrl = await this.mediaCache.getCachedObjectUrl(this.attachment.id);
+
+  if (cachedUrl) {
+    this.url.set(cachedUrl);
+    return;
+  }
+
+  if (!navigator.onLine) {
+    this.isOffline.set(true);
+    return;
+  }
+
+  this.attachmentUrlService.getUrl(this.attachment.id)
+    .subscribe({
+      next: async signedUrl => {
+        try {
+          const objectUrl = await this.mediaCache.cacheFromUrl(
+            this.attachment.id,
+            signedUrl
+          );
+
+          this.url.set(objectUrl);
+        } catch {
+          this.url.set(signedUrl);
         }
-        this.attachmentUrlService.getUrl(this.attachment.id)
-            .subscribe({
-                next: url => {
-                    this.url.set(url);
-                }
-            });
-    }
+      },
+      error: () => {
+        this.hasError.set(true);
+      }
+    });
+}
 
 }

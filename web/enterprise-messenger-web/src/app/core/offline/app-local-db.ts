@@ -5,6 +5,7 @@ import { MessageDto } from '../../features/messages/models/message.dto';
 
 export type PendingOperationType =
   | 'sendMessage'
+  | 'sendMessageWithAttachments'
   | 'editMessage'
   | 'deleteMessage'
   | 'markDelivered'
@@ -28,7 +29,17 @@ export interface SyncState {
   value: string;
 }
 
+export interface LocalPendingFile {
+  id: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  blob: Blob;
+  createdAtUtc: string;
+}
+
 export class AppLocalDb extends Dexie {
+    pendingFiles!: Table<LocalPendingFile, string>;
   conversations!: Table<ConversationListItemDto, string>;
   messages!: Table<LocalMessage, string>;
   pendingOperations!: Table<PendingOperation, string>;
@@ -41,7 +52,8 @@ export class AppLocalDb extends Dexie {
       conversations: 'id, lastMessageAtUtc',
       messages: 'id, conversationId, sequenceNumber, clientMessageId, createdAtUtc',
       pendingOperations: 'id, type, status, createdAtUtc',
-      syncState: 'key'
+      syncState: 'key',
+      pendingFiles: 'id, createdAtUtc'
     });
   }
 }

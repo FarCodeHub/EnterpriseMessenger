@@ -41,14 +41,30 @@ export class PendingOperationsRepository {
     });
   }
 
-  async markFailed(id: string): Promise<void> {
-    const operation = await appLocalDb.pendingOperations.get(id);
+async markFailed(id: string): Promise<void> {
+  const operation = await appLocalDb.pendingOperations.get(id);
+  const retryCount = (operation?.retryCount ?? 0) + 1;
 
-    await appLocalDb.pendingOperations.update(id, {
-      status: 'failed',
-      retryCount: (operation?.retryCount ?? 0) + 1
-    });
-  }
+  await appLocalDb.pendingOperations.update(id, {
+    status: retryCount >= 5 ? 'failed' : 'pending',
+    retryCount
+  });
+}
+
+
+async retryFailed(): Promise<void> {
+  const failed = await appLocalDb.pendingOperations
+    .where('status')
+    .equals('failed')
+    .toArray();
+
+  await appLocalDb.pendingOperations.bulkPut(
+    failed.map(operation => ({
+      ...operation,
+      status: 'pending' as const
+    }))
+  );
+}
 
   async remove(id: string): Promise<void> {
     await appLocalDb.pendingOperations.delete(id);
@@ -67,4 +83,10 @@ export class PendingOperationsRepository {
       }))
     );
   }
+
+async getById(id: string): Promise<PendingOperation | undefined> {
+  return appLocalDb.pendingOperations.get(id);
+}
+
+
 }

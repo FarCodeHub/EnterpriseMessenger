@@ -186,6 +186,18 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
             {{ getReceiptIcon(message) }}
           </span>
         }
+
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
+    (click)="messagesState.retryMessage(message)"
+  >
+    {{ 'conversations.messages.retry' | translate }}
+  </button>
+}
+
+        
       </div>
 @if (message.replyToMessageId) {
     <button
@@ -253,6 +265,17 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
             </span>
           }
         </span>
+
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
+    (click)="messagesState.retryMessage(message)"
+  >
+    {{ 'conversations.messages.retry' | translate }}
+  </button>
+}
+
       }
 @if (message.replyToMessageId) {
     <button
@@ -353,7 +376,15 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
         {{ getReceiptIcon(message) }}
       </span>
     }
-
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
+    (click)="messagesState.retryMessage(message)"
+  >
+    {{ 'conversations.messages.retry' | translate }}
+  </button>
+}
     <span>
       {{ message.createdAtUtc | date:'shortTime' }}
     </span>
@@ -893,6 +924,13 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
       });
 
 
+
+this.offlineSync.messageSyncFailed$
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(clientMessageId => {
+    this.messagesState.markMessageAsFailed(clientMessageId);
+  });
+
     this.chatSignalR.messageCreated$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
@@ -1123,16 +1161,36 @@ this.offlineSync.messageSynced$
       }));
 
     const hasAttachments = attachments.length > 0;
+    const offlineAttachments = this.selectedAttachments()
+  .filter(x => x.isOfflinePending && x.localFile);
 
-    if (!conversationId || (!rawBody && !hasAttachments)) {
-      return;
-    }
+const hasOfflineAttachments = offlineAttachments.length > 0;
+if (!conversationId || (!rawBody && !hasAttachments && !hasOfflineAttachments)) {
+  return;
+}
 
     if (this.hasUploadingAttachments()) {
       return;
     }
 
+if (hasOfflineAttachments) {
+  const clientMessageId = crypto.randomUUID();
 
+  this.messagesState.sendOfflineMessageWithLocalAttachments({
+    conversationId,
+    clientMessageId,
+    body: rawBody,
+    replyToMessageId: this.replyingToMessage()?.id ?? null,
+    files: offlineAttachments.map(x => x.localFile!)
+  });
+
+  this.messageText.set('');
+  this.selectedAttachments.set([]);
+  this.replyingToMessage.set(null);
+  this.scrollToBottom();
+
+  return;
+}
 
     this.messagesState.send({
       conversationId,
@@ -1319,8 +1377,18 @@ this.messagesState.load(newConversationId)
           lastModified: Date.now()
         }
       );
+this.updateSelectedAttachment(tempId, {
+  localFile: renamedFile,
+  isUploading: navigator.onLine,
+  isOfflinePending: !navigator.onLine,
+  progress: navigator.onLine ? 0 : 100
+});
 
-      this.uploadAttachmentByTempId(tempId, renamedFile);
+if (!navigator.onLine) {
+  return;
+}
+
+this.uploadAttachmentByTempId(tempId, renamedFile);
     } catch {
       this.updateSelectedAttachment(tempId, {
         isUploading: false,
@@ -1370,10 +1438,15 @@ this.messagesState.load(newConversationId)
   }
 
 
-  private uploadAttachment(file: File): void {
-    const tempId = this.addPendingAttachment(file);
-    this.uploadAttachmentByTempId(tempId, file);
+private uploadAttachment(file: File): void {
+  const tempId = this.addPendingAttachment(file);
+
+  if (!navigator.onLine) {
+    return;
   }
+
+  this.uploadAttachmentByTempId(tempId, file);
+}
 
 
 
@@ -1425,9 +1498,11 @@ this.messagesState.load(newConversationId)
         size: file.size,
         storagePath: '',
         progress: 0,
-        isUploading: true,
+        isUploading: navigator.onLine,
         error: null,
-        localPreviewUrl
+        localPreviewUrl,
+        localFile: file,
+isOfflinePending: !navigator.onLine,
       }
     ]);
 
@@ -1567,6 +1642,9 @@ this.messagesState.load(newConversationId)
   }
 
   private markCurrentConversationAsDelivered(): void {
+    if (!navigator.onLine) {
+  return;
+}
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
@@ -1586,6 +1664,9 @@ this.messagesState.load(newConversationId)
   }
 
   private markCurrentConversationAsSeenIfAllowed(): void {
+    if (!navigator.onLine) {
+  return;
+}
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
@@ -1902,4 +1983,7 @@ this.messagesState.load(newConversationId)
     this.isForwardModalOpen.set(true);
     this.closeActionMenu();
   }
+
+
+
 }
