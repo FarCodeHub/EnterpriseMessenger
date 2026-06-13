@@ -12,6 +12,9 @@ export interface MessageCreatedEvent {
   createdAtUtc: string;
   attachments: MessageAttachmentDto[];
   isDuplicate: boolean;
+  forwardedFromMessageId?: string | null;
+forwardedFromUserId?: string | null;
+forwardedFromDisplayName?: string | null;
   
 }
 

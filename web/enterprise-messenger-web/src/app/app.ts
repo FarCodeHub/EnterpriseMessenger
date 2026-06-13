@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { LanguageService } from './core/i18n/language.service';
+import { OfflineSyncService } from './core/offline/offline-sync.service';
 
 @Component({
   selector: 'app-root',
@@ -10,7 +11,7 @@ import { LanguageService } from './core/i18n/language.service';
 })
 export class App {
   private readonly languageService = inject(LanguageService);
-
+private readonly offlineSync = inject(OfflineSyncService);
   constructor() {
     this.languageService.initialize();
   }

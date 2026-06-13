@@ -34,4 +34,16 @@ uploadWithProgress(file: File): Observable<HttpEvent<UploadFileResponse>> {
       `${applicationConfig.apiBaseUrl}/Files/${attachmentId}/download-url`
     );
   }
+
+
+upload(file: File): Observable<UploadFileResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return this.http.post<UploadFileResponse>(
+    `${applicationConfig.apiBaseUrl}/Files/upload`,
+    formData
+  );
+}
+
 }

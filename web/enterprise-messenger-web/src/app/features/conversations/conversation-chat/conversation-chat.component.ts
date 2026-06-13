@@ -18,6 +18,8 @@ import { SelectedAttachment } from '../../files/models/selected-attachment';
 import { HttpEventType } from '@angular/common/http';
 import { MessageDto } from '../../messages/models/message.dto';
 import { MessagesApiService } from '../../../core/services/messages-api.service';
+import { OfflineSyncService } from '../../../core/offline/offline-sync.service';
+import { PendingOperationsRepository } from '../../../core/offline/pending-operations.repository';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -184,6 +186,18 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
             {{ getReceiptIcon(message) }}
           </span>
         }
+
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
+    (click)="messagesState.retryMessage(message)"
+  >
+    {{ 'conversations.messages.retry' | translate }}
+  </button>
+}
+
+        
       </div>
 @if (message.replyToMessageId) {
     <button
@@ -251,6 +265,17 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
             </span>
           }
         </span>
+
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
+    (click)="messagesState.retryMessage(message)"
+  >
+    {{ 'conversations.messages.retry' | translate }}
+  </button>
+}
+
       }
 @if (message.replyToMessageId) {
     <button
@@ -324,6 +349,17 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
     @if (isMediaOnlyMessage(message)) {
       <div class="absolute bottom-2 end-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white">
         {{ message.createdAtUtc | date:'shortTime' }}
+
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
+    (click)="messagesState.retryMessage(message)"
+  >
+    Retry
+  </button>
+}
+
       @if (message.senderUserId === currentUserId()) {
   <span
     class="ms-1"
@@ -351,7 +387,15 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
         {{ getReceiptIcon(message) }}
       </span>
     }
-
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
+    (click)="messagesState.retryMessage(message)"
+  >
+    {{ 'conversations.messages.retry' | translate }}
+  </button>
+}
     <span>
       {{ message.createdAtUtc | date:'shortTime' }}
     </span>
@@ -585,62 +629,7 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
 }
 
 <footer class="border-t border-white/10 bg-slate-900 px-4 py-3">
-  
-@if (selectedAttachments().length > 0) {
-  <div class="mb-3 flex w-full flex-wrap gap-3">
-    @for (attachment of selectedAttachments(); track attachment.fileId) {
-      <div class="relative w-32 rounded-2xl bg-slate-800 p-2 shadow">
-        <button
-          type="button"
-          class="absolute -end-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs text-white hover:bg-red-500"
-          (click)="removeSelectedAttachment(attachment.fileId)"
-        >
-          ×
-        </button>
-
-        @if (attachment.localPreviewUrl) {
-          <img
-            class="h-24 w-full rounded-xl object-cover"
-            [src]="attachment.localPreviewUrl"
-            [alt]="attachment.fileName"
-          />
-        } @else {
-          <div class="flex h-24 w-full items-center justify-center rounded-xl bg-slate-700 px-2 text-center text-xs text-slate-300">
-            📎 {{ attachment.fileName }}
-          </div>
-        }
-
-        <!-- <div class="mt-2 truncate text-xs text-slate-300">
-          {{ attachment.fileName }}
-        </div> -->
-
-        @if (attachment.isUploading) {
-          <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700">
-            <div
-              class="h-full rounded-full bg-blue-500"
-              [style.width.%]="attachment.progress"
-            ></div>
-          </div>
-        }
-
-        @if (!attachment.isUploading && !attachment.error) {
-          <div class="mt-2 text-center text-xs text-emerald-400">
-            ✓ Uploaded
-          </div>
-        }
-
-        @if (attachment.error) {
-          <div class="mt-2 text-center text-xs text-red-400">
-            Upload failed
-          </div>
-        }
-      </div>
-    }
-  </div>
-}
-
-
-
+   
 @if (replyingToMessage()) {
   <div class="mb-3 w-full overflow-hidden rounded-xl border-s-4 border-blue-500 bg-slate-800 px-4 py-3">
     <div class="flex min-w-0 items-start justify-between gap-3">
@@ -719,9 +708,6 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
 
 <button
   type="submit"
-  [disabled]="hasUploadingAttachments()"
-  [class.opacity-50]="hasUploadingAttachments()"
-[class.cursor-not-allowed]="hasUploadingAttachments()"
   class="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
  @if (editingMessage()) {
   {{ 'conversations.messages.input.save' | translate }}
@@ -729,56 +715,23 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   {{ 'conversations.messages.input.send' | translate }}
 }
 </button>
+
+ 
   </form>
 </footer>
-@if (isSendModeOpen()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-slate-900 p-5 text-white shadow-2xl">
-      <h3 class="text-lg font-bold">
-        {{ 'attachments.sendMode.title' | translate }}
-      </h3>
-
-      <p class="mt-2 text-sm text-slate-400">
-        {{ pendingImageFile()?.name }}
-      </p>
-
-      <div class="mt-5 space-y-3">
-        <button
-          type="button"
-          class="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold hover:bg-blue-500"
-          (click)="sendPendingImageAsPhoto()"
-        >
-          {{ 'attachments.sendMode.asPhoto' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="w-full rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold hover:bg-slate-700"
-          (click)="sendPendingImageAsFile()"
-        >
-          {{ 'attachments.sendMode.asFile' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="w-full rounded-xl px-4 py-3 text-sm text-slate-400 hover:bg-white/5"
-          (click)="cancelSendMode()"
-        >
-          {{ 'common.cancel' | translate }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
+ 
     </div>
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  private readonly pendingOperations = inject(PendingOperationsRepository);
+ 
   readonly editingMessage = signal<MessageDto | null>(null);
   readonly isMessageSelectionMode = signal(false);
-readonly selectedMessageIds = signal<string[]>([]);
+  readonly selectedMessageIds = signal<string[]>([]);
   private readonly router = inject(Router);
   private readonly messagesApi = inject(MessagesApiService);
+  readonly offlineSync = inject(OfflineSyncService);
   readonly isForwarding = signal(false);
   readonly selectedForwardConversationIds = signal<string[]>([]);
   readonly actionMenuPosition = signal<{ x: number; y: number } | null>(null);
@@ -803,7 +756,7 @@ readonly selectedMessageIds = signal<string[]>([]);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
-  
+
   readonly conversationsState = inject(ConversationsState);
   private readonly chatSignalR = inject(ChatSignalRService);
   readonly typingState = inject(TypingState);
@@ -824,6 +777,9 @@ readonly selectedMessageIds = signal<string[]>([]);
   readonly hasUploadingAttachments = computed(() =>
     this.selectedAttachments().some(x => x.isUploading)
   );
+
+
+
   readonly conversationPresenceUserId = computed(() => {
     const conversation = this.conversation();
 
@@ -841,8 +797,8 @@ readonly selectedMessageIds = signal<string[]>([]);
     return this.authService.user()?.id;
   });
   readonly replyingToMessage = signal<MessageDto | null>(null);
-readonly forwardingMessage = signal<MessageDto | null>(null);
-readonly isForwardModalOpen = signal(false);
+  readonly forwardingMessage = signal<MessageDto | null>(null);
+  readonly isForwardModalOpen = signal(false);
 
 
 
@@ -865,7 +821,7 @@ readonly isForwardModalOpen = signal(false);
     this.chatSignalR.presenceSnapshot$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-        console.log('presence.snapshot received:', event);
+       
         this.presenceState.setSnapshot(
           event.conversationId,
           event.userIds
@@ -878,7 +834,7 @@ readonly isForwardModalOpen = signal(false);
     this.chatSignalR.presenceChanged$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-        console.log('presence.changed received:', event);
+       
 
 
         this.presenceState.setUserPresence(
@@ -888,6 +844,13 @@ readonly isForwardModalOpen = signal(false);
         );
       });
 
+
+
+    this.offlineSync.messageSyncFailed$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(clientMessageId => {
+        this.messagesState.markMessageAsFailed(clientMessageId);
+      });
 
     this.chatSignalR.messageCreated$
       .pipe(takeUntil(this.destroy$))
@@ -936,11 +899,21 @@ readonly isForwardModalOpen = signal(false);
       });
 
 
+
+    this.offlineSync.messageSynced$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(message => {
+        if (message.conversationId === this.conversationId()) {
+          this.messagesState.handleSyncedMessage(message);
+        }
+      });
+
+
     this.chatSignalR.reconnected$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         const conversationId = this.conversationId();
-
+this.offlineSync.requestSync('signalr-reconnected');
         if (conversationId) {
           this.chatSignalR.joinConversation(conversationId);
           this.chatSignalR.startPresenceRenewTimer(conversationId);
@@ -988,17 +961,27 @@ readonly isForwardModalOpen = signal(false);
 
 
   }
-  startForwardMessage(message: MessageDto): void {
-  this.forwardingMessage.set(message);
-  this.isForwardModalOpen.set(true);
-  this.closeActionMenu();
+
+
+
+syncNow(): void {
+  alert('sync clicked');
+ 
+  void this.offlineSync.forceSyncPendingOperations();
 }
 
-cancelForwardMessage(): void {
-  this.forwardingMessage.set(null);
-  this.isForwardModalOpen.set(false);
-  this.selectedForwardConversationIds.set([]);
-}
+
+  startForwardMessage(message: MessageDto): void {
+    this.forwardingMessage.set(message);
+    this.isForwardModalOpen.set(true);
+    this.closeActionMenu();
+  }
+
+  cancelForwardMessage(): void {
+    this.forwardingMessage.set(null);
+    this.isForwardModalOpen.set(false);
+    this.selectedForwardConversationIds.set([]);
+  }
 
   private readonly handleVisibilityChange = (): void => {
     if (document.visibilityState === 'visible') {
@@ -1060,75 +1043,81 @@ cancelForwardMessage(): void {
   cancelReply(): void {
     this.replyingToMessage.set(null);
   }
-  sendMessage(): void {
-    const conversationId = this.conversationId();
-    const rawBody = this.messageText().trim();
 
-    const editingMessage = this.editingMessage();
 
-if (editingMessage) {
-  if (!rawBody) {
+
+private stopTypingState(conversationId: string | null): void {
+  if (conversationId && this.isTypingSent) {
+    void this.chatSignalR.stopTyping(conversationId);
+    this.isTypingSent = false;
+  }
+
+  if (this.typingStopTimer) {
+    clearTimeout(this.typingStopTimer);
+    this.typingStopTimer = null;
+  }
+}
+
+
+sendMessage(): void {
+  const conversationId = this.conversationId();
+  const rawBody = this.messageText().trim();
+
+  const editingMessage = this.editingMessage();
+
+  if (editingMessage) {
+    if (!rawBody) {
+      return;
+    }
+
+    const editedAtUtc = new Date().toISOString();
+
+    this.messagesState.handleMessageEdited({
+      id: editingMessage.id,
+      body: rawBody,
+      editedAtUtc
+    });
+
+    this.editingMessage.set(null);
+    this.messageText.set('');
+
+    if (!navigator.onLine) {
+      void this.pendingOperations.add('editMessage', {
+        messageId: editingMessage.id,
+        body: rawBody
+      });
+
+      this.stopTypingState(conversationId);
+      return;
+    }
+
+    this.messagesApi.editMessage(editingMessage.id, {
+      body: rawBody
+    }).subscribe();
+
+    this.stopTypingState(conversationId);
     return;
   }
 
-  this.messagesApi.editMessage(editingMessage.id, {
-    body: rawBody
-  }).subscribe({
-    next: editedMessage => {
-      this.messagesState.handleMessageEdited(editedMessage);
-      this.editingMessage.set(null);
-      this.messageText.set('');
-    }
+  if (!conversationId || !rawBody) {
+    return;
+  }
+
+  this.messagesState.send({
+    conversationId,
+    clientMessageId: crypto.randomUUID(),
+    body: rawBody,
+    replyToMessageId: this.replyingToMessage()?.id ?? null,
+    attachments: []
   });
 
-  return;
+  this.messageText.set('');
+  this.replyingToMessage.set(null);
+  this.selectedAttachments.set([]);
+
+  this.stopTypingState(conversationId);
+  this.scrollToBottom();
 }
-
-    const attachments = this.selectedAttachments()
-      .filter(x => !x.isUploading && !x.error)
-      .map(file => ({
-        fileId: file.fileId,
-        fileName: file.fileName,
-        contentType: file.contentType,
-        size: file.size,
-        storagePath: file.storagePath
-      }));
-
-    const hasAttachments = attachments.length > 0;
-
-    if (!conversationId || (!rawBody && !hasAttachments)) {
-      return;
-    }
-
-    if (this.hasUploadingAttachments()) {
-      return;
-    }
-
-
-
-    this.messagesState.send({
-      conversationId,
-      clientMessageId: crypto.randomUUID(),
-      body: rawBody,
-      replyToMessageId: this.replyingToMessage()?.id ?? null,
-      attachments
-    });
-
-    this.messageText.set('');
-    this.selectedAttachments.set([]);
-    this.replyingToMessage.set(null);
-    if (conversationId && this.isTypingSent) {
-      this.chatSignalR.stopTyping(conversationId);
-      this.isTypingSent = false;
-    }
-
-    if (this.typingStopTimer) {
-      clearTimeout(this.typingStopTimer);
-      this.typingStopTimer = null;
-    }
-
-    this.scrollToBottom();
-  }
   ngOnDestroy(): void {
     this.chatSignalR.stopPresenceRenewTimer();
 
@@ -1208,7 +1197,7 @@ if (editingMessage) {
     this.chatSignalR.stopPresenceRenewTimer();
 
     if (oldConversationId && oldConversationId !== newConversationId) {
-      console.log('Leaving conversation:', oldConversationId);
+     
 
       await this.chatSignalR.leaveConversation(oldConversationId);
       this.presenceState.clearConversation(oldConversationId);
@@ -1217,7 +1206,11 @@ if (editingMessage) {
     this.activeConversationId = newConversationId;
     this.conversationId.set(newConversationId);
     this.messagesState.clear();
-
+this.selectedAttachments.set([]);
+this.pendingImageFile.set(null);
+this.isSendModeOpen.set(false);
+this.replyingToMessage.set(null);
+this.editingMessage.set(null);
     this.lastDeliveredSequenceNumber = null;
     this.lastSeenSequenceNumber = null;
 
@@ -1227,13 +1220,20 @@ if (editingMessage) {
 
     this.messagesState.load(newConversationId)
       .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.scrollToBottom();
+      .subscribe({
+        next: () => {
+         
 
-        requestAnimationFrame(() => {
-          this.markCurrentConversationAsDelivered();
-          this.markCurrentConversationAsSeenIfAllowed();
-        });
+          this.scrollToBottom();
+
+          requestAnimationFrame(() => {
+            this.markCurrentConversationAsDelivered();
+            this.markCurrentConversationAsSeenIfAllowed();
+          });
+        },
+        error: error => {
+          console.error('messagesState.load failed:', error);
+        }
       });
 
     await this.chatSignalR.joinConversation(newConversationId);
@@ -1242,57 +1242,117 @@ if (editingMessage) {
   }
 
   onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
 
-    input.value = '';
+  input.value = '';
 
-    if (files.length === 0) {
+  const conversationId = this.conversationId();
+
+  if (!conversationId || files.length === 0) {
+    return;
+  }
+
+  files.forEach(file => {
+    if (file.type.startsWith('image/')) {
+      void this.sendImageAsLocalMediaMessage(file);
       return;
     }
 
-    files.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        // فعلاً پیش‌فرض Send as Photo
-        void this.compressAndUploadImage(file);
-        return;
-      }
+    void this.messagesState.sendLocalMediaMessage({
+      conversationId,
+      file,
+      body: '',
+      replyToMessageId: this.replyingToMessage()?.id ?? null
+    });
+  });
 
-      this.uploadAttachment(file);
+  this.replyingToMessage.set(null);
+  this.scrollToBottom();
+}
+
+
+private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
+  const conversationId = this.conversationId();
+
+  if (!conversationId) {
+    return;
+  }
+
+  try {
+    const compressedFile = await imageCompression(file, {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1600,
+      useWebWorker: true,
+      fileType: 'image/jpeg',
+      initialQuality: 0.8
+    });
+
+    const renamedFile = new File(
+      [compressedFile],
+      file.name,
+      {
+        type: compressedFile.type,
+        lastModified: Date.now()
+      }
+    );
+
+    await this.messagesState.sendLocalMediaMessage({
+      conversationId,
+      file: renamedFile,
+      body: '',
+      replyToMessageId: this.replyingToMessage()?.id ?? null
+    });
+  } catch {
+    await this.messagesState.sendLocalMediaMessage({
+      conversationId,
+      file,
+      body: '',
+      replyToMessageId: this.replyingToMessage()?.id ?? null
     });
   }
+}
 
+  // private async compressAndUploadImage(file: File): Promise<void> {
+  //   const tempId = this.addPendingAttachment(file);
 
-  private async compressAndUploadImage(file: File): Promise<void> {
-    const tempId = this.addPendingAttachment(file);
+  //   try {
 
-    try {
+  //     const compressedFile = await imageCompression(file, {
+  //       maxSizeMB: 1,
+  //       maxWidthOrHeight: 1600,
+  //       useWebWorker: true,
+  //       fileType: 'image/jpeg',
+  //       initialQuality: 0.8
+  //     });
 
-      const compressedFile = await imageCompression(file, {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1600,
-        useWebWorker: true,
-        fileType: 'image/jpeg',
-        initialQuality: 0.8
-      });
+  //     const renamedFile = new File(
+  //       [compressedFile],
+  //       file.name,
+  //       {
+  //         type: compressedFile.type,
+  //         lastModified: Date.now()
+  //       }
+  //     );
+  //     this.updateSelectedAttachment(tempId, {
+  //       localFile: renamedFile,
+  //       isUploading: navigator.onLine,
+  //       isOfflinePending: !navigator.onLine,
+  //       progress: navigator.onLine ? 0 : 100
+  //     });
 
-      const renamedFile = new File(
-        [compressedFile],
-        file.name,
-        {
-          type: compressedFile.type,
-          lastModified: Date.now()
-        }
-      );
+  //     if (!navigator.onLine) {
+  //       return;
+  //     }
 
-      this.uploadAttachmentByTempId(tempId, renamedFile);
-    } catch {
-      this.updateSelectedAttachment(tempId, {
-        isUploading: false,
-        error: 'Compression failed'
-      });
-    }
-  }
+  //     this.uploadAttachmentByTempId(tempId, renamedFile);
+  //   } catch {
+  //     this.updateSelectedAttachment(tempId, {
+  //       isUploading: false,
+  //       error: 'Compression failed'
+  //     });
+  //   }
+  // }
 
 
   sendPendingImageAsFile(): void {
@@ -1305,7 +1365,7 @@ if (editingMessage) {
     this.isSendModeOpen.set(false);
     this.pendingImageFile.set(null);
 
-    this.uploadAttachment(file);
+   // this.uploadAttachment(file);
   }
 
   async sendPendingImageAsPhoto(): Promise<void> {
@@ -1326,7 +1386,7 @@ if (editingMessage) {
       initialQuality: 0.8
     });
 
-    this.uploadAttachment(compressedFile);
+   // this.uploadAttachment(compressedFile);
   }
 
   cancelSendMode(): void {
@@ -1335,10 +1395,15 @@ if (editingMessage) {
   }
 
 
-  private uploadAttachment(file: File): void {
-    const tempId = this.addPendingAttachment(file);
-    this.uploadAttachmentByTempId(tempId, file);
-  }
+  // private uploadAttachment(file: File): void {
+  //   const tempId = this.addPendingAttachment(file);
+
+  //   if (!navigator.onLine) {
+  //     return;
+  //   }
+
+  //   this.uploadAttachmentByTempId(tempId, file);
+  // }
 
 
 
@@ -1374,63 +1439,65 @@ if (editingMessage) {
       (!message.body || message.body.trim().length === 0)
     );
   }
-  private addPendingAttachment(file: File): string {
-    const tempId = crypto.randomUUID();
+  // private addPendingAttachment(file: File): string {
+  //   const tempId = crypto.randomUUID();
 
-    const localPreviewUrl = file.type.startsWith('image/')
-      ? URL.createObjectURL(file)
-      : undefined;
+  //   const localPreviewUrl = file.type.startsWith('image/')
+  //     ? URL.createObjectURL(file)
+  //     : undefined;
 
-    this.selectedAttachments.set([
-      ...this.selectedAttachments(),
-      {
-        fileId: tempId,
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        size: file.size,
-        storagePath: '',
-        progress: 0,
-        isUploading: true,
-        error: null,
-        localPreviewUrl
-      }
-    ]);
+  //   this.selectedAttachments.set([
+  //     ...this.selectedAttachments(),
+  //     {
+  //       fileId: tempId,
+  //       fileName: file.name,
+  //       contentType: file.type || 'application/octet-stream',
+  //       size: file.size,
+  //       storagePath: '',
+  //       progress: 0,
+  //       isUploading: navigator.onLine,
+  //       error: null,
+  //       localPreviewUrl,
+  //       localFile: file,
+  //       isOfflinePending: !navigator.onLine,
+  //     }
+  //   ]);
 
-    return tempId;
-  }
+  //   return tempId;
+  // }
 
-  private uploadAttachmentByTempId(tempId: string, file: File): void {
-    this.filesApi.uploadWithProgress(file).subscribe({
-      next: event => {
-        if (event.type === HttpEventType.UploadProgress) {
-          const progress = event.total
-            ? Math.round((event.loaded / event.total) * 100)
-            : 0;
+  // private uploadAttachmentByTempId(tempId: string, file: File): void {
+  //   this.filesApi.uploadWithProgress(file).subscribe({
+  //     next: event => {
+  //       if (event.type === HttpEventType.UploadProgress) {
+  //         const progress = event.total
+  //           ? Math.round((event.loaded / event.total) * 100)
+  //           : 0;
 
-          this.updateSelectedAttachment(tempId, { progress });
-        }
+  //         this.updateSelectedAttachment(tempId, { progress });
+  //       }
 
-        if (event.type === HttpEventType.Response && event.body) {
-          this.updateSelectedAttachment(tempId, {
-            fileId: event.body.fileId,
-            fileName: event.body.fileName,
-            contentType: event.body.contentType,
-            size: event.body.size,
-            storagePath: event.body.storagePath,
-            progress: 100,
-            isUploading: false,
-            error: null
-          });
-        }
-      },
-      error: () => {
-        this.updateSelectedAttachment(tempId, {
-          isUploading: false,
-          error: 'Upload failed'
-        });
-      }
-    });
-  }
+  //       if (event.type === HttpEventType.Response && event.body) {
+  //         this.updateSelectedAttachment(tempId, {
+  //           fileId: event.body.fileId,
+  //           fileName: event.body.fileName,
+  //           contentType: event.body.contentType,
+  //           size: event.body.size,
+  //           storagePath: event.body.storagePath,
+  //           progress: 100,
+  //           isUploading: false,
+  //           error: null
+  //         });
+  //       }
+  //     },
+  //     error: () => {
+  //       this.updateSelectedAttachment(tempId, {
+  //         isUploading: false,
+  //         error: 'Upload failed'
+  //       });
+  //     }
+  //   });
+  // }
   isImageAlbumMessage(message: MessageDto): boolean {
     return (
       message.attachments.length > 1 &&
@@ -1532,6 +1599,9 @@ if (editingMessage) {
   }
 
   private markCurrentConversationAsDelivered(): void {
+    if (!navigator.onLine) {
+      return;
+    }
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
@@ -1551,6 +1621,9 @@ if (editingMessage) {
   }
 
   private markCurrentConversationAsSeenIfAllowed(): void {
+    if (!navigator.onLine) {
+      return;
+    }
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
@@ -1689,31 +1762,31 @@ if (editingMessage) {
     return message.senderUserId === this.currentUserId();
   }
 
-startEditMessage(message: MessageDto): void {
-  if (!message.body || message.body.trim().length === 0) {
-    return;
+  startEditMessage(message: MessageDto): void {
+    if (!message.body || message.body.trim().length === 0) {
+      return;
+    }
+
+    this.editingMessage.set(message);
+    this.messageText.set(message.body);
+    this.closeActionMenu();
   }
 
-  this.editingMessage.set(message);
-  this.messageText.set(message.body);
-  this.closeActionMenu();
-}
+  cancelEditMessage(): void {
+    this.editingMessage.set(null);
+    this.messageText.set('');
+  }
 
-cancelEditMessage(): void {
-  this.editingMessage.set(null);
-  this.messageText.set('');
-}
-
-deleteMessage(message: MessageDto): void {
-  this.messagesApi.deleteMessage(message.id).subscribe({
-    next: () => {
-      this.closeActionMenu();
-    },
-    error: () => {
-      this.closeActionMenu();
-    }
-  });
-}
+  deleteMessage(message: MessageDto): void {
+    this.messagesApi.deleteMessage(message.id).subscribe({
+      next: () => {
+        this.closeActionMenu();
+      },
+      error: () => {
+        this.closeActionMenu();
+      }
+    });
+  }
   copyMessage(message: MessageDto): void {
     if (!message.body) {
       return;
@@ -1732,45 +1805,77 @@ deleteMessage(message: MessageDto): void {
     return viewportHeight - rect.bottom < 180;
   }
   toggleForwardTarget(conversationId: string): void {
-  const current = this.selectedForwardConversationIds();
+    const current = this.selectedForwardConversationIds();
 
-  if (current.includes(conversationId)) {
-    this.selectedForwardConversationIds.set(
-      current.filter(x => x !== conversationId)
-    );
-    return;
+    if (current.includes(conversationId)) {
+      this.selectedForwardConversationIds.set(
+        current.filter(x => x !== conversationId)
+      );
+      return;
+    }
+
+    this.selectedForwardConversationIds.set([
+      ...current,
+      conversationId
+    ]);
   }
 
-  this.selectedForwardConversationIds.set([
-    ...current,
-    conversationId
-  ]);
-}
-
-isForwardTargetSelected(conversationId: string): boolean {
-  return this.selectedForwardConversationIds().includes(conversationId);
-}
- 
-
-forwardSelectedMessage(): void {
-  const targetConversationIds = this.selectedForwardConversationIds();
-
-  if (targetConversationIds.length === 0) {
-    return;
+  isForwardTargetSelected(conversationId: string): boolean {
+    return this.selectedForwardConversationIds().includes(conversationId);
   }
 
-  this.isForwarding.set(true);
 
-  if (this.isMessageSelectionMode()) {
-    const sourceMessageIds = this.selectedMessageIds();
+  forwardSelectedMessage(): void {
+    const targetConversationIds = this.selectedForwardConversationIds();
 
-    if (sourceMessageIds.length === 0) {
+    if (targetConversationIds.length === 0) {
+      return;
+    }
+
+    this.isForwarding.set(true);
+
+    if (this.isMessageSelectionMode()) {
+      const sourceMessageIds = this.selectedMessageIds();
+
+      if (sourceMessageIds.length === 0) {
+        this.isForwarding.set(false);
+        return;
+      }
+
+      this.messagesApi.forwardMessagesBatch({
+        sourceMessageIds,
+        targetConversationIds,
+        comment: null
+      }).subscribe({
+        next: () => {
+          const targetConversationId = targetConversationIds[0];
+
+          this.isForwarding.set(false);
+          this.cancelForwardMessage();
+          this.cancelMessageSelection();
+
+          this.router.navigate([
+            '/app/conversations',
+            targetConversationId
+          ]);
+        },
+        error: () => {
+          this.isForwarding.set(false);
+        }
+      });
+
+      return;
+    }
+
+    const message = this.forwardingMessage();
+
+    if (!message) {
       this.isForwarding.set(false);
       return;
     }
 
-    this.messagesApi.forwardMessagesBatch({
-      sourceMessageIds,
+    this.messagesApi.forwardMessage({
+      sourceMessageId: message.id,
       targetConversationIds,
       comment: null
     }).subscribe({
@@ -1779,7 +1884,6 @@ forwardSelectedMessage(): void {
 
         this.isForwarding.set(false);
         this.cancelForwardMessage();
-        this.cancelMessageSelection();
 
         this.router.navigate([
           '/app/conversations',
@@ -1790,81 +1894,53 @@ forwardSelectedMessage(): void {
         this.isForwarding.set(false);
       }
     });
-
-    return;
   }
 
-  const message = this.forwardingMessage();
 
-  if (!message) {
-    this.isForwarding.set(false);
-    return;
+
+  startMessageSelection(message: MessageDto): void {
+    this.isMessageSelectionMode.set(true);
+    this.selectedMessageIds.set([message.id]);
+    this.closeActionMenu();
   }
 
-  this.messagesApi.forwardMessage({
-    sourceMessageId: message.id,
-    targetConversationIds,
-    comment: null
-  }).subscribe({
-    next: () => {
-      const targetConversationId = targetConversationIds[0];
+  cancelMessageSelection(): void {
+    this.isMessageSelectionMode.set(false);
+    this.selectedMessageIds.set([]);
+  }
 
-      this.isForwarding.set(false);
-      this.cancelForwardMessage();
+  toggleMessageSelection(message: MessageDto): void {
+    const current = this.selectedMessageIds();
 
-      this.router.navigate([
-        '/app/conversations',
-        targetConversationId
-      ]);
-    },
-    error: () => {
-      this.isForwarding.set(false);
-    }
-  });
-}
+    if (current.includes(message.id)) {
+      const next = current.filter(x => x !== message.id);
 
+      this.selectedMessageIds.set(next);
 
+      if (next.length === 0) {
+        this.isMessageSelectionMode.set(false);
+      }
 
-startMessageSelection(message: MessageDto): void {
-  this.isMessageSelectionMode.set(true);
-  this.selectedMessageIds.set([message.id]);
-  this.closeActionMenu();
-}
-
-cancelMessageSelection(): void {
-  this.isMessageSelectionMode.set(false);
-  this.selectedMessageIds.set([]);
-}
-
-toggleMessageSelection(message: MessageDto): void {
-  const current = this.selectedMessageIds();
-
-  if (current.includes(message.id)) {
-    const next = current.filter(x => x !== message.id);
-
-    this.selectedMessageIds.set(next);
-
-    if (next.length === 0) {
-      this.isMessageSelectionMode.set(false);
+      return;
     }
 
-    return;
+    this.selectedMessageIds.set([...current, message.id]);
   }
 
-  this.selectedMessageIds.set([...current, message.id]);
-}
-
-isMessageSelected(message: MessageDto): boolean {
-  return this.selectedMessageIds().includes(message.id);
-}
-
-startForwardSelectedMessages(): void {
-  if (this.selectedMessageIds().length === 0) {
-    return;
+  isMessageSelected(message: MessageDto): boolean {
+    return this.selectedMessageIds().includes(message.id);
   }
 
-  this.forwardingMessage.set(null);
-  this.isForwardModalOpen.set(true);
-  this.closeActionMenu();
-}
+  startForwardSelectedMessages(): void {
+    if (this.selectedMessageIds().length === 0) {
+      return;
+    }
+
+    this.forwardingMessage.set(null);
+    this.isForwardModalOpen.set(true);
+    this.closeActionMenu();
+  }
+
+
+
 }
