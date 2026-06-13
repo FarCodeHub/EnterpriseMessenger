@@ -28,6 +28,18 @@ export class PendingOperationsRepository {
     return operation;
   }
 
+
+  async resetAllToPending(): Promise<void> {
+  const operations = await appLocalDb.pendingOperations.toArray();
+
+  await appLocalDb.pendingOperations.bulkPut(
+    operations.map(operation => ({
+      ...operation,
+      status: 'pending' as const
+    }))
+  );
+}
+
   async getPending(): Promise<PendingOperation[]> {
     return appLocalDb.pendingOperations
       .where('status')

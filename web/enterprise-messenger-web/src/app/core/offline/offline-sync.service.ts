@@ -9,10 +9,14 @@ import { Subject } from 'rxjs';
 import { MessageDto } from '../../features/messages/models/message.dto';
 import { EditMessageRequest } from '../../features/messages/models/edit-message.request';
 import { FilesApiService } from '../services/files-api.service';
+import { OfflineFilesRepository } from './offline-files.repository';
 @Injectable({
     providedIn: 'root'
 })
 export class OfflineSyncService {
+    private syncRequested = false;
+    private syncRequestTimer: ReturnType<typeof setTimeout> | null = null;
+    private readonly offlineFiles = inject(OfflineFilesRepository);
     private readonly filesApi = inject(FilesApiService);
     readonly messageSyncFailed$ = new Subject<string>();
     private readonly networkStatus = inject(NetworkStatusService);
@@ -28,15 +32,65 @@ export class OfflineSyncService {
     constructor() {
         void this.pendingOperations.resetProcessingToPending();
 
+        setTimeout(() => {
+            this.requestSync('app-startup');
+        }, 2000);
+
+        window.addEventListener('online', () => {
+            this.requestSync('browser-online');
+        });
+
         effect(() => {
             if (this.networkStatus.isOnline()) {
-                void this.syncPendingOperations();
+                this.requestSync('network-status-online');
             }
         });
     }
 
+    requestSync(reason: string): void {
+        
+
+        if (this.syncRequested) {
+            return;
+        }
+
+        this.syncRequested = true;
+
+        if (this.syncRequestTimer) {
+            clearTimeout(this.syncRequestTimer);
+        }
+
+        this.syncRequestTimer = setTimeout(() => {
+            this.syncRequested = false;
+            this.syncRequestTimer = null;
+
+           void this.syncPendingOperations();
+        }, 1500);
+    }
+    async forceSyncPendingOperations(): Promise<void> {
+        if (this.isSyncing) {
+            return;
+        }
+
+        if (!navigator.onLine && !this.networkStatus.isOnline()) {
+            return;
+        }
+
+       
+
+        await this.pendingOperations.resetAllToPending();
+
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+
+        await this.syncPendingOperations();
+    }
+
+
     async syncPendingOperations(): Promise<void> {
-        console.log('Sync started. Online:', this.networkStatus.isOnline());
+       
         if (this.isSyncing) {
             return;
         }
@@ -49,12 +103,17 @@ export class OfflineSyncService {
 
         try {
             const operations = await this.pendingOperations.getPending();
-            console.log('Pending operations:', operations);
+          
 
             for (const operation of operations) {
                 await this.pendingOperations.markProcessing(operation.id);
 
                 try {
+
+
+                 
+
+
                     if (operation.type === 'sendMessage') {
                         await this.syncSendMessage(operation.payload as SendMessageRequest);
                     }
@@ -71,35 +130,44 @@ export class OfflineSyncService {
                     }
 
                     if (operation.type === 'sendMessageWithAttachments') {
+                       
                         await this.syncSendMessageWithAttachments(operation.payload as {
                             conversationId: string;
                             clientMessageId: string;
                             body: string;
                             replyToMessageId: string | null;
-                            files: File[];
+                            fileIds: string[];
                         });
                     }
 
+
+
+
+
+
                     await this.pendingOperations.remove(operation.id);
                     this.retryDelayMs = 3000;
-                } catch (error) {
-                    console.warn('Pending operation sync failed:', operation, error);
+           } catch (error) {
+  console.warn('Pending operation sync failed:', operation, error);
 
-                    await this.pendingOperations.markFailed(operation.id);
+  await this.pendingOperations.markFailed(operation.id);
 
-                    const updatedOperation = await this.pendingOperations.getById(operation.id);
+  const updatedOperation = await this.pendingOperations.getById(operation.id);
 
-                    if (
-                        updatedOperation?.status === 'failed' &&
-                        operation.type === 'sendMessage'
-                    ) {
-                        const payload = operation.payload as SendMessageRequest;
+  if (
+    updatedOperation?.status === 'failed' &&
+    (
+      operation.type === 'sendMessage' ||
+      operation.type === 'sendMessageWithAttachments'
+    )
+  ) {
+    const payload = operation.payload as { clientMessageId: string };
+    this.messageSyncFailed$.next(payload.clientMessageId);
+    return;
+  }
 
-                        this.messageSyncFailed$.next(payload.clientMessageId);
-                    } else {
-                        this.scheduleRetry();
-                    }
-                }
+  this.scheduleRetry();
+}
             }
         } finally {
             this.isSyncing = false;
@@ -117,9 +185,8 @@ export class OfflineSyncService {
             receiptStatus: 'sent'
         };
 
+        await this.offlineMessages.deleteByClientMessageId(request.clientMessageId);
         await this.offlineMessages.save(syncedMessage);
-
-        this.messageSynced$.next(syncedMessage);
     }
 
     private async syncEditMessage(
@@ -133,17 +200,13 @@ export class OfflineSyncService {
 
 
     private scheduleRetry(): void {
-        if (!this.networkStatus.isOnline()) {
-            return;
-        }
-
         if (this.retryTimer) {
             return;
         }
 
         this.retryTimer = setTimeout(() => {
             this.retryTimer = null;
-            void this.syncPendingOperations();
+            this.requestSync('retry-backoff');
         }, this.retryDelayMs);
 
         this.retryDelayMs = Math.min(
@@ -157,14 +220,36 @@ export class OfflineSyncService {
         clientMessageId: string;
         body: string;
         replyToMessageId: string | null;
-        files: File[];
+        fileIds: string[];
     }): Promise<void> {
+        
+
         const uploadedAttachments = [];
 
-        for (const file of input.files) {
-            const uploaded = await firstValueFrom(
-                this.filesApi.upload(file)
+        for (const fileId of input.fileIds) {
+            
+
+            const localFile = await this.offlineFiles.get(fileId);
+
+           
+
+            if (!localFile) {
+                throw new Error(`Pending file not found: ${fileId}`);
+            }
+
+            const uploadFile = new File(
+                [localFile.blob],
+                localFile.fileName,
+                { type: localFile.contentType }
             );
+
+           
+
+            const uploaded = await firstValueFrom(
+                this.filesApi.upload(uploadFile)
+            );
+
+          
 
             uploadedAttachments.push({
                 fileId: uploaded.fileId,
@@ -174,6 +259,8 @@ export class OfflineSyncService {
                 storagePath: uploaded.storagePath
             });
         }
+
+      
 
         const message = await firstValueFrom(
             this.messagesApi.sendMessage({
@@ -185,6 +272,8 @@ export class OfflineSyncService {
             })
         );
 
+       
+
         const syncedMessage: MessageDto = {
             ...message,
             clientMessageId: input.clientMessageId,
@@ -192,7 +281,13 @@ export class OfflineSyncService {
 
         };
 
+        await this.offlineMessages.deleteByClientMessageId(input.clientMessageId);
+
         await this.offlineMessages.save(syncedMessage);
+
+        for (const fileId of input.fileIds) {
+            await this.offlineFiles.remove(fileId);
+        }
 
         this.messageSynced$.next(syncedMessage);
     }

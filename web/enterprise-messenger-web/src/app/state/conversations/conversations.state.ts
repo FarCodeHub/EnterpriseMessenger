@@ -53,7 +53,7 @@ load(): void {
 
   handleConversationUpdated(event: ConversationUpdatedEvent): void {
     
-console.log(event);
+ 
     const current = this.conversationsSignal();
 
     const index = current.findIndex(x => x.id === event.conversationId);
@@ -66,8 +66,7 @@ console.log(event);
 
     const conversation = updated[index];
 
-    console.log('before update:', conversation.lastMessageSenderDisplayName);
-console.log('event sender:', event.senderDisplayName);
+ 
     updated[index] = {
       ...conversation,
       lastMessageId: event.lastMessageId,
@@ -76,7 +75,7 @@ console.log('event sender:', event.senderDisplayName);
       lastMessageSenderDisplayName: event.senderDisplayName,
       lastMessageAtUtc: event.createdAtUtc
     };
-console.log('after update:', updated[index].lastMessageSenderDisplayName);
+ 
 
     
 

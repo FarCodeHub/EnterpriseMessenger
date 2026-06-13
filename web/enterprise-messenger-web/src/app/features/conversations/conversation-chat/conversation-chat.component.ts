@@ -349,6 +349,17 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
     @if (isMediaOnlyMessage(message)) {
       <div class="absolute bottom-2 end-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white">
         {{ message.createdAtUtc | date:'shortTime' }}
+
+@if (message.receiptStatus === 'failed') {
+  <button
+    type="button"
+    class="ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
+    (click)="messagesState.retryMessage(message)"
+  >
+    Retry
+  </button>
+}
+
       @if (message.senderUserId === currentUserId()) {
   <span
     class="ms-1"
@@ -618,62 +629,7 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
 }
 
 <footer class="border-t border-white/10 bg-slate-900 px-4 py-3">
-  
-@if (selectedAttachments().length > 0) {
-  <div class="mb-3 flex w-full flex-wrap gap-3">
-    @for (attachment of selectedAttachments(); track attachment.fileId) {
-      <div class="relative w-32 rounded-2xl bg-slate-800 p-2 shadow">
-        <button
-          type="button"
-          class="absolute -end-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs text-white hover:bg-red-500"
-          (click)="removeSelectedAttachment(attachment.fileId)"
-        >
-          ×
-        </button>
-
-        @if (attachment.localPreviewUrl) {
-          <img
-            class="h-24 w-full rounded-xl object-cover"
-            [src]="attachment.localPreviewUrl"
-            [alt]="attachment.fileName"
-          />
-        } @else {
-          <div class="flex h-24 w-full items-center justify-center rounded-xl bg-slate-700 px-2 text-center text-xs text-slate-300">
-            📎 {{ attachment.fileName }}
-          </div>
-        }
-
-        <!-- <div class="mt-2 truncate text-xs text-slate-300">
-          {{ attachment.fileName }}
-        </div> -->
-
-        @if (attachment.isUploading) {
-          <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700">
-            <div
-              class="h-full rounded-full bg-blue-500"
-              [style.width.%]="attachment.progress"
-            ></div>
-          </div>
-        }
-
-        @if (!attachment.isUploading && !attachment.error) {
-          <div class="mt-2 text-center text-xs text-emerald-400">
-            ✓ Uploaded
-          </div>
-        }
-
-        @if (attachment.error) {
-          <div class="mt-2 text-center text-xs text-red-400">
-            Upload failed
-          </div>
-        }
-      </div>
-    }
-  </div>
-}
-
-
-
+   
 @if (replyingToMessage()) {
   <div class="mb-3 w-full overflow-hidden rounded-xl border-s-4 border-blue-500 bg-slate-800 px-4 py-3">
     <div class="flex min-w-0 items-start justify-between gap-3">
@@ -752,9 +708,6 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
 
 <button
   type="submit"
-  [disabled]="hasUploadingAttachments()"
-  [class.opacity-50]="hasUploadingAttachments()"
-[class.cursor-not-allowed]="hasUploadingAttachments()"
   class="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
  @if (editingMessage()) {
   {{ 'conversations.messages.input.save' | translate }}
@@ -762,58 +715,23 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
   {{ 'conversations.messages.input.send' | translate }}
 }
 </button>
+
+ 
   </form>
 </footer>
-@if (isSendModeOpen()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-slate-900 p-5 text-white shadow-2xl">
-      <h3 class="text-lg font-bold">
-        {{ 'attachments.sendMode.title' | translate }}
-      </h3>
-
-      <p class="mt-2 text-sm text-slate-400">
-        {{ pendingImageFile()?.name }}
-      </p>
-
-      <div class="mt-5 space-y-3">
-        <button
-          type="button"
-          class="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold hover:bg-blue-500"
-          (click)="sendPendingImageAsPhoto()"
-        >
-          {{ 'attachments.sendMode.asPhoto' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="w-full rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold hover:bg-slate-700"
-          (click)="sendPendingImageAsFile()"
-        >
-          {{ 'attachments.sendMode.asFile' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="w-full rounded-xl px-4 py-3 text-sm text-slate-400 hover:bg-white/5"
-          (click)="cancelSendMode()"
-        >
-          {{ 'common.cancel' | translate }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
+ 
     </div>
   `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
   private readonly pendingOperations = inject(PendingOperationsRepository);
-  private readonly offlineSync = inject(OfflineSyncService);
+ 
   readonly editingMessage = signal<MessageDto | null>(null);
   readonly isMessageSelectionMode = signal(false);
   readonly selectedMessageIds = signal<string[]>([]);
   private readonly router = inject(Router);
   private readonly messagesApi = inject(MessagesApiService);
+  readonly offlineSync = inject(OfflineSyncService);
   readonly isForwarding = signal(false);
   readonly selectedForwardConversationIds = signal<string[]>([]);
   readonly actionMenuPosition = signal<{ x: number; y: number } | null>(null);
@@ -859,6 +777,9 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   readonly hasUploadingAttachments = computed(() =>
     this.selectedAttachments().some(x => x.isUploading)
   );
+
+
+
   readonly conversationPresenceUserId = computed(() => {
     const conversation = this.conversation();
 
@@ -900,7 +821,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
     this.chatSignalR.presenceSnapshot$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-        console.log('presence.snapshot received:', event);
+       
         this.presenceState.setSnapshot(
           event.conversationId,
           event.userIds
@@ -913,7 +834,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
     this.chatSignalR.presenceChanged$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-        console.log('presence.changed received:', event);
+       
 
 
         this.presenceState.setUserPresence(
@@ -925,11 +846,11 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
 
 
 
-this.offlineSync.messageSyncFailed$
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(clientMessageId => {
-    this.messagesState.markMessageAsFailed(clientMessageId);
-  });
+    this.offlineSync.messageSyncFailed$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(clientMessageId => {
+        this.messagesState.markMessageAsFailed(clientMessageId);
+      });
 
     this.chatSignalR.messageCreated$
       .pipe(takeUntil(this.destroy$))
@@ -979,20 +900,20 @@ this.offlineSync.messageSyncFailed$
 
 
 
-this.offlineSync.messageSynced$
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(message => {
-    if (message.conversationId === this.conversationId()) {
-      this.messagesState.handleSyncedMessage(message);
-    }
-  });
+    this.offlineSync.messageSynced$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(message => {
+        if (message.conversationId === this.conversationId()) {
+          this.messagesState.handleSyncedMessage(message);
+        }
+      });
 
 
     this.chatSignalR.reconnected$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         const conversationId = this.conversationId();
-
+this.offlineSync.requestSync('signalr-reconnected');
         if (conversationId) {
           this.chatSignalR.joinConversation(conversationId);
           this.chatSignalR.startPresenceRenewTimer(conversationId);
@@ -1040,6 +961,16 @@ this.offlineSync.messageSynced$
 
 
   }
+
+
+
+syncNow(): void {
+  alert('sync clicked');
+ 
+  void this.offlineSync.forceSyncPendingOperations();
+}
+
+
   startForwardMessage(message: MessageDto): void {
     this.forwardingMessage.set(message);
     this.isForwardModalOpen.set(true);
@@ -1112,109 +1043,81 @@ this.offlineSync.messageSynced$
   cancelReply(): void {
     this.replyingToMessage.set(null);
   }
-  sendMessage(): void {
-    const conversationId = this.conversationId();
-    const rawBody = this.messageText().trim();
 
-    const editingMessage = this.editingMessage();
 
- if (editingMessage) {
-  if (!rawBody) {
-    return;
+
+private stopTypingState(conversationId: string | null): void {
+  if (conversationId && this.isTypingSent) {
+    void this.chatSignalR.stopTyping(conversationId);
+    this.isTypingSent = false;
   }
 
-  const editedAtUtc = new Date().toISOString();
-
-  this.messagesState.handleMessageEdited({
-    id: editingMessage.id,
-    body: rawBody,
-    editedAtUtc
-  });
-
-  this.editingMessage.set(null);
-  this.messageText.set('');
-
-  if (!navigator.onLine) {
-    void this.pendingOperations.add('editMessage', {
-      messageId: editingMessage.id,
-      body: rawBody
-    });
-
-    return;
+  if (this.typingStopTimer) {
+    clearTimeout(this.typingStopTimer);
+    this.typingStopTimer = null;
   }
-
-  this.messagesApi.editMessage(editingMessage.id, {
-    body: rawBody
-  }).subscribe();
-
-  return;
 }
 
-    const attachments = this.selectedAttachments()
-      .filter(x => !x.isUploading && !x.error)
-      .map(file => ({
-        fileId: file.fileId,
-        fileName: file.fileName,
-        contentType: file.contentType,
-        size: file.size,
-        storagePath: file.storagePath
-      }));
 
-    const hasAttachments = attachments.length > 0;
-    const offlineAttachments = this.selectedAttachments()
-  .filter(x => x.isOfflinePending && x.localFile);
+sendMessage(): void {
+  const conversationId = this.conversationId();
+  const rawBody = this.messageText().trim();
 
-const hasOfflineAttachments = offlineAttachments.length > 0;
-if (!conversationId || (!rawBody && !hasAttachments && !hasOfflineAttachments)) {
-  return;
-}
+  const editingMessage = this.editingMessage();
 
-    if (this.hasUploadingAttachments()) {
+  if (editingMessage) {
+    if (!rawBody) {
       return;
     }
 
-if (hasOfflineAttachments) {
-  const clientMessageId = crypto.randomUUID();
+    const editedAtUtc = new Date().toISOString();
 
-  this.messagesState.sendOfflineMessageWithLocalAttachments({
+    this.messagesState.handleMessageEdited({
+      id: editingMessage.id,
+      body: rawBody,
+      editedAtUtc
+    });
+
+    this.editingMessage.set(null);
+    this.messageText.set('');
+
+    if (!navigator.onLine) {
+      void this.pendingOperations.add('editMessage', {
+        messageId: editingMessage.id,
+        body: rawBody
+      });
+
+      this.stopTypingState(conversationId);
+      return;
+    }
+
+    this.messagesApi.editMessage(editingMessage.id, {
+      body: rawBody
+    }).subscribe();
+
+    this.stopTypingState(conversationId);
+    return;
+  }
+
+  if (!conversationId || !rawBody) {
+    return;
+  }
+
+  this.messagesState.send({
     conversationId,
-    clientMessageId,
+    clientMessageId: crypto.randomUUID(),
     body: rawBody,
     replyToMessageId: this.replyingToMessage()?.id ?? null,
-    files: offlineAttachments.map(x => x.localFile!)
+    attachments: []
   });
 
   this.messageText.set('');
-  this.selectedAttachments.set([]);
   this.replyingToMessage.set(null);
+  this.selectedAttachments.set([]);
+
+  this.stopTypingState(conversationId);
   this.scrollToBottom();
-
-  return;
 }
-
-    this.messagesState.send({
-      conversationId,
-      clientMessageId: crypto.randomUUID(),
-      body: rawBody,
-      replyToMessageId: this.replyingToMessage()?.id ?? null,
-      attachments
-    });
-
-    this.messageText.set('');
-    this.selectedAttachments.set([]);
-    this.replyingToMessage.set(null);
-    if (conversationId && this.isTypingSent) {
-      this.chatSignalR.stopTyping(conversationId);
-      this.isTypingSent = false;
-    }
-
-    if (this.typingStopTimer) {
-      clearTimeout(this.typingStopTimer);
-      this.typingStopTimer = null;
-    }
-
-    this.scrollToBottom();
-  }
   ngOnDestroy(): void {
     this.chatSignalR.stopPresenceRenewTimer();
 
@@ -1294,7 +1197,7 @@ if (hasOfflineAttachments) {
     this.chatSignalR.stopPresenceRenewTimer();
 
     if (oldConversationId && oldConversationId !== newConversationId) {
-      console.log('Leaving conversation:', oldConversationId);
+     
 
       await this.chatSignalR.leaveConversation(oldConversationId);
       this.presenceState.clearConversation(oldConversationId);
@@ -1303,7 +1206,11 @@ if (hasOfflineAttachments) {
     this.activeConversationId = newConversationId;
     this.conversationId.set(newConversationId);
     this.messagesState.clear();
-
+this.selectedAttachments.set([]);
+this.pendingImageFile.set(null);
+this.isSendModeOpen.set(false);
+this.replyingToMessage.set(null);
+this.editingMessage.set(null);
     this.lastDeliveredSequenceNumber = null;
     this.lastSeenSequenceNumber = null;
 
@@ -1311,23 +1218,23 @@ if (hasOfflineAttachments) {
       return;
     }
 
-this.messagesState.load(newConversationId)
-  .pipe(takeUntil(this.destroy$))
-  .subscribe({
-    next: () => {
-      console.log('messages loaded for:', newConversationId);
+    this.messagesState.load(newConversationId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+         
 
-      this.scrollToBottom();
+          this.scrollToBottom();
 
-      requestAnimationFrame(() => {
-        this.markCurrentConversationAsDelivered();
-        this.markCurrentConversationAsSeenIfAllowed();
+          requestAnimationFrame(() => {
+            this.markCurrentConversationAsDelivered();
+            this.markCurrentConversationAsSeenIfAllowed();
+          });
+        },
+        error: error => {
+          console.error('messagesState.load failed:', error);
+        }
       });
-    },
-    error: error => {
-      console.error('messagesState.load failed:', error);
-    }
-  });
 
     await this.chatSignalR.joinConversation(newConversationId);
 
@@ -1335,67 +1242,117 @@ this.messagesState.load(newConversationId)
   }
 
   onFileSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
 
-    input.value = '';
+  input.value = '';
 
-    if (files.length === 0) {
+  const conversationId = this.conversationId();
+
+  if (!conversationId || files.length === 0) {
+    return;
+  }
+
+  files.forEach(file => {
+    if (file.type.startsWith('image/')) {
+      void this.sendImageAsLocalMediaMessage(file);
       return;
     }
 
-    files.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        // فعلاً پیش‌فرض Send as Photo
-        void this.compressAndUploadImage(file);
-        return;
-      }
-
-      this.uploadAttachment(file);
+    void this.messagesState.sendLocalMediaMessage({
+      conversationId,
+      file,
+      body: '',
+      replyToMessageId: this.replyingToMessage()?.id ?? null
     });
-  }
+  });
 
-
-  private async compressAndUploadImage(file: File): Promise<void> {
-    const tempId = this.addPendingAttachment(file);
-
-    try {
-
-      const compressedFile = await imageCompression(file, {
-        maxSizeMB: 1,
-        maxWidthOrHeight: 1600,
-        useWebWorker: true,
-        fileType: 'image/jpeg',
-        initialQuality: 0.8
-      });
-
-      const renamedFile = new File(
-        [compressedFile],
-        file.name,
-        {
-          type: compressedFile.type,
-          lastModified: Date.now()
-        }
-      );
-this.updateSelectedAttachment(tempId, {
-  localFile: renamedFile,
-  isUploading: navigator.onLine,
-  isOfflinePending: !navigator.onLine,
-  progress: navigator.onLine ? 0 : 100
-});
-
-if (!navigator.onLine) {
-  return;
+  this.replyingToMessage.set(null);
+  this.scrollToBottom();
 }
 
-this.uploadAttachmentByTempId(tempId, renamedFile);
-    } catch {
-      this.updateSelectedAttachment(tempId, {
-        isUploading: false,
-        error: 'Compression failed'
-      });
-    }
+
+private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
+  const conversationId = this.conversationId();
+
+  if (!conversationId) {
+    return;
   }
+
+  try {
+    const compressedFile = await imageCompression(file, {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1600,
+      useWebWorker: true,
+      fileType: 'image/jpeg',
+      initialQuality: 0.8
+    });
+
+    const renamedFile = new File(
+      [compressedFile],
+      file.name,
+      {
+        type: compressedFile.type,
+        lastModified: Date.now()
+      }
+    );
+
+    await this.messagesState.sendLocalMediaMessage({
+      conversationId,
+      file: renamedFile,
+      body: '',
+      replyToMessageId: this.replyingToMessage()?.id ?? null
+    });
+  } catch {
+    await this.messagesState.sendLocalMediaMessage({
+      conversationId,
+      file,
+      body: '',
+      replyToMessageId: this.replyingToMessage()?.id ?? null
+    });
+  }
+}
+
+  // private async compressAndUploadImage(file: File): Promise<void> {
+  //   const tempId = this.addPendingAttachment(file);
+
+  //   try {
+
+  //     const compressedFile = await imageCompression(file, {
+  //       maxSizeMB: 1,
+  //       maxWidthOrHeight: 1600,
+  //       useWebWorker: true,
+  //       fileType: 'image/jpeg',
+  //       initialQuality: 0.8
+  //     });
+
+  //     const renamedFile = new File(
+  //       [compressedFile],
+  //       file.name,
+  //       {
+  //         type: compressedFile.type,
+  //         lastModified: Date.now()
+  //       }
+  //     );
+  //     this.updateSelectedAttachment(tempId, {
+  //       localFile: renamedFile,
+  //       isUploading: navigator.onLine,
+  //       isOfflinePending: !navigator.onLine,
+  //       progress: navigator.onLine ? 0 : 100
+  //     });
+
+  //     if (!navigator.onLine) {
+  //       return;
+  //     }
+
+  //     this.uploadAttachmentByTempId(tempId, renamedFile);
+  //   } catch {
+  //     this.updateSelectedAttachment(tempId, {
+  //       isUploading: false,
+  //       error: 'Compression failed'
+  //     });
+  //   }
+  // }
 
 
   sendPendingImageAsFile(): void {
@@ -1408,7 +1365,7 @@ this.uploadAttachmentByTempId(tempId, renamedFile);
     this.isSendModeOpen.set(false);
     this.pendingImageFile.set(null);
 
-    this.uploadAttachment(file);
+   // this.uploadAttachment(file);
   }
 
   async sendPendingImageAsPhoto(): Promise<void> {
@@ -1429,7 +1386,7 @@ this.uploadAttachmentByTempId(tempId, renamedFile);
       initialQuality: 0.8
     });
 
-    this.uploadAttachment(compressedFile);
+   // this.uploadAttachment(compressedFile);
   }
 
   cancelSendMode(): void {
@@ -1438,15 +1395,15 @@ this.uploadAttachmentByTempId(tempId, renamedFile);
   }
 
 
-private uploadAttachment(file: File): void {
-  const tempId = this.addPendingAttachment(file);
+  // private uploadAttachment(file: File): void {
+  //   const tempId = this.addPendingAttachment(file);
 
-  if (!navigator.onLine) {
-    return;
-  }
+  //   if (!navigator.onLine) {
+  //     return;
+  //   }
 
-  this.uploadAttachmentByTempId(tempId, file);
-}
+  //   this.uploadAttachmentByTempId(tempId, file);
+  // }
 
 
 
@@ -1482,65 +1439,65 @@ private uploadAttachment(file: File): void {
       (!message.body || message.body.trim().length === 0)
     );
   }
-  private addPendingAttachment(file: File): string {
-    const tempId = crypto.randomUUID();
+  // private addPendingAttachment(file: File): string {
+  //   const tempId = crypto.randomUUID();
 
-    const localPreviewUrl = file.type.startsWith('image/')
-      ? URL.createObjectURL(file)
-      : undefined;
+  //   const localPreviewUrl = file.type.startsWith('image/')
+  //     ? URL.createObjectURL(file)
+  //     : undefined;
 
-    this.selectedAttachments.set([
-      ...this.selectedAttachments(),
-      {
-        fileId: tempId,
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        size: file.size,
-        storagePath: '',
-        progress: 0,
-        isUploading: navigator.onLine,
-        error: null,
-        localPreviewUrl,
-        localFile: file,
-isOfflinePending: !navigator.onLine,
-      }
-    ]);
+  //   this.selectedAttachments.set([
+  //     ...this.selectedAttachments(),
+  //     {
+  //       fileId: tempId,
+  //       fileName: file.name,
+  //       contentType: file.type || 'application/octet-stream',
+  //       size: file.size,
+  //       storagePath: '',
+  //       progress: 0,
+  //       isUploading: navigator.onLine,
+  //       error: null,
+  //       localPreviewUrl,
+  //       localFile: file,
+  //       isOfflinePending: !navigator.onLine,
+  //     }
+  //   ]);
 
-    return tempId;
-  }
+  //   return tempId;
+  // }
 
-  private uploadAttachmentByTempId(tempId: string, file: File): void {
-    this.filesApi.uploadWithProgress(file).subscribe({
-      next: event => {
-        if (event.type === HttpEventType.UploadProgress) {
-          const progress = event.total
-            ? Math.round((event.loaded / event.total) * 100)
-            : 0;
+  // private uploadAttachmentByTempId(tempId: string, file: File): void {
+  //   this.filesApi.uploadWithProgress(file).subscribe({
+  //     next: event => {
+  //       if (event.type === HttpEventType.UploadProgress) {
+  //         const progress = event.total
+  //           ? Math.round((event.loaded / event.total) * 100)
+  //           : 0;
 
-          this.updateSelectedAttachment(tempId, { progress });
-        }
+  //         this.updateSelectedAttachment(tempId, { progress });
+  //       }
 
-        if (event.type === HttpEventType.Response && event.body) {
-          this.updateSelectedAttachment(tempId, {
-            fileId: event.body.fileId,
-            fileName: event.body.fileName,
-            contentType: event.body.contentType,
-            size: event.body.size,
-            storagePath: event.body.storagePath,
-            progress: 100,
-            isUploading: false,
-            error: null
-          });
-        }
-      },
-      error: () => {
-        this.updateSelectedAttachment(tempId, {
-          isUploading: false,
-          error: 'Upload failed'
-        });
-      }
-    });
-  }
+  //       if (event.type === HttpEventType.Response && event.body) {
+  //         this.updateSelectedAttachment(tempId, {
+  //           fileId: event.body.fileId,
+  //           fileName: event.body.fileName,
+  //           contentType: event.body.contentType,
+  //           size: event.body.size,
+  //           storagePath: event.body.storagePath,
+  //           progress: 100,
+  //           isUploading: false,
+  //           error: null
+  //         });
+  //       }
+  //     },
+  //     error: () => {
+  //       this.updateSelectedAttachment(tempId, {
+  //         isUploading: false,
+  //         error: 'Upload failed'
+  //       });
+  //     }
+  //   });
+  // }
   isImageAlbumMessage(message: MessageDto): boolean {
     return (
       message.attachments.length > 1 &&
@@ -1643,8 +1600,8 @@ isOfflinePending: !navigator.onLine,
 
   private markCurrentConversationAsDelivered(): void {
     if (!navigator.onLine) {
-  return;
-}
+      return;
+    }
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
@@ -1665,8 +1622,8 @@ isOfflinePending: !navigator.onLine,
 
   private markCurrentConversationAsSeenIfAllowed(): void {
     if (!navigator.onLine) {
-  return;
-}
+      return;
+    }
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 

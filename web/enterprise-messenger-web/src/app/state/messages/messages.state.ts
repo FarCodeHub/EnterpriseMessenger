@@ -11,22 +11,29 @@ import { PendingOperationsRepository } from '../../core/offline/pending-operatio
 import { OfflineMessagesRepository } from '../../core/offline/offline-messages.repository';
 import { OfflineConversationsRepository } from '../../core/offline/offline-conversations.repository';
 import { AuthService } from '../../core/auth/auth.service';
-import { Observable, catchError, finalize, from, map, of, switchMap, tap } from 'rxjs';
+import { Observable, catchError, finalize, firstValueFrom, from, map, of, switchMap, tap } from 'rxjs';
 import { ConversationsState } from '../conversations/conversations.state';
 import { ConversationListItemDto } from '../../features/conversations/models/conversation-list-item.dto';
+import { OfflineSyncService } from '../../core/offline/offline-sync.service';
 import { OfflineFilesRepository } from '../../core/offline/offline-files.repository';
+import { FilesApiService } from '../../core/services/files-api.service';
 @Injectable({
   providedIn: 'root'
 })
 export class MessagesState {
+  
   private readonly offlineFiles = inject(OfflineFilesRepository);
   private readonly conversationsSignal = signal<ConversationListItemDto[]>([]);
   private readonly offlineConversations = inject(OfflineConversationsRepository);
   private readonly conversationsState = inject(ConversationsState);
   private readonly messagesApi = inject(MessagesApiService);
   private readonly offlineMessages = inject(OfflineMessagesRepository);
+  private readonly filesApi = inject(FilesApiService);
+ 
+private readonly offlineSync = inject(OfflineSyncService);
   private readonly messagesSignal = signal<MessageDto[]>([]);
   private readonly isLoadingSignal = signal(false);
+ 
   private readonly pendingOperations = inject(PendingOperationsRepository);
   readonly messages = this.messagesSignal.asReadonly();
   readonly isLoading = this.isLoadingSignal.asReadonly();
@@ -66,12 +73,148 @@ export class MessagesState {
 
   }
 
+
+ 
+
+async sendLocalMediaMessage(input: {
+  conversationId: string;
+  file: File;
+  body: string;
+  replyToMessageId: string | null;
+}): Promise<void> {
+  const currentUserId = this.authService.user()?.id;
+
+  if (!currentUserId) {
+    return;
+  }
+
+  const clientMessageId = crypto.randomUUID();
+  const localAttachmentId = crypto.randomUUID();
+  const createdAtUtc = new Date().toISOString();
+
+  const pendingFile = await this.offlineFiles.save(input.file);
+
+  const optimisticMessage: MessageDto = {
+    id: clientMessageId,
+    conversationId: input.conversationId,
+    sequenceNumber: -1,
+    senderUserId: currentUserId,
+    body: input.body,
+    replyToMessageId: input.replyToMessageId,
+    replyToSequenceNumber: null,
+    createdAtUtc,
+    editedAtUtc: null,
+    deletedAtUtc: null,
+    clientMessageId,
+    receiptStatus: 'sending',
+   
+    attachments: [
+      {
+        id: localAttachmentId,
+        fileName: input.file.name || 'file',
+        contentType: input.file.type || 'application/octet-stream',
+        size: input.file.size,
+        storagePath: '',
+        localFileId: pendingFile.id,
+        isLocalPending: true,
+        uploadProgress: null
+      }
+    ]
+  };
+
+  this.messagesSignal.set(
+    this.sortMessages([...this.messagesSignal(), optimisticMessage])
+  );
+
+  await this.offlineMessages.save(optimisticMessage, 'pending');
+
+  this.conversationsState.updateLastMessageLocally({
+    conversationId: input.conversationId,
+    body: '📎 Attachment',
+    senderUserId: currentUserId,
+    senderDisplayName: this.authService.user()?.displayName,
+    createdAtUtc
+  });
+
+  if (!navigator.onLine) {
+    await this.pendingOperations.add('sendMessageWithAttachments', {
+      conversationId: input.conversationId,
+      clientMessageId,
+      body: input.body,
+      replyToMessageId: input.replyToMessageId,
+      fileIds: [pendingFile.id]
+    });
+
+    return;
+  }
+
+  try {
+    const uploaded = await firstValueFrom(
+      this.filesApi.upload(input.file)
+    );
+
+    const sentMessage = await firstValueFrom(
+      this.messagesApi.sendMessage({
+        conversationId: input.conversationId,
+        clientMessageId,
+        body: input.body,
+        replyToMessageId: input.replyToMessageId,
+        attachments: [
+          {
+            fileId: uploaded.fileId,
+            fileName: uploaded.fileName,
+            contentType: uploaded.contentType,
+            size: uploaded.size,
+            storagePath: uploaded.storagePath
+          }
+        ]
+      })
+    );
+
+    const syncedMessage: MessageDto = {
+      ...sentMessage,
+      clientMessageId,
+      receiptStatus: 'sent',
+     
+    };
+
+    this.handleSyncedMessage(syncedMessage);
+    await this.offlineMessages.save(syncedMessage);
+    await this.offlineFiles.remove(pendingFile.id);
+  } catch {
+    await this.pendingOperations.add('sendMessageWithAttachments', {
+      conversationId: input.conversationId,
+      clientMessageId,
+      body: input.body,
+      replyToMessageId: input.replyToMessageId,
+      fileIds: [pendingFile.id]
+    });
+     this.offlineSync.requestSync('media-send-failed-queued');
+  }
+}
+
+
+
+
+
+
+
   load(conversationId: string): Observable<void> {
     this.isLoadingSignal.set(true);
 
     return from(this.offlineMessages.getByConversationId(conversationId)).pipe(
       tap(cachedMessages => {
-        console.log('cached messages for conversation:', conversationId, cachedMessages);
+       
+console.log(
+  'Offline messages loaded:',
+  cachedMessages.map(x => ({
+    id: x.id,
+    clientMessageId: x.clientMessageId,
+    receiptStatus: x.receiptStatus,
+    attachments: x.attachments?.length ?? 0
+  }))
+);
+
 
         this.messagesSignal.set(this.sortMessages(cachedMessages));
       }),
@@ -92,10 +235,37 @@ export class MessagesState {
           return;
         }
 
-        const sorted = this.sortMessages(response);
-        this.messagesSignal.set(sorted);
+const serverMessages = response;
 
-        void this.offlineMessages.saveMany(sorted);
+const localPendingMessages = this.messagesSignal()
+  .filter(message =>
+    message.conversationId === conversationId &&
+    (
+      
+      message.receiptStatus === 'sending' ||
+      message.attachments.some(a => a.isLocalPending)
+    )
+  );
+
+const merged = this.sortMessages([
+  ...serverMessages,
+  ...localPendingMessages.filter(local =>
+    !serverMessages.some(server =>
+      server.id === local.id ||
+      (
+        !!local.clientMessageId &&
+        server.clientMessageId === local.clientMessageId
+      )
+    )
+  )
+]);
+
+this.messagesSignal.set(merged);
+
+void this.offlineMessages.saveMany(serverMessages);
+for (const pendingMessage of localPendingMessages) {
+  void this.offlineMessages.save(pendingMessage, 'pending');
+}
       }),
       finalize(() => {
         this.isLoadingSignal.set(false);
@@ -396,6 +566,9 @@ retryMessage(message: MessageDto): void {
     replyToMessageId: message.replyToMessageId,
     attachments: message.attachments
   });
+
+
+void this.offlineSync.forceSyncPendingOperations();
 }
 
 

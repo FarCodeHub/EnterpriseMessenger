@@ -16,6 +16,16 @@ export class OfflineMessagesRepository {
     await appLocalDb.messages.bulkPut(localMessages);
   }
 
+
+  async deleteByClientMessageId(clientMessageId: string): Promise<void> {
+  const messages = await appLocalDb.messages
+    .where('clientMessageId')
+    .equals(clientMessageId)
+    .toArray();
+
+  await appLocalDb.messages.bulkDelete(messages.map(x => x.id));
+}
+
   async save(message: MessageDto, syncStatus: LocalMessage['syncStatus'] = 'synced'): Promise<void> {
     await appLocalDb.messages.put({
       ...message,
@@ -23,12 +33,12 @@ export class OfflineMessagesRepository {
     });
   }
 
-  async getByConversationId(conversationId: string): Promise<LocalMessage[]> {
-    return appLocalDb.messages
-      .where('conversationId')
-      .equals(conversationId)
-      .sortBy('sequenceNumber');
-  }
+async getByConversationId(conversationId: string): Promise<LocalMessage[]> {
+  return appLocalDb.messages
+    .where('conversationId')
+    .equals(conversationId)
+    .toArray();
+}
 
   async deleteByConversationId(conversationId: string): Promise<void> {
     const messages = await appLocalDb.messages

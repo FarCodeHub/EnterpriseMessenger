@@ -17,4 +17,5 @@ receiptStatus?: 'sending' | 'sent' | 'delivered' | 'seen' | 'failed';
 forwardedFromMessageId?: string | null;
 forwardedFromUserId?: string | null;
 forwardedFromDisplayName?: string | null;
+
 }
