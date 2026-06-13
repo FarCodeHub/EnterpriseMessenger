@@ -1777,16 +1777,21 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
     this.messageText.set('');
   }
 
-  deleteMessage(message: MessageDto): void {
-    this.messagesApi.deleteMessage(message.id).subscribe({
-      next: () => {
-        this.closeActionMenu();
-      },
-      error: () => {
-        this.closeActionMenu();
-      }
-    });
+deleteMessage(message: MessageDto): void {
+  this.closeActionMenu();
+
+  if (!navigator.onLine) {
+    this.messagesState.deleteLocally(message);
+    return;
   }
+
+  this.messagesApi.deleteMessage(message.id).subscribe({
+    next: () => {},
+    error: () => {
+      this.messagesState.deleteLocally(message);
+    }
+  });
+}
   copyMessage(message: MessageDto): void {
     if (!message.body) {
       return;

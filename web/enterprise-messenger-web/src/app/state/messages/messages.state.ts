@@ -73,7 +73,19 @@ private readonly offlineSync = inject(OfflineSyncService);
 
   }
 
+deleteLocally(message: MessageDto): void {
+  const deletedAtUtc = new Date().toISOString();
 
+  this.handleMessageDeleted({
+    id: message.id,
+    deletedAtUtc
+  });
+
+  void this.pendingOperations.add('deleteMessage', {
+    messageId: message.id,
+    clientMessageId: message.clientMessageId ?? null
+  });
+}
  
 
 async sendLocalMediaMessage(input: {
