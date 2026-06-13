@@ -36,9 +36,13 @@ export class OfflineSyncService {
             this.requestSync('app-startup');
         }, 2000);
 
-        window.addEventListener('online', () => {
-            this.requestSync('browser-online');
-        });
+window.addEventListener('online', () => {
+  console.log('Browser online event -> force sync');
+
+  setTimeout(() => {
+    void this.forceSyncPendingOperations();
+  }, 1500);
+});
 
         effect(() => {
             if (this.networkStatus.isOnline()) {
@@ -189,20 +193,24 @@ export class OfflineSyncService {
     }
 
 
-    private async syncSendMessage(request: SendMessageRequest): Promise<void> {
-        const message = await firstValueFrom(
-            this.messagesApi.sendMessage(request)
-        );
+private async syncSendMessage(request: SendMessageRequest): Promise<void> {
+  const message = await firstValueFrom(
+    this.messagesApi.sendMessage(request)
+  );
 
-        const syncedMessage: MessageDto = {
-            ...message,
-            clientMessageId: request.clientMessageId,
-            receiptStatus: 'sent'
-        };
+  const syncedMessage: MessageDto = {
+    ...message,
+    clientMessageId: request.clientMessageId,
+    attachments: message.attachments ?? [],
+    receiptStatus: 'sent',
+    
+  };
 
-        await this.offlineMessages.deleteByClientMessageId(request.clientMessageId);
-        await this.offlineMessages.save(syncedMessage);
-    }
+  await this.offlineMessages.deleteByClientMessageId(request.clientMessageId);
+  await this.offlineMessages.save(syncedMessage);
+
+  this.messageSynced$.next(syncedMessage);
+}
 
     private async syncEditMessage(
         messageId: string,

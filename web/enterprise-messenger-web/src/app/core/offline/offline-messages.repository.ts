@@ -52,4 +52,11 @@ async getByConversationId(conversationId: string): Promise<LocalMessage[]> {
   async clear(): Promise<void> {
     await appLocalDb.messages.clear();
   }
+
+
+async deleteById(id: string): Promise<void> {
+  await appLocalDb.messages.delete(id);
+}
+
+  
 }

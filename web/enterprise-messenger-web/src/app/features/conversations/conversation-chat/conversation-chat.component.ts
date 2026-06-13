@@ -223,7 +223,7 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
       {{
         repliedMessage.body
           ? repliedMessage.body
-          : (repliedMessage.attachments.length > 0
+          : ((repliedMessage.attachments ?? []).length> 0
               ? '📎 Attachment'
               : '')
       }}
@@ -301,7 +301,7 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
       {{
         repliedMessage.body
           ? repliedMessage.body
-          : (repliedMessage.attachments.length > 0
+          : ((repliedMessage.attachments ?? []).length > 0
               ? '📎 Attachment'
               : '')
       }}
@@ -325,7 +325,7 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
     }
   </div>
 }
-@if (message.attachments.length > 0) {
+@if ((message.attachments ?? []).length > 0) {
   <div
     class="relative overflow-hidden rounded-xl"
     [class.mt-2]="!isImageOnlyMessage(message)"
@@ -334,7 +334,7 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
     [class.gap-1]="isImageAlbumMessage(message)"
     [class.max-w-sm]="isImageAlbumMessage(message)"
   >
-    @for (attachment of message.attachments; track attachment.id) {
+  @for (attachment of (message.attachments ?? []); track attachment.id) {
       <div
         [class.aspect-square]="isImageAlbumMessage(message)"
         [class.overflow-hidden]="isImageAlbumMessage(message)"
@@ -1434,7 +1434,7 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
 
   isImageOnlyMessage(message: MessageDto): boolean {
     return (
-      message.attachments.length > 0 &&
+      (message.attachments ?? []).length > 0 &&
       message.attachments.every(x => x.contentType.startsWith('image/')) &&
       (!message.body || message.body.trim().length === 0)
     );
@@ -1500,13 +1500,13 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
   // }
   isImageAlbumMessage(message: MessageDto): boolean {
     return (
-      message.attachments.length > 1 &&
+      (message.attachments ?? []).length > 1 &&
       message.attachments.every(x => x.contentType.startsWith('image/'))
     );
   }
   isMediaOnlyMessage(message: MessageDto): boolean {
     return (
-      message.attachments.length > 0 &&
+      (message.attachments ?? []).length > 0 &&
       message.attachments.every(x => x.contentType.startsWith('image/')) &&
       (!message.body || message.body.trim().length === 0)
     );
@@ -1779,6 +1779,16 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
 
 deleteMessage(message: MessageDto): void {
   this.closeActionMenu();
+
+  const isPendingMessage =
+     
+    message.receiptStatus === 'sending' ||
+    message.sequenceNumber < 0;
+
+  if (isPendingMessage) {
+    this.messagesState.deletePendingLocally(message);
+    return;
+  }
 
   if (!navigator.onLine) {
     this.messagesState.deleteLocally(message);

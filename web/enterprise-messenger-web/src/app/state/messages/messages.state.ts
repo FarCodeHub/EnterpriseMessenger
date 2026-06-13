@@ -21,7 +21,7 @@ import { FilesApiService } from '../../core/services/files-api.service';
   providedIn: 'root'
 })
 export class MessagesState {
-  
+ 
   private readonly offlineFiles = inject(OfflineFilesRepository);
   private readonly conversationsSignal = signal<ConversationListItemDto[]>([]);
   private readonly offlineConversations = inject(OfflineConversationsRepository);
@@ -42,36 +42,43 @@ private readonly offlineSync = inject(OfflineSyncService);
     return this.authService.user()?.id;
   });
 
-  handleSyncedMessage(message: MessageDto): void {
-    const current = this.messagesSignal();
+ handleSyncedMessage(message: MessageDto): void {
+  const current = this.messagesSignal();
 
-    const existingIndex = current.findIndex(x =>
-      x.id === message.id ||
-      (
-        !!message.clientMessageId &&
-        x.clientMessageId === message.clientMessageId
-      )
+  const existingIndex = current.findIndex(x =>
+    x.id === message.id ||
+    (
+      !!message.clientMessageId &&
+      x.clientMessageId === message.clientMessageId
+    )
+  );
+
+  const syncedMessage: MessageDto = {
+    ...message,
+    attachments: message.attachments ?? [],
+    receiptStatus: 'sent',
+    
+  };
+
+  if (existingIndex >= 0) {
+    const updated = [...current];
+    updated[existingIndex] = syncedMessage;
+    this.messagesSignal.set(this.sortMessages(updated));
+
+    void this.offlineMessages.deleteByClientMessageId(
+      syncedMessage.clientMessageId!
     );
-
-    const syncedMessage: MessageDto = {
-      ...message,
-      receiptStatus: 'sent'
-    };
-
-    if (existingIndex >= 0) {
-      const updated = [...current];
-      updated[existingIndex] = syncedMessage;
-      this.messagesSignal.set(this.sortMessages(updated));
-      return;
-    }
-
-    this.messagesSignal.set(
-      this.sortMessages([...current, syncedMessage])
-    );
-
     void this.offlineMessages.save(syncedMessage);
 
+    return;
   }
+
+  this.messagesSignal.set(
+    this.sortMessages([...current, syncedMessage])
+  );
+
+  void this.offlineMessages.save(syncedMessage);
+}
 
 deleteLocally(message: MessageDto): void {
   const deletedAtUtc = new Date().toISOString();
@@ -86,7 +93,23 @@ deleteLocally(message: MessageDto): void {
     clientMessageId: message.clientMessageId ?? null
   });
 }
- 
+deletePendingLocally(message: MessageDto): void {
+  this.messagesSignal.set(
+    this.messagesSignal().filter(x => x.id !== message.id)
+  );
+
+  void this.offlineMessages.deleteById(message.id);
+
+  if (message.clientMessageId) {
+    void this.pendingOperations.deleteByClientMessageId(message.clientMessageId);
+  }
+
+  for (const attachment of message.attachments) {
+    if (attachment.localFileId) {
+      void this.offlineFiles.remove(attachment.localFileId);
+    }
+  }
+}
 
 async sendLocalMediaMessage(input: {
   conversationId: string;
@@ -207,85 +230,99 @@ async sendLocalMediaMessage(input: {
 
 
 
-
-
-
-
-  load(conversationId: string): Observable<void> {
-    this.isLoadingSignal.set(true);
-
-    return from(this.offlineMessages.getByConversationId(conversationId)).pipe(
-      tap(cachedMessages => {
-       
-console.log(
-  'Offline messages loaded:',
-  cachedMessages.map(x => ({
-    id: x.id,
-    clientMessageId: x.clientMessageId,
-    receiptStatus: x.receiptStatus,
-    attachments: x.attachments?.length ?? 0
-  }))
-);
-
-
-        this.messagesSignal.set(this.sortMessages(cachedMessages));
-      }),
-      switchMap(() => {
-        if (!navigator.onLine) {
-          return of(null);
-        }
-
-        return this.messagesApi.getConversationMessages(conversationId, 50).pipe(
-          catchError(error => {
-            console.error('load messages from API failed:', error);
-            return of(null);
-          })
-        );
-      }),
-      tap(response => {
-        if (!response) {
-          return;
-        }
-
-const serverMessages = response;
-
-const localPendingMessages = this.messagesSignal()
-  .filter(message =>
-    message.conversationId === conversationId &&
-    (
-      
-      message.receiptStatus === 'sending' ||
-      message.attachments.some(a => a.isLocalPending)
-    )
-  );
-
-const merged = this.sortMessages([
-  ...serverMessages,
-  ...localPendingMessages.filter(local =>
-    !serverMessages.some(server =>
-      server.id === local.id ||
-      (
-        !!local.clientMessageId &&
-        server.clientMessageId === local.clientMessageId
-      )
-    )
-  )
-]);
-
-this.messagesSignal.set(merged);
-
-void this.offlineMessages.saveMany(serverMessages);
-for (const pendingMessage of localPendingMessages) {
-  void this.offlineMessages.save(pendingMessage, 'pending');
+private normalizeMessage(message: MessageDto): MessageDto {
+  return {
+    ...message,
+    attachments: message.attachments ?? []
+  };
 }
-      }),
-      finalize(() => {
-        this.isLoadingSignal.set(false);
-      }),
-      map(() => void 0)
-    );
-  }
 
+
+load(conversationId: string): Observable<void> {
+  this.isLoadingSignal.set(true);
+
+  return from(
+    this.offlineMessages.getByConversationId(conversationId)
+  ).pipe(
+    tap(cachedMessages => {
+      const normalizedCachedMessages = cachedMessages.map(message => ({
+        ...message,
+        attachments: message.attachments ?? []
+      }));
+
+      this.messagesSignal.set(
+        this.sortMessages(normalizedCachedMessages)
+      );
+    }),
+
+    switchMap(() => {
+      if (!navigator.onLine) {
+        return of(null);
+      }
+
+      return this.messagesApi
+        .getConversationMessages(conversationId, 50)
+        .pipe(
+          catchError(() => of(null))
+        );
+    }),
+
+    tap(response => {
+      if (!response) {
+        return;
+      }
+
+      const serverMessages = response.map(message => ({
+        ...message,
+        attachments: message.attachments ?? []
+      }));
+
+      const localPendingMessages = this.messagesSignal().filter(
+        message =>
+          message.conversationId === conversationId &&
+          (
+            message.receiptStatus === 'sending' ||
+            (message.attachments ?? []).some(
+              attachment => attachment.isLocalPending
+            )
+          )
+      );
+
+      const merged = this.sortMessages([
+        ...serverMessages,
+        ...localPendingMessages.filter(local =>
+          !serverMessages.some(server =>
+            server.id === local.id ||
+            (
+              !!local.clientMessageId &&
+              server.clientMessageId === local.clientMessageId
+            )
+          )
+        )
+      ]);
+
+      this.messagesSignal.set(merged);
+
+      void this.offlineMessages.saveMany(serverMessages);
+
+      for (const pendingMessage of localPendingMessages) {
+        void this.offlineMessages.save(
+          {
+            ...pendingMessage,
+            attachments: pendingMessage.attachments ?? []
+          },
+          'pending'
+        );
+      }
+    }),
+
+    finalize(() => {
+      this.isLoadingSignal.set(false);
+    }),
+
+    map(() => void 0)
+  );
+}
 
 
 
@@ -336,10 +373,10 @@ for (const pendingMessage of localPendingMessages) {
 
     void this.offlineMessages.save(optimisticMessage, 'pending');
 
-    if (!navigator.onLine) {
-      void this.pendingOperations.add('sendMessage', request);
-      return;
-    }
+if (!navigator.onLine) {
+  void this.pendingOperations.add('sendMessage', request);
+  return;
+}
 
     this.messagesApi.sendMessage(request).subscribe({
       next: message => {
@@ -398,7 +435,7 @@ for (const pendingMessage of localPendingMessages) {
       createdAtUtc: event.createdAtUtc,
       editedAtUtc: null,
       deletedAtUtc: null,
-      attachments: event.attachments,
+      attachments: event.attachments ?? [],
       clientMessageId: event.clientMessageId ?? undefined,
       receiptStatus: 'sent',
       forwardedFromMessageId: event.forwardedFromMessageId,

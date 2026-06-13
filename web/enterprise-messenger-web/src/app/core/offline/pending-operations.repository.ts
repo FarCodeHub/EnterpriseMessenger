@@ -28,7 +28,17 @@ export class PendingOperationsRepository {
     return operation;
   }
 
+async deleteByClientMessageId(clientMessageId: string): Promise<void> {
+  const operations = await appLocalDb.pendingOperations
+    .filter(operation =>
+      JSON.stringify(operation.payload).includes(clientMessageId)
+    )
+    .toArray();
 
+  await appLocalDb.pendingOperations.bulkDelete(
+    operations.map(x => x.id)
+  );
+}
   async resetAllToPending(): Promise<void> {
   const operations = await appLocalDb.pendingOperations.toArray();
 
