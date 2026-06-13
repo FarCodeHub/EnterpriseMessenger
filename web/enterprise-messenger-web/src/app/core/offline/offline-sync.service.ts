@@ -36,9 +36,13 @@ export class OfflineSyncService {
             this.requestSync('app-startup');
         }, 2000);
 
-        window.addEventListener('online', () => {
-            this.requestSync('browser-online');
-        });
+window.addEventListener('online', () => {
+  console.log('Browser online event -> force sync');
+
+  setTimeout(() => {
+    void this.forceSyncPendingOperations();
+  }, 1500);
+});
 
         effect(() => {
             if (this.networkStatus.isOnline()) {
@@ -48,7 +52,7 @@ export class OfflineSyncService {
     }
 
     requestSync(reason: string): void {
-        
+
 
         if (this.syncRequested) {
             return;
@@ -64,7 +68,7 @@ export class OfflineSyncService {
             this.syncRequested = false;
             this.syncRequestTimer = null;
 
-           void this.syncPendingOperations();
+            void this.syncPendingOperations();
         }, 1500);
     }
     async forceSyncPendingOperations(): Promise<void> {
@@ -76,7 +80,7 @@ export class OfflineSyncService {
             return;
         }
 
-       
+
 
         await this.pendingOperations.resetAllToPending();
 
@@ -90,7 +94,7 @@ export class OfflineSyncService {
 
 
     async syncPendingOperations(): Promise<void> {
-       
+
         if (this.isSyncing) {
             return;
         }
@@ -103,7 +107,7 @@ export class OfflineSyncService {
 
         try {
             const operations = await this.pendingOperations.getPending();
-          
+
 
             for (const operation of operations) {
                 await this.pendingOperations.markProcessing(operation.id);
@@ -111,7 +115,7 @@ export class OfflineSyncService {
                 try {
 
 
-                 
+
 
 
                     if (operation.type === 'sendMessage') {
@@ -130,7 +134,7 @@ export class OfflineSyncService {
                     }
 
                     if (operation.type === 'sendMessageWithAttachments') {
-                       
+
                         await this.syncSendMessageWithAttachments(operation.payload as {
                             conversationId: string;
                             clientMessageId: string;
@@ -140,54 +144,73 @@ export class OfflineSyncService {
                         });
                     }
 
+                    if (operation.type === 'deleteMessage') {
+                        const payload = operation.payload as {
+                            messageId: string;
+                            clientMessageId: string | null;
+                        };
 
+                        await this.syncDeleteMessage(payload.messageId);
+                    }
 
 
 
 
                     await this.pendingOperations.remove(operation.id);
                     this.retryDelayMs = 3000;
-           } catch (error) {
-  console.warn('Pending operation sync failed:', operation, error);
+                } catch (error) {
+                    console.warn('Pending operation sync failed:', operation, error);
 
-  await this.pendingOperations.markFailed(operation.id);
+                    await this.pendingOperations.markFailed(operation.id);
 
-  const updatedOperation = await this.pendingOperations.getById(operation.id);
+                    const updatedOperation = await this.pendingOperations.getById(operation.id);
 
-  if (
-    updatedOperation?.status === 'failed' &&
-    (
-      operation.type === 'sendMessage' ||
-      operation.type === 'sendMessageWithAttachments'
-    )
-  ) {
-    const payload = operation.payload as { clientMessageId: string };
-    this.messageSyncFailed$.next(payload.clientMessageId);
-    return;
-  }
+                    if (
+                        updatedOperation?.status === 'failed' &&
+                        (
+                            operation.type === 'sendMessage' ||
+                            operation.type === 'sendMessageWithAttachments'
+                        )
+                    ) {
+                        const payload = operation.payload as { clientMessageId: string };
+                        this.messageSyncFailed$.next(payload.clientMessageId);
+                        return;
+                    }
 
-  this.scheduleRetry();
-}
+                    this.scheduleRetry();
+                }
             }
         } finally {
             this.isSyncing = false;
         }
     }
 
-    private async syncSendMessage(request: SendMessageRequest): Promise<void> {
-        const message = await firstValueFrom(
-            this.messagesApi.sendMessage(request)
+
+    private async syncDeleteMessage(messageId: string): Promise<void> {
+        await firstValueFrom(
+            this.messagesApi.deleteMessage(messageId)
         );
-
-        const syncedMessage: MessageDto = {
-            ...message,
-            clientMessageId: request.clientMessageId,
-            receiptStatus: 'sent'
-        };
-
-        await this.offlineMessages.deleteByClientMessageId(request.clientMessageId);
-        await this.offlineMessages.save(syncedMessage);
     }
+
+
+private async syncSendMessage(request: SendMessageRequest): Promise<void> {
+  const message = await firstValueFrom(
+    this.messagesApi.sendMessage(request)
+  );
+
+  const syncedMessage: MessageDto = {
+    ...message,
+    clientMessageId: request.clientMessageId,
+    attachments: message.attachments ?? [],
+    receiptStatus: 'sent',
+    
+  };
+
+  await this.offlineMessages.deleteByClientMessageId(request.clientMessageId);
+  await this.offlineMessages.save(syncedMessage);
+
+  this.messageSynced$.next(syncedMessage);
+}
 
     private async syncEditMessage(
         messageId: string,
@@ -222,16 +245,16 @@ export class OfflineSyncService {
         replyToMessageId: string | null;
         fileIds: string[];
     }): Promise<void> {
-        
+
 
         const uploadedAttachments = [];
 
         for (const fileId of input.fileIds) {
-            
+
 
             const localFile = await this.offlineFiles.get(fileId);
 
-           
+
 
             if (!localFile) {
                 throw new Error(`Pending file not found: ${fileId}`);
@@ -243,13 +266,13 @@ export class OfflineSyncService {
                 { type: localFile.contentType }
             );
 
-           
+
 
             const uploaded = await firstValueFrom(
                 this.filesApi.upload(uploadFile)
             );
 
-          
+
 
             uploadedAttachments.push({
                 fileId: uploaded.fileId,
@@ -260,7 +283,7 @@ export class OfflineSyncService {
             });
         }
 
-      
+
 
         const message = await firstValueFrom(
             this.messagesApi.sendMessage({
@@ -272,7 +295,7 @@ export class OfflineSyncService {
             })
         );
 
-       
+
 
         const syncedMessage: MessageDto = {
             ...message,
