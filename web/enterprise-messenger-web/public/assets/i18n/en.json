@@ -54,6 +54,7 @@
       "edited": "edited",
       "failed": "failed",
       "reply": "reply",
+      "retry": "Retry",
       "replyingTo": "Replying to",
       "replyingToMessage": "Replying to message",
       "editing": "Editing message",

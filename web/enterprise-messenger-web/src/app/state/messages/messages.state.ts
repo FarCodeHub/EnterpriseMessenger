@@ -21,7 +21,7 @@ import { FilesApiService } from '../../core/services/files-api.service';
   providedIn: 'root'
 })
 export class MessagesState {
-  
+
   private readonly offlineFiles = inject(OfflineFilesRepository);
   private readonly conversationsSignal = signal<ConversationListItemDto[]>([]);
   private readonly offlineConversations = inject(OfflineConversationsRepository);
@@ -29,11 +29,11 @@ export class MessagesState {
   private readonly messagesApi = inject(MessagesApiService);
   private readonly offlineMessages = inject(OfflineMessagesRepository);
   private readonly filesApi = inject(FilesApiService);
- 
-private readonly offlineSync = inject(OfflineSyncService);
+
+  private readonly offlineSync = inject(OfflineSyncService);
   private readonly messagesSignal = signal<MessageDto[]>([]);
   private readonly isLoadingSignal = signal(false);
- 
+
   private readonly pendingOperations = inject(PendingOperationsRepository);
   readonly messages = this.messagesSignal.asReadonly();
   readonly isLoading = this.isLoadingSignal.asReadonly();
@@ -74,128 +74,167 @@ private readonly offlineSync = inject(OfflineSyncService);
   }
 
 
- 
 
-async sendLocalMediaMessage(input: {
-  conversationId: string;
-  file: File;
-  body: string;
-  replyToMessageId: string | null;
-}): Promise<void> {
-  const currentUserId = this.authService.user()?.id;
 
-  if (!currentUserId) {
-    return;
-  }
+  async sendLocalMediaMessage(input: {
+    conversationId: string;
+    file: File;
+    body: string;
+    replyToMessageId: string | null;
+  }): Promise<void> {
+    const currentUserId = this.authService.user()?.id;
 
-  const clientMessageId = crypto.randomUUID();
-  const localAttachmentId = crypto.randomUUID();
-  const createdAtUtc = new Date().toISOString();
+    if (!currentUserId) {
+      return;
+    }
 
-  const pendingFile = await this.offlineFiles.save(input.file);
+    const clientMessageId = crypto.randomUUID();
+    const localAttachmentId = crypto.randomUUID();
+    const createdAtUtc = new Date().toISOString();
 
-  const optimisticMessage: MessageDto = {
-    id: clientMessageId,
-    conversationId: input.conversationId,
-    sequenceNumber: -1,
-    senderUserId: currentUserId,
-    body: input.body,
-    replyToMessageId: input.replyToMessageId,
-    replyToSequenceNumber: null,
-    createdAtUtc,
-    editedAtUtc: null,
-    deletedAtUtc: null,
-    clientMessageId,
-    receiptStatus: 'sending',
-   
-    attachments: [
-      {
-        id: localAttachmentId,
-        fileName: input.file.name || 'file',
-        contentType: input.file.type || 'application/octet-stream',
-        size: input.file.size,
-        storagePath: '',
-        localFileId: pendingFile.id,
-        isLocalPending: true,
-        uploadProgress: null
-      }
-    ]
-  };
+    const pendingFile = await this.offlineFiles.save(input.file);
 
-  this.messagesSignal.set(
-    this.sortMessages([...this.messagesSignal(), optimisticMessage])
-  );
-
-  await this.offlineMessages.save(optimisticMessage, 'pending');
-
-  this.conversationsState.updateLastMessageLocally({
-    conversationId: input.conversationId,
-    body: '📎 Attachment',
-    senderUserId: currentUserId,
-    senderDisplayName: this.authService.user()?.displayName,
-    createdAtUtc
-  });
-
-  if (!navigator.onLine) {
-    await this.pendingOperations.add('sendMessageWithAttachments', {
+    const optimisticMessage: MessageDto = {
+      id: clientMessageId,
       conversationId: input.conversationId,
-      clientMessageId,
+      sequenceNumber: -1,
+      senderUserId: currentUserId,
       body: input.body,
       replyToMessageId: input.replyToMessageId,
-      fileIds: [pendingFile.id]
-    });
+      replyToSequenceNumber: null,
+      createdAtUtc,
+      editedAtUtc: null,
+      deletedAtUtc: null,
+      clientMessageId,
+      receiptStatus: 'sending',
 
-    return;
-  }
+      attachments: [
+        {
+          id: localAttachmentId,
+          fileName: input.file.name || 'file',
+          contentType: input.file.type || 'application/octet-stream',
+          size: input.file.size,
+          storagePath: '',
+          localFileId: pendingFile.id,
+          isLocalPending: true,
+          uploadProgress: null
+        }
+      ]
+    };
 
-  try {
-    const uploaded = await firstValueFrom(
-      this.filesApi.upload(input.file)
+    this.messagesSignal.set(
+      this.sortMessages([...this.messagesSignal(), optimisticMessage])
     );
 
-    const sentMessage = await firstValueFrom(
-      this.messagesApi.sendMessage({
+    await this.offlineMessages.save(optimisticMessage, 'pending');
+
+    this.conversationsState.updateLastMessageLocally({
+      conversationId: input.conversationId,
+      body: '📎 Attachment',
+      senderUserId: currentUserId,
+      senderDisplayName: this.authService.user()?.displayName,
+      createdAtUtc
+    });
+
+    if (!navigator.onLine) {
+      await this.pendingOperations.add('sendMessageWithAttachments', {
         conversationId: input.conversationId,
         clientMessageId,
         body: input.body,
         replyToMessageId: input.replyToMessageId,
-        attachments: [
-          {
-            fileId: uploaded.fileId,
-            fileName: uploaded.fileName,
-            contentType: uploaded.contentType,
-            size: uploaded.size,
-            storagePath: uploaded.storagePath
-          }
-        ]
-      })
-    );
+        fileIds: [pendingFile.id]
+      });
 
-    const syncedMessage: MessageDto = {
-      ...sentMessage,
-      clientMessageId,
-      receiptStatus: 'sent',
-     
-    };
+      return;
+    }
 
-    this.handleSyncedMessage(syncedMessage);
-    await this.offlineMessages.save(syncedMessage);
-    await this.offlineFiles.remove(pendingFile.id);
-  } catch {
-    await this.pendingOperations.add('sendMessageWithAttachments', {
-      conversationId: input.conversationId,
-      clientMessageId,
-      body: input.body,
-      replyToMessageId: input.replyToMessageId,
-      fileIds: [pendingFile.id]
-    });
-     this.offlineSync.requestSync('media-send-failed-queued');
+    try {
+      const uploaded = await firstValueFrom(
+        this.filesApi.upload(input.file)
+      );
+
+      const sentMessage = await firstValueFrom(
+        this.messagesApi.sendMessage({
+          conversationId: input.conversationId,
+          clientMessageId,
+          body: input.body,
+          replyToMessageId: input.replyToMessageId,
+          attachments: [
+            {
+              fileId: uploaded.fileId,
+              fileName: uploaded.fileName,
+              contentType: uploaded.contentType,
+              size: uploaded.size,
+              storagePath: uploaded.storagePath
+            }
+          ]
+        })
+      );
+
+      const syncedMessage: MessageDto = {
+        ...sentMessage,
+        clientMessageId,
+        receiptStatus: 'sent',
+
+      };
+
+      this.handleSyncedMessage(syncedMessage);
+      await this.offlineMessages.save(syncedMessage);
+      await this.offlineFiles.remove(pendingFile.id);
+    } catch {
+      await this.pendingOperations.add('sendMessageWithAttachments', {
+        conversationId: input.conversationId,
+        clientMessageId,
+        body: input.body,
+        replyToMessageId: input.replyToMessageId,
+        fileIds: [pendingFile.id]
+      });
+      this.offlineSync.requestSync('media-send-failed-queued');
+    }
+  }
+deletePendingLocally(message: MessageDto): void {
+  this.messagesSignal.set(
+    this.messagesSignal().filter(x => x.id !== message.id)
+  );
+
+  void this.offlineMessages.deleteById(message.id);
+
+  if (message.clientMessageId) {
+    void this.pendingOperations.deleteByClientMessageId(message.clientMessageId);
+  }
+
+  for (const attachment of message.attachments ?? []) {
+    if (attachment.localFileId) {
+      void this.offlineFiles.remove(attachment.localFileId);
+    }
   }
 }
 
 
+  deleteLocally(message: MessageDto, deletedAtUtc = new Date().toISOString()): void {
+    let updatedMessage: MessageDto | null = null;
 
+    this.messagesSignal.set(
+      this.messagesSignal().map(x => {
+        if (x.id !== message.id) {
+          return x;
+        }
 
+        updatedMessage = {
+          ...x,
+          body: '',
+          attachments: [],
+          deletedAtUtc
+        };
+
+        return updatedMessage;
+      })
+    );
+
+    if (updatedMessage) {
+      void this.offlineMessages.save(updatedMessage, 'pending');
+    }
+  }
 
 
 
@@ -204,17 +243,6 @@ async sendLocalMediaMessage(input: {
 
     return from(this.offlineMessages.getByConversationId(conversationId)).pipe(
       tap(cachedMessages => {
-       
-console.log(
-  'Offline messages loaded:',
-  cachedMessages.map(x => ({
-    id: x.id,
-    clientMessageId: x.clientMessageId,
-    receiptStatus: x.receiptStatus,
-    attachments: x.attachments?.length ?? 0
-  }))
-);
-
 
         this.messagesSignal.set(this.sortMessages(cachedMessages));
       }),
@@ -235,37 +263,54 @@ console.log(
           return;
         }
 
-const serverMessages = response;
+        const serverMessages = response;
 
-const localPendingMessages = this.messagesSignal()
-  .filter(message =>
-    message.conversationId === conversationId &&
-    (
-      
-      message.receiptStatus === 'sending' ||
-      message.attachments.some(a => a.isLocalPending)
-    )
-  );
+        const localPendingMessages = this.messagesSignal()
+          .filter(message =>
+            message.conversationId === conversationId &&
+            (
 
-const merged = this.sortMessages([
-  ...serverMessages,
-  ...localPendingMessages.filter(local =>
-    !serverMessages.some(server =>
-      server.id === local.id ||
-      (
-        !!local.clientMessageId &&
-        server.clientMessageId === local.clientMessageId
-      )
-    )
-  )
-]);
+              message.receiptStatus === 'sending' ||
+              message.attachments.some(a => a.isLocalPending)
+            )
+          );
 
-this.messagesSignal.set(merged);
 
-void this.offlineMessages.saveMany(serverMessages);
-for (const pendingMessage of localPendingMessages) {
-  void this.offlineMessages.save(pendingMessage, 'pending');
-}
+console.log('SERVER messages:', serverMessages.map(x => ({
+  id: x.id,
+  clientMessageId: x.clientMessageId,
+  receiptStatus: x.receiptStatus,
+  deletedAtUtc: x.deletedAtUtc
+})));
+
+console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
+  id: x.id,
+  clientMessageId: x.clientMessageId,
+  receiptStatus: x.receiptStatus,
+  deletedAtUtc: x.deletedAtUtc
+})));
+
+
+
+        const merged = this.sortMessages([
+          ...serverMessages,
+          ...localPendingMessages.filter(local =>
+            !serverMessages.some(server =>
+              server.id === local.id ||
+              (
+                !!local.clientMessageId &&
+                server.clientMessageId === local.clientMessageId
+              )
+            )
+          )
+        ]);
+
+        this.messagesSignal.set(merged);
+
+        void this.offlineMessages.saveMany(serverMessages);
+        for (const pendingMessage of localPendingMessages) {
+          void this.offlineMessages.save(pendingMessage, 'pending');
+        }
       }),
       finalize(() => {
         this.isLoadingSignal.set(false);
@@ -427,7 +472,11 @@ for (const pendingMessage of localPendingMessages) {
     id: string;
     body: string;
     editedAtUtc: string | null;
+    editSyncStatus?: 'idle' | 'syncing' | 'failed';
   }): void {
+
+
+    console.log('HANDLE EDIT', event.id);
     let updatedMessage: MessageDto | null = null;
 
     this.messagesSignal.set(
@@ -439,7 +488,8 @@ for (const pendingMessage of localPendingMessages) {
         updatedMessage = {
           ...message,
           body: event.body,
-          editedAtUtc: event.editedAtUtc
+          editedAtUtc: event.editedAtUtc,
+          editSyncStatus: event.editSyncStatus ?? message.editSyncStatus ?? 'idle'
         };
 
         return updatedMessage;
@@ -542,103 +592,187 @@ for (const pendingMessage of localPendingMessages) {
         map(() => void 0)
       );
   }
-retryMessage(message: MessageDto): void {
-  if (!message.clientMessageId) {
-    return;
+
+
+  retryMessage(message: MessageDto): void {
+    const isEditRetry =
+      message.editSyncStatus === 'failed' ||
+      message.editSyncStatus === 'syncing';
+
+
+    if (isEditRetry) {
+      this.messagesSignal.set(
+        this.messagesSignal().map(x =>
+          x.id === message.id
+            ? {
+              ...x,
+              editSyncStatus: 'syncing'
+            }
+            : x
+        )
+      );
+
+
+      void this.pendingOperations.add('editMessage', {
+        messageId: message.id,
+        body: message.body,
+        editedAtUtc: message.editedAtUtc ?? new Date().toISOString()
+      });
+
+      void this.offlineSync.forceSyncPendingOperations();
+      return;
+    }
+
+    const hasClientMessageId = !!message.clientMessageId;
+
+    const isPendingSendRetry =
+      hasClientMessageId &&
+      (message.attachments ?? []).length === 0 &&
+      !isEditRetry;
+
+    const isPendingAttachmentRetry =
+      hasClientMessageId &&
+      (message.attachments ?? []).length > 0 &&
+      !isEditRetry;
+
+    this.messagesSignal.set(
+      this.messagesSignal().map(x => {
+        const isSameMessage =
+          x.id === message.id ||
+          (
+            hasClientMessageId &&
+            x.clientMessageId === message.clientMessageId
+          );
+
+        if (!isSameMessage) {
+          return x;
+        }
+
+        return {
+          ...x,
+          receiptStatus: isEditRetry ? x.receiptStatus : 'sending',
+          editSyncStatus: isEditRetry ? 'syncing' : x.editSyncStatus
+        };
+      })
+    );
+
+    if (isEditRetry) {
+      void this.pendingOperations.add('editMessage', {
+        messageId: message.id,
+        body: message.body,
+        editedAtUtc: message.editedAtUtc ?? new Date().toISOString()
+      });
+
+      void this.offlineSync.forceSyncPendingOperations();
+      return;
+    }
+
+    if (isPendingSendRetry) {
+      void this.pendingOperations.add('sendMessage', {
+        conversationId: message.conversationId,
+        clientMessageId: message.clientMessageId!,
+        body: message.body,
+        replyToMessageId: message.replyToMessageId,
+        attachments: []
+      });
+
+      void this.offlineSync.forceSyncPendingOperations();
+      return;
+    }
+
+    if (isPendingAttachmentRetry) {
+      void this.offlineSync.forceSyncPendingOperations();
+      return;
+    }
+
+    void this.offlineSync.forceSyncPendingOperations();
   }
 
-  this.messagesSignal.set(
-    this.messagesSignal().map(x =>
-      x.clientMessageId === message.clientMessageId
-        ? {
-            ...x,
-            status: 'sending',
-            receiptStatus: 'sending'
-          }
-        : x
-    )
-  );
 
-  void this.pendingOperations.add('sendMessage', {
-    conversationId: message.conversationId,
-    clientMessageId: message.clientMessageId,
-    body: message.body,
-    replyToMessageId: message.replyToMessageId,
-    attachments: message.attachments
-  });
-
-
-void this.offlineSync.forceSyncPendingOperations();
-}
-
-
-markMessageAsFailed(clientMessageId: string): void {
-  this.messagesSignal.set(
-    this.messagesSignal().map(message =>
-      message.clientMessageId === clientMessageId
-        ? {
+  markMessageEditAsFailed(messageId: string): void {
+    this.messagesSignal.set(
+      this.messagesSignal().map(message =>
+        message.id === messageId
+          ? {
             ...message,
-            status: 'failed',
-            receiptStatus: 'failed'
+            editSyncStatus: 'failed'
           }
-        : message
-    )
-  );
-}
-sendOfflineMessageWithLocalAttachments(input: {
-  conversationId: string;
-  clientMessageId: string;
-  body: string;
-  replyToMessageId: string | null;
-  files: File[];
-}): void {
-  const currentUserId = this.authService.user()?.id;
-
-  if (!currentUserId) {
-    return;
+          : message
+      )
+    );
   }
 
-  const createdAtUtc = new Date().toISOString();
 
-  const optimisticMessage: MessageDto = {
-    id: input.clientMessageId,
-    conversationId: input.conversationId,
-    sequenceNumber: -1,
-    senderUserId: currentUserId,
-    body: input.body,
-    replyToMessageId: input.replyToMessageId,
-    replyToSequenceNumber: null,
-    createdAtUtc,
-    editedAtUtc: null,
-    deletedAtUtc: null,
-    attachments: input.files.map(file => ({
-      id: crypto.randomUUID(),
-      fileName: file.name || 'file',
-      contentType: file.type || 'application/octet-stream',
-      size: file.size,
-      storagePath: '',
-      localPreviewUrl: file.type.startsWith('image/')
-        ? URL.createObjectURL(file)
-        : undefined
-    } as any)),
-    clientMessageId: input.clientMessageId,
-    receiptStatus: 'sending',
-    
-  };
+  markMessageAsFailed(identifier: string): void {
+    this.messagesSignal.set(
+      this.messagesSignal().map(message =>
+        message.id === identifier || message.clientMessageId === identifier
+          ? {
+            ...message,
+            receiptStatus: 'failed',
+            editSyncStatus:
+              message.editSyncStatus === 'syncing'
+                ? 'failed'
+                : message.editSyncStatus
+          }
+          : message
+      )
+    );
+  }
+  sendOfflineMessageWithLocalAttachments(input: {
+    conversationId: string;
+    clientMessageId: string;
+    body: string;
+    replyToMessageId: string | null;
+    files: File[];
+  }): void {
+    const currentUserId = this.authService.user()?.id;
 
-  this.messagesSignal.set(
-    this.sortMessages([...this.messagesSignal(), optimisticMessage])
-  );
+    if (!currentUserId) {
+      return;
+    }
 
-  void this.offlineMessages.save(optimisticMessage, 'pending');
+    const createdAtUtc = new Date().toISOString();
 
-  void this.pendingOperations.add('sendMessageWithAttachments', {
-    conversationId: input.conversationId,
-    clientMessageId: input.clientMessageId,
-    body: input.body,
-    replyToMessageId: input.replyToMessageId,
-    files: input.files
-  });
-}
+    const optimisticMessage: MessageDto = {
+      id: input.clientMessageId,
+      conversationId: input.conversationId,
+      sequenceNumber: -1,
+      senderUserId: currentUserId,
+      body: input.body,
+      replyToMessageId: input.replyToMessageId,
+      replyToSequenceNumber: null,
+      createdAtUtc,
+      editedAtUtc: null,
+      deletedAtUtc: null,
+      attachments: input.files.map(file => ({
+        id: crypto.randomUUID(),
+        fileName: file.name || 'file',
+        contentType: file.type || 'application/octet-stream',
+        size: file.size,
+        storagePath: '',
+        localPreviewUrl: file.type.startsWith('image/')
+          ? URL.createObjectURL(file)
+          : undefined
+      } as any)),
+      clientMessageId: input.clientMessageId,
+      receiptStatus: 'sending',
+
+    };
+
+    this.messagesSignal.set(
+      this.sortMessages([...this.messagesSignal(), optimisticMessage])
+    );
+
+    void this.offlineMessages.save(optimisticMessage, 'pending');
+
+    void this.pendingOperations.add('sendMessageWithAttachments', {
+      conversationId: input.conversationId,
+      clientMessageId: input.clientMessageId,
+      body: input.body,
+      replyToMessageId: input.replyToMessageId,
+      files: input.files
+    });
+  }
 
 }

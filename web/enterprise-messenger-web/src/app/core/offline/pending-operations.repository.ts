@@ -53,6 +53,19 @@ export class PendingOperationsRepository {
     });
   }
 
+
+  async deleteByClientMessageId(clientMessageId: string): Promise<void> {
+  const operations = await appLocalDb.pendingOperations
+    .filter(operation =>
+      JSON.stringify(operation.payload).includes(clientMessageId)
+    )
+    .toArray();
+
+  await appLocalDb.pendingOperations.bulkDelete(
+    operations.map(x => x.id)
+  );
+}
+
 async markFailed(id: string): Promise<void> {
   const operation = await appLocalDb.pendingOperations.get(id);
   const retryCount = (operation?.retryCount ?? 0) + 1;
