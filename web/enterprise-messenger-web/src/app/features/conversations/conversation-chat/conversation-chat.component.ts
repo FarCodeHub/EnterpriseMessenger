@@ -174,9 +174,27 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
           {{ message.createdAtUtc | date:'shortTime' }}
         </span>
 @if (message.editedAtUtc) {
+
+
+@if (message.editSyncStatus === 'syncing') {
+  <span class="ms-1 text-amber-300">
+    syncing edit...
+  </span>
+} 
+
+@else if (message.editSyncStatus === 'failed') {
+  <span class="ms-1 text-red-300">
+    edit failed
+  </span>
+}
+@else{
   <span class="ms-1">
     {{ 'conversations.messages.edited' | translate }}
   </span>
+}
+
+
+
 }
         @if (message.senderUserId === currentUserId()) {
           <span
@@ -187,13 +205,13 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
           </span>
         }
 
-@if (message.receiptStatus === 'failed') {
+@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
   <button
     type="button"
-    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
-    (click)="messagesState.retryMessage(message)"
+    class="relative z-50 ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
+    (click)="retryMessage(message, $event)"
   >
-    {{ 'conversations.messages.retry' | translate }}
+    Retry
   </button>
 }
 
@@ -252,9 +270,22 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
             {{ message.createdAtUtc | date:'shortTime' }}
           </span>
 @if (message.editedAtUtc) {
+@if (message.editSyncStatus === 'syncing') {
+  <span class="ms-1 text-amber-300">
+    syncing edit...
+  </span>
+} 
+
+@else if (message.editSyncStatus === 'failed') {
+  <span class="ms-1 text-red-300">
+    edit failed
+  </span>
+}
+@else{
   <span class="ms-1">
     {{ 'conversations.messages.edited' | translate }}
   </span>
+}
 }
           @if (message.senderUserId === currentUserId()) {
             <span
@@ -266,11 +297,11 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
           }
         </span>
 
-@if (message.receiptStatus === 'failed') {
+@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
   <button
     type="button"
-    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
-    (click)="messagesState.retryMessage(message)"
+    class="ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
+    (click)="retryMessage(message, $event)"
   >
     {{ 'conversations.messages.retry' | translate }}
   </button>
@@ -350,11 +381,11 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
       <div class="absolute bottom-2 end-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white">
         {{ message.createdAtUtc | date:'shortTime' }}
 
-@if (message.receiptStatus === 'failed') {
+@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
   <button
     type="button"
     class="ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
-    (click)="messagesState.retryMessage(message)"
+    (click)="retryMessage(message, $event)"
   >
     Retry
   </button>
@@ -387,22 +418,35 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
         {{ getReceiptIcon(message) }}
       </span>
     }
-@if (message.receiptStatus === 'failed') {
+@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
   <button
     type="button"
-    class="ms-2 rounded-full bg-red-500/20 px-2 py-1 text-[11px] font-semibold text-red-200 hover:bg-red-500/30"
-    (click)="messagesState.retryMessage(message)"
+    class="relative z-50 ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
+    (click)="retryMessage(message, $event)"
   >
-    {{ 'conversations.messages.retry' | translate }}
+    Retry
   </button>
 }
     <span>
       {{ message.createdAtUtc | date:'shortTime' }}
     </span>
     @if (message.editedAtUtc) {
+@if (message.editSyncStatus === 'syncing') {
+  <span class="ms-1 text-amber-300">
+    syncing edit...
+  </span>
+} 
+
+@else if (message.editSyncStatus === 'failed') {
+  <span class="ms-1 text-red-300">
+    edit failed
+  </span>
+}
+@else{
   <span class="ms-1">
     {{ 'conversations.messages.edited' | translate }}
   </span>
+}
 }
   </div>
 }
@@ -603,7 +647,7 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
         <button
           type="button"
           class="block w-full px-4 py-2 text-start text-red-300 hover:bg-red-500/10"
-          (click)="deleteMessage(actionMessage)"
+          (click)="deleteMessage(actionMessage); $event.stopPropagation()"
         >
           {{ 'conversations.messages.actions.delete' | translate }}
         </button>
@@ -725,7 +769,7 @@ class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl 
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
   private readonly pendingOperations = inject(PendingOperationsRepository);
- 
+
   readonly editingMessage = signal<MessageDto | null>(null);
   readonly isMessageSelectionMode = signal(false);
   readonly selectedMessageIds = signal<string[]>([]);
@@ -806,6 +850,8 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   private messagesContainer?: ElementRef<HTMLDivElement>;
   ngOnInit(): void {
 
+
+
     document.addEventListener(
       'visibilitychange',
       this.handleVisibilityChange
@@ -821,7 +867,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
     this.chatSignalR.presenceSnapshot$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-       
+
         this.presenceState.setSnapshot(
           event.conversationId,
           event.userIds
@@ -834,7 +880,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
     this.chatSignalR.presenceChanged$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-       
+
 
 
         this.presenceState.setUserPresence(
@@ -843,6 +889,22 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
           event.isOnline
         );
       });
+
+
+this.offlineSync.messageEditSynced$
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(event => {
+   console.log('EDIT SYNC EVENT', event);
+
+
+    this.messagesState.handleMessageEdited(
+      {
+      id: event.messageId,
+      body: event.body,
+      editedAtUtc: event.editedAtUtc,
+      editSyncStatus: 'idle'
+    });
+  });
 
 
 
@@ -898,7 +960,11 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
         }
       });
 
-
+this.offlineSync.messageEditSyncFailed$
+  .pipe(takeUntil(this.destroy$))
+  .subscribe(messageId => {
+    this.messagesState.markMessageEditAsFailed(messageId);
+  });
 
     this.offlineSync.messageSynced$
       .pipe(takeUntil(this.destroy$))
@@ -913,7 +979,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         const conversationId = this.conversationId();
-this.offlineSync.requestSync('signalr-reconnected');
+        this.offlineSync.requestSync('signalr-reconnected');
         if (conversationId) {
           this.chatSignalR.joinConversation(conversationId);
           this.chatSignalR.startPresenceRenewTimer(conversationId);
@@ -964,11 +1030,11 @@ this.offlineSync.requestSync('signalr-reconnected');
 
 
 
-syncNow(): void {
-  alert('sync clicked');
- 
-  void this.offlineSync.forceSyncPendingOperations();
-}
+  syncNow(): void {
+    alert('sync clicked');
+
+    void this.offlineSync.forceSyncPendingOperations();
+  }
 
 
   startForwardMessage(message: MessageDto): void {
@@ -1046,78 +1112,105 @@ syncNow(): void {
 
 
 
-private stopTypingState(conversationId: string | null): void {
-  if (conversationId && this.isTypingSent) {
-    void this.chatSignalR.stopTyping(conversationId);
-    this.isTypingSent = false;
-  }
-
-  if (this.typingStopTimer) {
-    clearTimeout(this.typingStopTimer);
-    this.typingStopTimer = null;
-  }
-}
-
-
-sendMessage(): void {
-  const conversationId = this.conversationId();
-  const rawBody = this.messageText().trim();
-
-  const editingMessage = this.editingMessage();
-
-  if (editingMessage) {
-    if (!rawBody) {
-      return;
+  private stopTypingState(conversationId: string | null): void {
+    if (conversationId && this.isTypingSent) {
+      void this.chatSignalR.stopTyping(conversationId);
+      this.isTypingSent = false;
     }
 
-    const editedAtUtc = new Date().toISOString();
+    if (this.typingStopTimer) {
+      clearTimeout(this.typingStopTimer);
+      this.typingStopTimer = null;
+    }
+  }
 
-    this.messagesState.handleMessageEdited({
-      id: editingMessage.id,
-      body: rawBody,
-      editedAtUtc
-    });
 
-    this.editingMessage.set(null);
-    this.messageText.set('');
+  sendMessage(): void {
+    const conversationId = this.conversationId();
+    const rawBody = this.messageText().trim();
 
-    if (!navigator.onLine) {
+    const editingMessage = this.editingMessage();
+
+    if (editingMessage) {
+      if (!rawBody) {
+        return;
+      }
+
+      const editedAtUtc = new Date().toISOString();
+
+      this.messagesState.handleMessageEdited({
+        id: editingMessage.id,
+        body: rawBody,
+        editedAtUtc,
+        editSyncStatus: 'syncing'
+      });
+
+      this.editingMessage.set(null);
+      this.messageText.set('');
+
+      if (!navigator.onLine) {
+        this.messagesApi.editMessage(editingMessage.id, {
+          body: rawBody
+        }).subscribe({
+          error: () => {
+            void this.pendingOperations.add('editMessage', {
+              messageId: editingMessage.id,
+              body: rawBody
+            });
+
+            this.offlineSync.requestSync('edit-message-failed-queued');
+          }
+        });
+
+        this.stopTypingState(conversationId);
+        return;
+      }
+
+  this.messagesApi.editMessage(editingMessage.id, {
+    body: rawBody
+  }).subscribe({
+    next: () => {
+      this.messagesState.handleMessageEdited({
+        id: editingMessage.id,
+        body: rawBody,
+        editedAtUtc,
+        editSyncStatus: 'idle'
+      });
+    },
+    error: () => {
       void this.pendingOperations.add('editMessage', {
         messageId: editingMessage.id,
-        body: rawBody
+        body: rawBody,
+        editedAtUtc
       });
+
+      this.offlineSync.requestSync('edit-message-failed-queued');
+    }
+  });
 
       this.stopTypingState(conversationId);
       return;
     }
 
-    this.messagesApi.editMessage(editingMessage.id, {
-      body: rawBody
-    }).subscribe();
+    if (!conversationId || !rawBody) {
+      return;
+    }
+
+    this.messagesState.send({
+      conversationId,
+      clientMessageId: crypto.randomUUID(),
+      body: rawBody,
+      replyToMessageId: this.replyingToMessage()?.id ?? null,
+      attachments: []
+    });
+
+    this.messageText.set('');
+    this.replyingToMessage.set(null);
+    this.selectedAttachments.set([]);
 
     this.stopTypingState(conversationId);
-    return;
+    this.scrollToBottom();
   }
-
-  if (!conversationId || !rawBody) {
-    return;
-  }
-
-  this.messagesState.send({
-    conversationId,
-    clientMessageId: crypto.randomUUID(),
-    body: rawBody,
-    replyToMessageId: this.replyingToMessage()?.id ?? null,
-    attachments: []
-  });
-
-  this.messageText.set('');
-  this.replyingToMessage.set(null);
-  this.selectedAttachments.set([]);
-
-  this.stopTypingState(conversationId);
-  this.scrollToBottom();
-}
   ngOnDestroy(): void {
     this.chatSignalR.stopPresenceRenewTimer();
 
@@ -1197,7 +1290,7 @@ sendMessage(): void {
     this.chatSignalR.stopPresenceRenewTimer();
 
     if (oldConversationId && oldConversationId !== newConversationId) {
-     
+
 
       await this.chatSignalR.leaveConversation(oldConversationId);
       this.presenceState.clearConversation(oldConversationId);
@@ -1206,11 +1299,11 @@ sendMessage(): void {
     this.activeConversationId = newConversationId;
     this.conversationId.set(newConversationId);
     this.messagesState.clear();
-this.selectedAttachments.set([]);
-this.pendingImageFile.set(null);
-this.isSendModeOpen.set(false);
-this.replyingToMessage.set(null);
-this.editingMessage.set(null);
+    this.selectedAttachments.set([]);
+    this.pendingImageFile.set(null);
+    this.isSendModeOpen.set(false);
+    this.replyingToMessage.set(null);
+    this.editingMessage.set(null);
     this.lastDeliveredSequenceNumber = null;
     this.lastSeenSequenceNumber = null;
 
@@ -1222,7 +1315,7 @@ this.editingMessage.set(null);
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-         
+
 
           this.scrollToBottom();
 
@@ -1242,76 +1335,76 @@ this.editingMessage.set(null);
   }
 
   onFileSelected(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files ?? []);
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
 
-  input.value = '';
+    input.value = '';
 
-  const conversationId = this.conversationId();
+    const conversationId = this.conversationId();
 
-  if (!conversationId || files.length === 0) {
-    return;
-  }
-
-  files.forEach(file => {
-    if (file.type.startsWith('image/')) {
-      void this.sendImageAsLocalMediaMessage(file);
+    if (!conversationId || files.length === 0) {
       return;
     }
 
-    void this.messagesState.sendLocalMediaMessage({
-      conversationId,
-      file,
-      body: '',
-      replyToMessageId: this.replyingToMessage()?.id ?? null
-    });
-  });
-
-  this.replyingToMessage.set(null);
-  this.scrollToBottom();
-}
-
-
-private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
-  const conversationId = this.conversationId();
-
-  if (!conversationId) {
-    return;
-  }
-
-  try {
-    const compressedFile = await imageCompression(file, {
-      maxSizeMB: 1,
-      maxWidthOrHeight: 1600,
-      useWebWorker: true,
-      fileType: 'image/jpeg',
-      initialQuality: 0.8
-    });
-
-    const renamedFile = new File(
-      [compressedFile],
-      file.name,
-      {
-        type: compressedFile.type,
-        lastModified: Date.now()
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        void this.sendImageAsLocalMediaMessage(file);
+        return;
       }
-    );
 
-    await this.messagesState.sendLocalMediaMessage({
-      conversationId,
-      file: renamedFile,
-      body: '',
-      replyToMessageId: this.replyingToMessage()?.id ?? null
+      void this.messagesState.sendLocalMediaMessage({
+        conversationId,
+        file,
+        body: '',
+        replyToMessageId: this.replyingToMessage()?.id ?? null
+      });
     });
-  } catch {
-    await this.messagesState.sendLocalMediaMessage({
-      conversationId,
-      file,
-      body: '',
-      replyToMessageId: this.replyingToMessage()?.id ?? null
-    });
+
+    this.replyingToMessage.set(null);
+    this.scrollToBottom();
   }
-}
+
+
+  private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
+    const conversationId = this.conversationId();
+
+    if (!conversationId) {
+      return;
+    }
+
+    try {
+      const compressedFile = await imageCompression(file, {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+        fileType: 'image/jpeg',
+        initialQuality: 0.8
+      });
+
+      const renamedFile = new File(
+        [compressedFile],
+        file.name,
+        {
+          type: compressedFile.type,
+          lastModified: Date.now()
+        }
+      );
+
+      await this.messagesState.sendLocalMediaMessage({
+        conversationId,
+        file: renamedFile,
+        body: '',
+        replyToMessageId: this.replyingToMessage()?.id ?? null
+      });
+    } catch {
+      await this.messagesState.sendLocalMediaMessage({
+        conversationId,
+        file,
+        body: '',
+        replyToMessageId: this.replyingToMessage()?.id ?? null
+      });
+    }
+  }
 
   // private async compressAndUploadImage(file: File): Promise<void> {
   //   const tempId = this.addPendingAttachment(file);
@@ -1365,7 +1458,7 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
     this.isSendModeOpen.set(false);
     this.pendingImageFile.set(null);
 
-   // this.uploadAttachment(file);
+    // this.uploadAttachment(file);
   }
 
   async sendPendingImageAsPhoto(): Promise<void> {
@@ -1386,7 +1479,7 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
       initialQuality: 0.8
     });
 
-   // this.uploadAttachment(compressedFile);
+    // this.uploadAttachment(compressedFile);
   }
 
   cancelSendMode(): void {
@@ -1620,6 +1713,16 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
     this.chatSignalR.markAsDelivered(conversationId, lastSequenceNumber);
   }
 
+
+
+  retryMessage(message: MessageDto, event?: Event): void {
+  event?.stopPropagation();
+
+  console.log('Retry clicked:', message);
+
+  this.messagesState.retryMessage(message);
+}
+
   private markCurrentConversationAsSeenIfAllowed(): void {
     if (!navigator.onLine) {
       return;
@@ -1777,16 +1880,35 @@ private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
     this.messageText.set('');
   }
 
-  deleteMessage(message: MessageDto): void {
-    this.messagesApi.deleteMessage(message.id).subscribe({
-      next: () => {
-        this.closeActionMenu();
-      },
-      error: () => {
-        this.closeActionMenu();
-      }
-    });
+deleteMessage(message: MessageDto): void {
+  this.closeActionMenu();
+
+  const isPendingMessage =
+    message.receiptStatus === 'sending' ||
+    message.sequenceNumber < 0 ||
+    !!message.attachments?.some(x => x.isLocalPending);
+
+  if (isPendingMessage) {
+    this.messagesState.deletePendingLocally(message);
+    return;
   }
+
+  const deletedAtUtc = new Date().toISOString();
+
+  this.messagesState.deleteLocally(message, deletedAtUtc);
+
+  void this.pendingOperations.add('deleteMessage', {
+    messageId: message.id,
+    deletedAtUtc
+  });
+
+  if (navigator.onLine) {
+    this.offlineSync.requestSync('delete-message-queued');
+  }
+}
+
+
+
   copyMessage(message: MessageDto): void {
     if (!message.body) {
       return;

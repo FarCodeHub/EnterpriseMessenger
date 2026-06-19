@@ -26,6 +26,11 @@ export class OfflineMessagesRepository {
   await appLocalDb.messages.bulkDelete(messages.map(x => x.id));
 }
 
+async deleteById(id: string): Promise<void> {
+  await appLocalDb.messages.delete(id);
+}
+
+
   async save(message: MessageDto, syncStatus: LocalMessage['syncStatus'] = 'synced'): Promise<void> {
     await appLocalDb.messages.put({
       ...message,
