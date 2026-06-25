@@ -13,101 +13,29 @@ public sealed class MessageReader : IMessageReader
         _dbContext = dbContext;
     }
 
-public async Task<IReadOnlyCollection<MessageListItemResult>> GetConversationMessagesAsync(
-    Guid conversationId,
-    long? beforeSequence,
-    int take,
-    CancellationToken cancellationToken)
-{
-    take = Math.Clamp(take, 1, 100);
+    public async Task<IReadOnlyCollection<MessageListItemResult>> GetConversationMessagesAsync(
+        Guid conversationId,
+        long? beforeSequence,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        take = Math.Clamp(take, 1, 100);
 
-    var query = _dbContext.Messages
-        .Where(x => x.ConversationId == conversationId);
+        var query = _dbContext.Messages
+            .Where(x => x.ConversationId == conversationId);
 
-    if (beforeSequence is not null)
-        query = query.Where(x => x.SequenceNumber < beforeSequence.Value);
+        if (beforeSequence is not null)
+            query = query.Where(x => x.SequenceNumber < beforeSequence.Value);
 
-    var messages = await query
-        .OrderByDescending(x => x.SequenceNumber)
-        .Take(take)
-        .OrderBy(x => x.SequenceNumber)
-        .Select(x => new
-        {
-            x.Id,
-            x.ConversationId,
-            x.SequenceNumber,
-            x.SenderUserId,
-            x.Body,
-            x.ReplyToMessageId,
-            x.ReplyToSequenceNumber,
-            x.CreatedAtUtc,
-            x.EditedAtUtc,
-            x.DeletedAtUtc,
-            x.ForwardedFromMessageId,
-            x.ForwardedFromUserId
-        })
-        .ToListAsync(cancellationToken);
-
-    var messageIds = messages
-        .Select(x => x.Id)
-        .ToList();
-
-    var attachmentsByMessageId = await _dbContext.Attachments
-        .Where(a => messageIds.Contains(a.MessageId))
-        .Select(a => new
-        {
-            a.MessageId,
-            Attachment = new MessageAttachmentResult(
-                a.Id,
-                a.FileName,
-                a.ContentType,
-                a.Size,
-                a.StoragePath)
-        })
-        .GroupBy(x => x.MessageId)
-        .ToDictionaryAsync(
-            x => x.Key,
-            x => x.Select(y => y.Attachment).ToList(),
-            cancellationToken);
-
-    var forwardedFromUserIds = messages
-        .Where(x => x.ForwardedFromUserId.HasValue)
-        .Select(x => x.ForwardedFromUserId!.Value)
-        .Distinct()
-        .ToList();
-
-    var forwardedUsers = await _dbContext.Users
-        .Where(x => forwardedFromUserIds.Contains(x.Id))
-        .Select(x => new
-        {
-            x.Id,
-            x.DisplayName,
-            x.UserName
-        })
-        .ToDictionaryAsync(
-            x => x.Id,
-            x => x,
-            cancellationToken);
-
-    return messages
-        .Select(x =>
-        {
-            string? forwardedFromDisplayName = null;
-
-            if (x.ForwardedFromUserId.HasValue &&
-                forwardedUsers.TryGetValue(x.ForwardedFromUserId.Value, out var forwardedUser))
+        var messages = await query
+            .OrderByDescending(x => x.SequenceNumber)
+            .Take(take)
+            .OrderBy(x => x.SequenceNumber)
+            .Select(x => new
             {
-                forwardedFromDisplayName =
-                    forwardedUser.DisplayName ?? forwardedUser.UserName;
-            }
-
-            attachmentsByMessageId.TryGetValue(
-                x.Id,
-                out var attachments);
-
-            return new MessageListItemResult(
                 x.Id,
                 x.ConversationId,
+                x.ClientMessageId,
                 x.SequenceNumber,
                 x.SenderUserId,
                 x.Body,
@@ -117,12 +45,86 @@ public async Task<IReadOnlyCollection<MessageListItemResult>> GetConversationMes
                 x.EditedAtUtc,
                 x.DeletedAtUtc,
                 x.ForwardedFromMessageId,
-                x.ForwardedFromUserId,
-                forwardedFromDisplayName,
-                attachments ?? []);
-        })
-        .ToList();
-}
+                x.ForwardedFromUserId
+            })
+            .ToListAsync(cancellationToken);
+
+        var messageIds = messages
+            .Select(x => x.Id)
+            .ToList();
+
+        var attachmentsByMessageId = await _dbContext.Attachments
+            .Where(a => messageIds.Contains(a.MessageId))
+            .Select(a => new
+            {
+                a.MessageId,
+                Attachment = new MessageAttachmentResult(
+                    a.Id,
+                    a.FileName,
+                    a.ContentType,
+                    a.Size,
+                    a.StoragePath)
+            })
+            .GroupBy(x => x.MessageId)
+            .ToDictionaryAsync(
+                x => x.Key,
+                x => x.Select(y => y.Attachment).ToList(),
+                cancellationToken);
+
+        var forwardedFromUserIds = messages
+            .Where(x => x.ForwardedFromUserId.HasValue)
+            .Select(x => x.ForwardedFromUserId!.Value)
+            .Distinct()
+            .ToList();
+
+        var forwardedUsers = await _dbContext.Users
+            .Where(x => forwardedFromUserIds.Contains(x.Id))
+            .Select(x => new
+            {
+                x.Id,
+                x.DisplayName,
+                x.UserName
+            })
+            .ToDictionaryAsync(
+                x => x.Id,
+                x => x,
+                cancellationToken);
+
+        return messages
+            .Select(x =>
+            {
+                string? forwardedFromDisplayName = null;
+
+                if (x.ForwardedFromUserId.HasValue &&
+                    forwardedUsers.TryGetValue(x.ForwardedFromUserId.Value, out var forwardedUser))
+                {
+                    forwardedFromDisplayName =
+                        forwardedUser.DisplayName ?? forwardedUser.UserName;
+                }
+
+                attachmentsByMessageId.TryGetValue(
+                    x.Id,
+                    out var attachments);
+
+                return new MessageListItemResult(
+                    x.Id,
+                    x.ConversationId,
+                    x.ClientMessageId,
+                    x.SequenceNumber,
+                    x.SenderUserId,
+                    x.Body,
+                    x.ReplyToMessageId,
+                    x.ReplyToSequenceNumber,
+                    x.CreatedAtUtc,
+                    x.EditedAtUtc,
+                    x.DeletedAtUtc,
+                    x.ForwardedFromMessageId,
+                    x.ForwardedFromUserId,
+                    forwardedFromDisplayName,
+                    attachments ?? []);
+            })
+            .ToList();
+    }
 
     public async Task<IReadOnlyCollection<MessageListItemResult>> GetMessagesAroundAsync(
         Guid conversationId,
@@ -144,6 +146,7 @@ public async Task<IReadOnlyCollection<MessageListItemResult>> GetConversationMes
             .Select(x => new MessageListItemResult(
                 x.Id,
                 x.ConversationId,
+                x.ClientMessageId,
                 x.SequenceNumber,
                 x.SenderUserId,
                 x.Body,

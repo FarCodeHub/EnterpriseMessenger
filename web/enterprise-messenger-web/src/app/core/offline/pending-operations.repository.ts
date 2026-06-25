@@ -29,6 +29,59 @@ export class PendingOperationsRepository {
   }
 
 
+async upsertByClientMessageId(
+  type: PendingOperationType,
+  clientMessageId: string,
+  payload: unknown
+): Promise<void> {
+  const existing = await appLocalDb.pendingOperations
+    .filter(operation =>
+      operation.type === type &&
+      JSON.stringify(operation.payload).includes(clientMessageId)
+    )
+    .first();
+
+  if (existing) {
+    await appLocalDb.pendingOperations.put({
+      ...existing,
+      payload,
+      status: 'pending',
+      retryCount: 0
+    });
+
+    return;
+  }
+
+  await this.add(type, payload);
+}
+
+
+async upsertByMessageId(
+  type: PendingOperationType,
+  messageId: string,
+  payload: unknown
+): Promise<void> {
+  const existing = await appLocalDb.pendingOperations
+    .filter(operation =>
+      operation.type === type &&
+      JSON.stringify(operation.payload).includes(messageId)
+    )
+    .first();
+
+  if (existing) {
+    await appLocalDb.pendingOperations.put({
+      ...existing,
+      payload,
+      status: 'pending',
+      retryCount: 0
+    });
+
+    return;
+  }
+
+  await this.add(type, payload);
+}
+
   async resetAllToPending(): Promise<void> {
   const operations = await appLocalDb.pendingOperations.toArray();
 

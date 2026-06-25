@@ -3,9 +3,11 @@ import { MediaCacheService } from '../../../../core/offline/media-cache.service'
 import { AttachmentUrlService } from '../../../../core/services/attachment-url.service';
 import { MessageAttachmentDto } from '../../models/message-attachment.dto';
 import { OfflineFilesRepository } from '../../../../core/offline/offline-files.repository';
+import { TranslateModule } from '@ngx-translate/core';
 @Component({
   selector: 'app-attachment-preview',
   standalone: true,
+   imports: [ TranslateModule],
   template: `
 @if (isImage()) {
   @if (url()) {
@@ -38,15 +40,15 @@ import { OfflineFilesRepository } from '../../../../core/offline/offline-files.r
     }
   } @else if (attachment.isLocalPending || attachment.localFileId) {
     <div class="flex h-48 w-64 items-center justify-center rounded-xl bg-slate-800 text-xs text-slate-400">
-      Preparing image...
+      {{ 'attachments.Preparingimage' | translate }}
     </div>
   } @else if (isOffline()) {
     <div class="flex h-48 w-64 items-center justify-center rounded-xl bg-slate-800 text-center text-xs text-slate-400">
-      Image unavailable offline
+      {{ 'attachments.ImageUnavailableOffline' | translate }}
     </div>
   } @else {
     <div class="flex h-48 w-64 items-center justify-center rounded-xl bg-slate-800 text-xs text-slate-400">
-      Loading image...
+      {{ 'attachments.LoadingImage' | translate }}
     </div>
   }
 } @else {
@@ -114,11 +116,7 @@ export class AttachmentPreviewComponent implements OnInit {
 
 async ngOnInit(): Promise<void> {
  
-console.log('AttachmentPreview attachment:', this.attachment);
-
-if (this.attachment.localFileId) {
-  console.log('LOCAL FILE ID:', this.attachment.localFileId);
-}
+ 
 
  
   if (this.attachment.localPreviewUrl) {
@@ -146,29 +144,30 @@ if (this.attachment.localFileId) {
     return;
   }
 
-  if (!navigator.onLine || this.attachment.isLocalPending) {
-    this.isOffline.set(true);
-    return;
-  }
+if (this.attachment.isLocalPending) {
+  this.isOffline.set(true);
+  return;
+}
 
-  this.attachmentUrlService.getUrl(this.attachment.id)
-    .subscribe({
-      next: async signedUrl => {
-        try {
-          const objectUrl = await this.mediaCache.cacheFromUrl(
-            this.attachment.id,
-            signedUrl
-          );
+ this.attachmentUrlService.getUrl(this.attachment.id)
+  .subscribe({
+    next: async signedUrl => {
+      try {
+        const objectUrl = await this.mediaCache.cacheFromUrl(
+          this.attachment.id,
+          signedUrl
+        );
 
-          this.url.set(objectUrl);
-        } catch {
-          this.url.set(signedUrl);
-        }
-      },
-      error: () => {
-        this.hasError.set(true);
+        this.url.set(objectUrl);
+      } catch {
+        this.url.set(signedUrl);
       }
-    });
+    },
+    error: () => {
+      this.isOffline.set(true);
+      this.hasError.set(true);
+    }
+  });
 
 
 

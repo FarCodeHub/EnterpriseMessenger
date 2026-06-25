@@ -68,17 +68,25 @@
   "presence": {
     "online": "آنلاین",
     "offline": "آفلاین",
-    "lastSeenRecently":"اخیرا اینجا بوده ..."
+    "lastSeenRecently":"اخیرا اینجا بوده ...",
+    "Deleteing":"در حال حذف ..."
   },
   "attachments": {
     "sendMode": {
       "title": "نحوه ارسال تصویر",
       "asPhoto": "ارسال به عنوان عکس",
       "asFile": "ارسال به عنوان فایل"
-    }
+    },
+     "Preparingimage": "در حال آماده سازی تصویر ...",
+    "ImageUnavailableOffline": "تصویر در حالت آفلاین در دسترس نیست",
+    "LoadingImage": "در حال بارگذاری تصویر ..."
   },
   "common": {
     "cancel": "انصراف",
-    "sending": "در حال ارسال ..."
+    "sending": "در حال ارسال ...",
+    "Deletefailed": "حذف ناموفق",
+    "syncingedit": "هماهنگ سازی ویرایش ...",
+    "editfailed": "ویرایش ناموفق",
+    "Connecting": "در حال اتصال ..."
   }
 }

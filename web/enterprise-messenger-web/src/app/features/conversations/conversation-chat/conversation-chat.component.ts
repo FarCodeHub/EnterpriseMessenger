@@ -28,744 +28,9 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
     TranslateModule,
     FormsModule,
     AttachmentPreviewComponent
-  ],
-  template: `
-  
-<div class="relative grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
-<header class="border-b border-white/10 px-6 py-4">
-<div class="flex flex-row-reverse items-start gap-3">
-<div
-  class="flex h-11 w-11 items-center justify-center rounded-xl border-2 bg-blue-600 text-sm font-bold text-white"
-  [class.border-emerald-400]="presenceState.isOnline(conversationId(), conversationPresenceUserId())"
-  [class.border-slate-500]="!presenceState.isOnline(conversationId(), conversationPresenceUserId())">
-  {{ conversation()?.displayTitle?.charAt(0) || '?' }}
-</div>
-
-  <div class="min-w-0">
-    <h2 class="truncate text-lg font-bold text-white">
-      {{ conversation()?.displayTitle || ('messages.title' | translate) }}
-    </h2>
-
-
-<p class="text-xs text-slate-400">
-  @if (conversation()?.type === 1) {
-    {{ 'presence.lastSeenRecently' | translate }}
-  } @else {
-    {{ 'conversations.type.group' | translate }}
-  }
-</p>
-
-
-
-    <p class="text-xs text-slate-400">
-      {{ conversation()?.type === 1 ? 'Private' : 'Group' }}
-    </p>
-  </div>
-</div>
-      </header>
-@if (typingState.isAnyoneTyping(conversationId()!, currentUserId())) {
-  <div class="shrink-0 border-b border-white/10 bg-slate-900/60 px-6 py-2 text-xs text-blue-400">
-    {{ 'conversations.messages.typing' | translate }}
-  </div>
-}
-<section
-   #messagesContainer
-  dir="ltr"
-  class="min-h-0 overflow-y-auto px-6 py-4"
-  (scroll)="onMessagesScroll()"
-  >
-        @if (messagesState.isLoading()) {
-          <div class="text-sm text-slate-400">
-            {{ 'messages.loading' | translate }}
-          </div>
-        }
-
-        @if (!messagesState.isLoading() && messagesState.messages().length === 0) {
-          <div class="flex h-full items-center justify-center text-sm text-slate-500">
-            {{ 'messages.empty' | translate }}
-          </div>
-        }
-
-
-
-
-
-        <div class="space-y-3">
+  ] ,
+  templateUrl: './conversation-chat.component.html'
  
-
-
-          @for (message of messagesState.messages(); track message.id) {
-         
-<div
-  [id]="'message-' + message.id"
-  class="group flex items-center gap-2"
-  [class.justify-end]="message.senderUserId === currentUserId()"
-  [class.justify-start]="message.senderUserId !== currentUserId()">
-
-  @if (isMessageSelectionMode()) {
-  <button
-    type="button"
-    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs"
-    [class.border-blue-400]="isMessageSelected(message)"
-    [class.bg-blue-500]="isMessageSelected(message)"
-    [class.text-white]="isMessageSelected(message)"
-    [class.border-slate-500]="!isMessageSelected(message)"
-    [class.text-transparent]="!isMessageSelected(message)"
-    (click)="toggleMessageSelection(message)"
-  >
-    ✓
-  </button>
-}
-
-@if (message.senderUserId === currentUserId()) {
-  <div class="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
-    <button
-      type="button"
-      class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 shadow hover:bg-slate-600"
-     (click)="toggleActionMenu($event, message)"
-    >
-      ⋯
-    </button>
-
-
-  </div>
-}
- 
-<div
-  class="max-w-[70%] rounded-2xl text-sm shadow"
- [class.bg-blue-600]="message.senderUserId === currentUserId() && !isMediaOnlyMessage(message)"
-[class.bg-slate-800]="message.senderUserId !== currentUserId() && !isMediaOnlyMessage(message)"
-  [class.bg-slate-800]="message.senderUserId !== currentUserId()"
-  [class.text-slate-100]="message.senderUserId !== currentUserId()"
-[class.px-4]="!isMediaOnlyMessage(message)"
-[class.py-3]="!isMediaOnlyMessage(message)"
-  [class.overflow-hidden]="isImageOnlyMessage(message)"
->
-                @if (message.deletedAtUtc) {
-                  <div class="italic text-slate-300">
-                    {{ 'conversations.messages.deleted' | translate }}
-                  </div>
-                } @else {
-
-  @if (message.forwardedFromMessageId) {
-    <div
-      class="mb-2 text-xs font-semibold text-blue-300"
-      [class.px-2]="isMediaOnlyMessage(message)"
-      [class.pt-2]="isMediaOnlyMessage(message)"
-    >
-      {{ 'conversations.messages.forward.forwardedFrom' | translate }}
-      {{ message.forwardedFromDisplayName || 'Unknown' }}
-    </div>
-  }
-
-
-@if (message.body && message.body.trim().length > 0) {
-  <div
-    class="text-start"
-    [attr.dir]="getTextDirection(message.body)"
-  >
-
- 
-
-
-    @if (!isMediaOnlyMessage(message) && isLongTextMessage(message)) {
-      <div class="mb-1 inline-flex items-center gap-1 text-[12px] leading-none opacity-70">
-        <span>
-          {{ message.createdAtUtc | date:'shortTime' }}
-        </span>
-@if (message.editedAtUtc) {
-
-
-@if (message.editSyncStatus === 'syncing') {
-  <span class="ms-1 text-amber-300">
-    syncing edit...
-  </span>
-} 
-
-@else if (message.editSyncStatus === 'failed') {
-  <span class="ms-1 text-red-300">
-    edit failed
-  </span>
-}
-@else{
-  <span class="ms-1">
-    {{ 'conversations.messages.edited' | translate }}
-  </span>
-}
-
-
-
-}
-        @if (message.senderUserId === currentUserId()) {
-          <span
-            class="font-bold tracking-[-0.18em]"
-           [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-          >
-            {{ getReceiptIcon(message) }}
-          </span>
-        }
-
-@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
-  <button
-    type="button"
-    class="relative z-50 ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
-    (click)="retryMessage(message, $event)"
-  >
-    Retry
-  </button>
-}
-
-        
-      </div>
-@if (message.replyToMessageId) {
-    <button
-    type="button"
-    class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
-    (click)="jumpToReplyMessage(message)"
-  >
-@if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
-
-  <div class="font-semibold text-blue-300">
-    {{ 'conversations.messages.replyingTo' | translate }}
-  </div>
-
-  @if (repliedMessage.deletedAtUtc) {
-
-    <div class="mt-1 italic text-slate-400">
-      {{ 'conversations.messages.deleted' | translate }}
-    </div>
-
-  } @else {
-
-    <div class="mt-1 line-clamp-2 text-slate-200">
-      {{
-        repliedMessage.body
-          ? repliedMessage.body
-          : (repliedMessage.attachments.length > 0
-              ? '📎 Attachment'
-              : '')
-      }}
-    </div>
-
-  }
-}
-    @else {
-      <div class="font-semibold text-blue-300">
-        {{ 'conversations.messages.replyingToMessage' | translate }}
-        #{{ message.replyToSequenceNumber }}
-      </div>
-    }
-  </button>
-}
-      <div class="whitespace-pre-wrap break-words">
-        {{ message.body }}
-      </div>
-    } 
-    
-    
-    @else {
-      @if (!isMediaOnlyMessage(message)) {
-        <span class="inline-flex items-center gap-1 pe-2 text-[12px] leading-none opacity-70 align-baseline">
-          <span>
-            {{ message.createdAtUtc | date:'shortTime' }}
-          </span>
-@if (message.editedAtUtc) {
-@if (message.editSyncStatus === 'syncing') {
-  <span class="ms-1 text-amber-300">
-    syncing edit...
-  </span>
-} 
-
-@else if (message.editSyncStatus === 'failed') {
-  <span class="ms-1 text-red-300">
-    edit failed
-  </span>
-}
-@else{
-  <span class="ms-1">
-    {{ 'conversations.messages.edited' | translate }}
-  </span>
-}
-}
-          @if (message.senderUserId === currentUserId()) {
-            <span
-              class="font-bold tracking-[-0.18em]"
-             [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-            >
-              {{ getReceiptIcon(message) }}
-            </span>
-          }
-        </span>
-
-@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
-  <button
-    type="button"
-    class="ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
-    (click)="retryMessage(message, $event)"
-  >
-    {{ 'conversations.messages.retry' | translate }}
-  </button>
-}
-
-      }
-@if (message.replyToMessageId) {
-    <button
-    type="button"
-    class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
-    (click)="jumpToReplyMessage(message)"
-  >
-@if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
-
-  <div class="font-semibold text-blue-300">
-    {{ 'conversations.messages.replyingTo' | translate }}
-  </div>
-
-  @if (repliedMessage.deletedAtUtc) {
-
-    <div class="mt-1 italic text-slate-400">
-      {{ 'conversations.messages.deleted' | translate }}
-    </div>
-
-  } @else {
-
-    <div class="mt-1 line-clamp-2 text-slate-200">
-      {{
-        repliedMessage.body
-          ? repliedMessage.body
-          : (repliedMessage.attachments.length > 0
-              ? '📎 Attachment'
-              : '')
-      }}
-    </div>
-
-  }
-}
-    
-    
-    @else {
-      <div class="font-semibold text-blue-300">
-        {{ 'conversations.messages.replyingToMessage' | translate }}
-        #{{ message.replyToSequenceNumber }}
-      </div>
-    }
-  </button>
-}
-      <span class="whitespace-pre-wrap break-words">
-        {{ message.body }}
-      </span>
-    }
-  </div>
-}
-@if (message.attachments.length > 0) {
-  <div
-    class="relative overflow-hidden rounded-xl"
-    [class.mt-2]="!isImageOnlyMessage(message)"
-    [class.grid]="isImageAlbumMessage(message)"
-    [class.grid-cols-2]="isImageAlbumMessage(message)"
-    [class.gap-1]="isImageAlbumMessage(message)"
-    [class.max-w-sm]="isImageAlbumMessage(message)"
-  >
-    @for (attachment of message.attachments; track attachment.id) {
-      <div
-        [class.aspect-square]="isImageAlbumMessage(message)"
-        [class.overflow-hidden]="isImageAlbumMessage(message)"
-      >
-        <app-attachment-preview
-          [attachment]="attachment"
-          [compact]="isImageAlbumMessage(message)"
-        />
-      </div>
-    }
-
-    @if (isMediaOnlyMessage(message)) {
-      <div class="absolute bottom-2 end-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white">
-        {{ message.createdAtUtc | date:'shortTime' }}
-
-@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
-  <button
-    type="button"
-    class="ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
-    (click)="retryMessage(message, $event)"
-  >
-    Retry
-  </button>
-}
-
-      @if (message.senderUserId === currentUserId()) {
-  <span
-    class="ms-1"
-    [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-  >
-    {{ getReceiptIcon(message) }}
-  </span>
-}
-      </div>
-    }
-  </div>
-}
-                }
-
-@if (
-  !isMediaOnlyMessage(message) &&
-  (!message.body || message.body.trim().length === 0)
-) {
-  <div class="mt-2 flex items-center gap-1 text-[12px] opacity-70">
-    @if (message.senderUserId === currentUserId()) {
-      <span
-        class="font-bold tracking-[-0.18em]"
-        [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-      >
-        {{ getReceiptIcon(message) }}
-      </span>
-    }
-@if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
-  <button
-    type="button"
-    class="relative z-50 ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
-    (click)="retryMessage(message, $event)"
-  >
-    Retry
-  </button>
-}
-    <span>
-      {{ message.createdAtUtc | date:'shortTime' }}
-    </span>
-    @if (message.editedAtUtc) {
-@if (message.editSyncStatus === 'syncing') {
-  <span class="ms-1 text-amber-300">
-    syncing edit...
-  </span>
-} 
-
-@else if (message.editSyncStatus === 'failed') {
-  <span class="ms-1 text-red-300">
-    edit failed
-  </span>
-}
-@else{
-  <span class="ms-1">
-    {{ 'conversations.messages.edited' | translate }}
-  </span>
-}
-}
-  </div>
-}
-              </div>
-
-
-  
-  @if (message.senderUserId !== currentUserId()) {
-  <div class="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
-    <button
-      type="button"
-      class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 shadow hover:bg-slate-600"
-      (click)="toggleActionMenu($event, message)"
-    >
-      ⋯
-    </button>
-
- 
-  </div>
-}
-
-            </div>
-          }
-        </div>
-      </section>
-
-
-@if (isMessageSelectionMode()) {
-  <div class="border-t border-white/10 bg-slate-900 px-4 py-3">
-    <div class="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">
-      <button
-        type="button"
-        class="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
-        (click)="cancelMessageSelection()"
-      >
-        {{ 'common.cancel' | translate }}
-      </button>
-
-      <div class="text-sm text-slate-300">
-        {{ selectedMessageIds().length }}
-        {{ 'conversations.messages.selection.selected' | translate }}
-      </div>
-
-      <button
-        type="button"
-        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
-        (click)="startForwardSelectedMessages()"
-      >
-        {{ 'conversations.messages.actions.forward' | translate }}
-      </button>
-    </div>
-  </div>
-}
-
-
-
-
- @if (isForwardModalOpen()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-    <div class="w-full max-w-md overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl">
-      <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div>
-          <h3 class="text-base font-bold">
-            {{ 'conversations.messages.forward.title' | translate }}
-          </h3>
-
-          <p class="mt-1 text-xs text-slate-400">
-            {{ forwardingMessage()?.body || '📎 Attachment' }}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          class="text-slate-400 hover:text-white"
-          (click)="cancelForwardMessage()"
-        >
-          ×
-        </button>
-      </div>
-
-      <div class="max-h-80 overflow-y-auto p-3">
-        @for (conversation of conversationsState.conversations(); track conversation.id) {
-          @if (conversation.id !== conversationId()) {
-            <button
-              type="button"
-              class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-start hover:bg-white/10"
-              (click)="toggleForwardTarget(conversation.id)"
-            >
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
-                {{ conversation.displayTitle.charAt(0) }}
-              </div>
-
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-semibold">
-                  {{ conversation.displayTitle }}
-                </div>
-
-                <div class="truncate text-xs text-slate-400">
-                  {{ conversation.lastMessagePreview || ('conversations.list.noMessages' | translate) }}
-                </div>
-              </div>
-
-              @if (isForwardTargetSelected(conversation.id)) {
-                <div class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold">
-                  ✓
-                </div>
-              } @else {
-                <div class="h-6 w-6 rounded-full border border-slate-500"></div>
-              }
-            </button>
-          }
-        }
-      </div>
-
-      <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
-        <button
-          type="button"
-          class="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
-          (click)="cancelForwardMessage()"
-        >
-          {{ 'common.cancel' | translate }}
-        </button>
-
-<button
-  type="button"
-  class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-  [disabled]="selectedForwardConversationIds().length === 0 || isForwarding()"
-  (click)="forwardSelectedMessage()"
->
-  @if (isForwarding()) {
-    {{ 'common.sending' | translate }}
-  } @else {
-    {{ 'conversations.messages.forward.send' | translate }}
-  }
-</button>
-      </div>
-    </div>
-  </div>
-}
-@if (actionMenuMessage(); as actionMessage) {
-  @if (actionMenuPosition(); as pos) {
-    <button
-      type="button"
-      class="fixed inset-0 z-40 cursor-default bg-transparent"
-      (click)="closeActionMenu()"
-      aria-label="Close menu"
-    ></button>
-
-    <div
-      class="fixed z-50 min-w-40 overflow-hidden rounded-xl bg-slate-800 py-1 text-sm text-slate-100 shadow-2xl"
-      [style.left.px]="pos.x"
-      [style.top.px]="pos.y"
-    >
-      <button
-        type="button"
-        class="block w-full px-4 py-2 text-start hover:bg-white/10"
-        (click)="replyToMessage(actionMessage)"
-      >
-        {{ 'conversations.messages.actions.reply' | translate }}
-      </button>
-
-      <button
-  type="button"
-  class="block w-full px-4 py-2 text-start hover:bg-white/10"
-  (click)="startForwardMessage(actionMessage)"
->
-  {{ 'conversations.messages.actions.forward' | translate }}
-</button>
-
-
-<button
-  type="button"
-  class="block w-full px-4 py-2 text-start hover:bg-white/10"
-  (click)="startMessageSelection(actionMessage)"
->
-  {{ 'conversations.messages.actions.select' | translate }}
-</button>
-
-      <button
-        type="button"
-        class="block w-full px-4 py-2 text-start hover:bg-white/10"
-        (click)="copyMessage(actionMessage)"
-        [disabled]="!actionMessage.body || actionMessage.body.trim().length === 0"
-        [class.opacity-50]="!actionMessage.body || actionMessage.body.trim().length === 0"
-      >
-        {{ 'conversations.messages.actions.copy' | translate }}
-      </button>
-
-      @if (actionMessage.senderUserId === currentUserId()) {
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start hover:bg-white/10"
-          (click)="startEditMessage(actionMessage)"
-        >
-          {{ 'conversations.messages.actions.edit' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start text-red-300 hover:bg-red-500/10"
-          (click)="deleteMessage(actionMessage); $event.stopPropagation()"
-        >
-          {{ 'conversations.messages.actions.delete' | translate }}
-        </button>
-      }
-    </div>
-  }
-}
-
-@if (shouldShowBackToLatest()) {
-  <button
-    type="button"
-    class="absolute bottom-24 end-6 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-white shadow-xl hover:bg-slate-600"
-    (click)="backToLatestMessages()"
-  >
-    @if ((conversation()?.unreadCount ?? 0) > 0) {
-      <span class="absolute -top-2 -end-2 rounded-full bg-blue-500 px-2 py-0.5 text-xs font-bold">
-        {{ conversation()?.unreadCount }}
-      </span>
-    }
-
-    <span class="text-xl leading-none">⌄</span>
-  </button>
-}
-
-<footer class="border-t border-white/10 bg-slate-900 px-4 py-3">
-   
-@if (replyingToMessage()) {
-  <div class="mb-3 w-full overflow-hidden rounded-xl border-s-4 border-blue-500 bg-slate-800 px-4 py-3">
-    <div class="flex min-w-0 items-start justify-between gap-3">
-      <div class="min-w-0 flex-1">
-        <div class="text-xs font-semibold text-blue-400">
-          {{ 'conversations.messages.replyingTo' | translate }}
-        </div>
-
-        <div
-          class="mt-1 max-h-10 overflow-hidden break-words text-sm leading-5 text-slate-300"
-          dir="auto"
-        >
-          {{ replyingToMessage()?.body || '📎 Attachment' }}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        class="shrink-0 text-slate-400 hover:text-white"
-        (click)="cancelReply()"
-      >
-        ×
-      </button>
-    </div>
-  </div>
-}
-
-
-@if (editingMessage()) {
-  <div class="mb-3 w-full overflow-hidden rounded-xl border-s-4 border-amber-500 bg-slate-800 px-4 py-3">
-    <div class="flex min-w-0 items-start justify-between gap-3">
-      <div class="min-w-0 flex-1">
-        <div class="text-xs font-semibold text-amber-400">
-          {{ 'conversations.messages.editing' | translate }}
-        </div>
-
-        <div
-          class="mt-1 max-h-10 overflow-hidden break-words text-sm leading-5 text-slate-300"
-          dir="auto"
-        >
-          {{ editingMessage()?.body }}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        class="shrink-0 text-slate-400 hover:text-white"
-        (click)="cancelEditMessage()"
-      >
-        ×
-      </button>
-    </div>
-  </div>
-}
-
-
-<form class="flex w-full items-end gap-3" (ngSubmit)="sendMessage()">
-<label
-  class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-slate-800 text-slate-300 hover:bg-slate-700">
-  📎
-<input
-  type="file"
-  class="hidden"
-  multiple
-  (change)="onFileSelected($event)"
-/>
-</label>
-  <textarea
-  rows="1"
-  name="messageText"
-  [ngModel]="messageText()"
-  (ngModelChange)="messageText.set($event)"
-  (input)="resizeTextarea($event); handleTyping()"
-  (keydown.enter)="handleEnter($event)"
-class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-500"  [placeholder]="'conversations.messages.input.placeholder' | translate"></textarea>
-
-<button
-  type="submit"
-  class="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
- @if (editingMessage()) {
-  {{ 'conversations.messages.input.save' | translate }}
-} @else {
-  {{ 'conversations.messages.input.send' | translate }}
-}
-</button>
-
- 
-  </form>
-</footer>
- 
-    </div>
-  `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
   private readonly pendingOperations = inject(PendingOperationsRepository);
@@ -850,7 +115,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   private messagesContainer?: ElementRef<HTMLDivElement>;
   ngOnInit(): void {
 
-
+    window.addEventListener('online', this.onlineHandler);
 
     document.addEventListener(
       'visibilitychange',
@@ -891,22 +156,36 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
       });
 
 
-this.offlineSync.messageEditSynced$
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(event => {
-   console.log('EDIT SYNC EVENT', event);
+    this.offlineSync.messageEditSynced$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+       
 
 
-    this.messagesState.handleMessageEdited(
-      {
-      id: event.messageId,
-      body: event.body,
-      editedAtUtc: event.editedAtUtc,
-      editSyncStatus: 'idle'
-    });
-  });
+        this.messagesState.handleMessageEdited(
+          {
+            id: event.messageId,
+            body: event.body,
+            editedAtUtc: event.editedAtUtc,
+            editSyncStatus: 'idle'
+          });
+      });
 
+    this.offlineSync.messageDeleteSynced$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        this.messagesState.markMessageDeletedSynced(
+          event.messageId,
+          event.deletedAtUtc
+        );
+      });
 
+    this.offlineSync.messageDeleteSyncFailed$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(messageId => {
+       
+        this.messagesState.markMessageDeleteFailed(messageId);
+      });
 
     this.offlineSync.messageSyncFailed$
       .pipe(takeUntil(this.destroy$))
@@ -960,11 +239,11 @@ this.offlineSync.messageEditSynced$
         }
       });
 
-this.offlineSync.messageEditSyncFailed$
-  .pipe(takeUntil(this.destroy$))
-  .subscribe(messageId => {
-    this.messagesState.markMessageEditAsFailed(messageId);
-  });
+    this.offlineSync.messageEditSyncFailed$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(messageId => {
+        this.messagesState.markMessageEditAsFailed(messageId);
+      });
 
     this.offlineSync.messageSynced$
       .pipe(takeUntil(this.destroy$))
@@ -1148,45 +427,48 @@ this.offlineSync.messageEditSyncFailed$
       this.editingMessage.set(null);
       this.messageText.set('');
 
-      if (!navigator.onLine) {
-        this.messagesApi.editMessage(editingMessage.id, {
-          body: rawBody
-        }).subscribe({
-          error: () => {
-            void this.pendingOperations.add('editMessage', {
-              messageId: editingMessage.id,
-              body: rawBody
-            });
-
-            this.offlineSync.requestSync('edit-message-failed-queued');
-          }
-        });
-
-        this.stopTypingState(conversationId);
-        return;
-      }
-
-  this.messagesApi.editMessage(editingMessage.id, {
-    body: rawBody
-  }).subscribe({
-    next: () => {
-      this.messagesState.handleMessageEdited({
-        id: editingMessage.id,
-        body: rawBody,
-        editedAtUtc,
-        editSyncStatus: 'idle'
-      });
-    },
-    error: () => {
-      void this.pendingOperations.add('editMessage', {
-        messageId: editingMessage.id,
-        body: rawBody,
-        editedAtUtc
-      });
-
-      this.offlineSync.requestSync('edit-message-failed-queued');
+if (!navigator.onLine) {
+  void this.pendingOperations.upsertByMessageId(
+    'editMessage',
+    editingMessage.id,
+    {
+      messageId: editingMessage.id,
+      body: rawBody,
+      editedAtUtc
     }
-  });
+  );
+
+  this.stopTypingState(conversationId);
+  return;
+}
+
+      this.messagesApi.editMessage(editingMessage.id, {
+        body: rawBody
+      }).subscribe({
+        next: () => {
+          this.messagesState.handleMessageEdited({
+            id: editingMessage.id,
+            body: rawBody,
+            editedAtUtc,
+            editSyncStatus: 'idle'
+          });
+        },
+        error: () => {
+
+
+          void this.pendingOperations.upsertByMessageId(
+            'editMessage',
+            editingMessage.id,
+            {
+              messageId: editingMessage.id,
+              body: rawBody,
+              editedAtUtc
+            }
+          );
+
+          this.offlineSync.requestSync('edit-message-failed-queued');
+        }
+      });
 
       this.stopTypingState(conversationId);
       return;
@@ -1211,7 +493,11 @@ this.offlineSync.messageEditSyncFailed$
     this.stopTypingState(conversationId);
     this.scrollToBottom();
   }
+
+
+
   ngOnDestroy(): void {
+    window.removeEventListener('online', this.onlineHandler);
     this.chatSignalR.stopPresenceRenewTimer();
 
     if (this.activeConversationId) {
@@ -1406,46 +692,7 @@ this.offlineSync.messageEditSyncFailed$
     }
   }
 
-  // private async compressAndUploadImage(file: File): Promise<void> {
-  //   const tempId = this.addPendingAttachment(file);
-
-  //   try {
-
-  //     const compressedFile = await imageCompression(file, {
-  //       maxSizeMB: 1,
-  //       maxWidthOrHeight: 1600,
-  //       useWebWorker: true,
-  //       fileType: 'image/jpeg',
-  //       initialQuality: 0.8
-  //     });
-
-  //     const renamedFile = new File(
-  //       [compressedFile],
-  //       file.name,
-  //       {
-  //         type: compressedFile.type,
-  //         lastModified: Date.now()
-  //       }
-  //     );
-  //     this.updateSelectedAttachment(tempId, {
-  //       localFile: renamedFile,
-  //       isUploading: navigator.onLine,
-  //       isOfflinePending: !navigator.onLine,
-  //       progress: navigator.onLine ? 0 : 100
-  //     });
-
-  //     if (!navigator.onLine) {
-  //       return;
-  //     }
-
-  //     this.uploadAttachmentByTempId(tempId, renamedFile);
-  //   } catch {
-  //     this.updateSelectedAttachment(tempId, {
-  //       isUploading: false,
-  //       error: 'Compression failed'
-  //     });
-  //   }
-  // }
+ 
 
 
   sendPendingImageAsFile(): void {
@@ -1498,7 +745,11 @@ this.offlineSync.messageEditSyncFailed$
   //   this.uploadAttachmentByTempId(tempId, file);
   // }
 
+  private readonly onlineHandler = (): void => {
+   
 
+    void this.chatSignalR.reconnectAndSync('browser-online');
+  };
 
   private updateSelectedAttachment(
     fileId: string,
@@ -1716,12 +967,12 @@ this.offlineSync.messageEditSyncFailed$
 
 
   retryMessage(message: MessageDto, event?: Event): void {
-  event?.stopPropagation();
+    event?.stopPropagation();
 
-  console.log('Retry clicked:', message);
+ 
 
-  this.messagesState.retryMessage(message);
-}
+    this.messagesState.retryMessage(message);
+  }
 
   private markCurrentConversationAsSeenIfAllowed(): void {
     if (!navigator.onLine) {
@@ -1880,32 +1131,32 @@ this.offlineSync.messageEditSyncFailed$
     this.messageText.set('');
   }
 
-deleteMessage(message: MessageDto): void {
-  this.closeActionMenu();
+  deleteMessage(message: MessageDto): void {
+    this.closeActionMenu();
 
-  const isPendingMessage =
-    message.receiptStatus === 'sending' ||
-    message.sequenceNumber < 0 ||
-    !!message.attachments?.some(x => x.isLocalPending);
+    const isPendingMessage =
+      message.receiptStatus === 'sending' ||
+      message.sequenceNumber < 0 ||
+      (message.attachments ?? []).some(x => x.isLocalPending);
 
-  if (isPendingMessage) {
-    this.messagesState.deletePendingLocally(message);
-    return;
-  }
+    if (isPendingMessage) {
+      this.messagesState.deletePendingLocally(message);
+      return;
+    }
 
-  const deletedAtUtc = new Date().toISOString();
+    this.messagesState.markMessageDeleteSyncing(message.id);
 
-  this.messagesState.deleteLocally(message, deletedAtUtc);
+    void this.pendingOperations.upsertByMessageId(
+      'deleteMessage',
+      message.id,
+      {
+        messageId: message.id,
+        deletedAtUtc: new Date().toISOString()
+      }
+    );
 
-  void this.pendingOperations.add('deleteMessage', {
-    messageId: message.id,
-    deletedAtUtc
-  });
-
-  if (navigator.onLine) {
     this.offlineSync.requestSync('delete-message-queued');
   }
-}
 
 
 

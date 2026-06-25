@@ -10,10 +10,13 @@ import { MessageDto } from '../../features/messages/models/message.dto';
 import { EditMessageRequest } from '../../features/messages/models/edit-message.request';
 import { FilesApiService } from '../services/files-api.service';
 import { OfflineFilesRepository } from './offline-files.repository';
+import { ConnectionStateService } from './connection-state.service';
 @Injectable({
     providedIn: 'root'
 })
 export class OfflineSyncService {
+
+    private readonly connectionState = inject(ConnectionStateService);
     private syncRequested = false;
     readonly messageEditSyncFailed$ = new Subject<string>();
     private syncRequestTimer: ReturnType<typeof setTimeout> | null = null;
@@ -24,6 +27,12 @@ export class OfflineSyncService {
     private readonly pendingOperations = inject(PendingOperationsRepository);
     private readonly messagesApi = inject(MessagesApiService);
     private readonly offlineMessages = inject(OfflineMessagesRepository);
+    readonly messageDeleteSynced$ = new Subject<{
+        messageId: string;
+        deletedAtUtc: string;
+    }>();
+
+    readonly messageDeleteSyncFailed$ = new Subject<string>();
     readonly messageSynced$ = new Subject<MessageDto>();
     readonly messageEditSynced$ = new Subject<{
         messageId: string;
@@ -36,25 +45,20 @@ export class OfflineSyncService {
     private readonly maxRetryDelayMs = 60000;
 
     constructor() {
+
+
         void this.pendingOperations.resetProcessingToPending();
 
-        setTimeout(() => {
-            this.requestSync('app-startup');
-        }, 2000);
 
-        window.addEventListener('online', () => {
-            this.requestSync('browser-online');
-        });
-
-        effect(() => {
-            if (this.networkStatus.isOnline()) {
-                this.requestSync('network-status-online');
-            }
-        });
     }
 
     requestSync(reason: string): void {
 
+
+        if (!this.connectionState.isConnected()) {
+
+            return;
+        }
 
         if (this.syncRequested) {
             return;
@@ -71,14 +75,17 @@ export class OfflineSyncService {
             this.syncRequestTimer = null;
 
             void this.syncPendingOperations();
-        }, 1500);
+        }, 1000);
     }
+
+
     async forceSyncPendingOperations(): Promise<void> {
         if (this.isSyncing) {
             return;
         }
 
-        if (!navigator.onLine && !this.networkStatus.isOnline()) {
+        if (!this.connectionState.isConnected()) {
+
             return;
         }
 
@@ -101,9 +108,11 @@ export class OfflineSyncService {
             return;
         }
 
-        if (!this.networkStatus.isOnline()) {
+        if (!this.connectionState.isConnected()) {
             return;
         }
+
+
 
         this.isSyncing = true;
 
@@ -123,7 +132,7 @@ export class OfflineSyncService {
                             deletedAtUtc?: string;
                         };
 
-                        await this.syncDeleteMessage(payload.messageId);
+                        await this.syncDeleteMessage(payload.messageId, payload.deletedAtUtc);
                     }
 
 
@@ -154,10 +163,19 @@ export class OfflineSyncService {
                         });
                     }
 
+                    if (operation.type === 'deleteMessage') {
+                        const payload = operation.payload as {
+                            messageId: string;
+                            deletedAtUtc?: string;
+                        };
+
+                        await this.syncDeleteMessage(payload.messageId, payload.deletedAtUtc);
+                    }
+
                     await this.pendingOperations.remove(operation.id);
                     this.retryDelayMs = 3000;
                 } catch (error) {
-                    console.warn('Pending operation sync failed:', operation, error);
+
 
                     await this.pendingOperations.markFailed(operation.id);
 
@@ -165,28 +183,36 @@ export class OfflineSyncService {
 
                     if (
                         updatedOperation?.status === 'failed' &&
-                        (
-                            operation.type === 'sendMessage' ||
-                            operation.type === 'sendMessageWithAttachments' ||
-                            operation.type === 'editMessage'
-                        )
+                        operation.type === 'deleteMessage'
                     ) {
+                        const payload = operation.payload as { messageId: string };
 
-                        if (
-                            updatedOperation?.status === 'failed' &&
-                            operation.type === 'editMessage'
-                        ) {
-                            const payload = operation.payload as { messageId: string };
-
-                            this.messageEditSyncFailed$.next(payload.messageId);
-                            return;
-                        }
-                        const payload = operation.payload as { clientMessageId: string };
-                        this.messageSyncFailed$.next(payload.clientMessageId);
+                        this.messageDeleteSyncFailed$.next(payload.messageId);
                         return;
                     }
 
+                    if (
+                        updatedOperation?.status === 'failed' &&
+                        operation.type === 'editMessage'
+                    ) {
+                        const payload = operation.payload as { messageId: string };
 
+                        this.messageEditSyncFailed$.next(payload.messageId);
+                        return;
+                    }
+
+                    if (
+                        updatedOperation?.status === 'failed' &&
+                        (
+                            operation.type === 'sendMessage' ||
+                            operation.type === 'sendMessageWithAttachments'
+                        )
+                    ) {
+                        const payload = operation.payload as { clientMessageId: string };
+
+                        this.messageSyncFailed$.next(payload.clientMessageId);
+                        return;
+                    }
 
                     this.scheduleRetry();
                 }
@@ -197,13 +223,24 @@ export class OfflineSyncService {
     }
 
 
-private async syncDeleteMessage(messageId: string): Promise<void> {
-  await firstValueFrom(
-    this.messagesApi.deleteMessage(messageId)
-  );
-}
+    private async syncDeleteMessage(
+        messageId: string,
+        deletedAtUtc?: string
+    ): Promise<void> {
+        await firstValueFrom(
+            this.messagesApi.deleteMessage(messageId)
+        );
 
-    private async syncSendMessage(request: SendMessageRequest): Promise<void> {
+        this.messageDeleteSynced$.next({
+            messageId,
+            deletedAtUtc: deletedAtUtc ?? new Date().toISOString()
+        });
+    }
+
+    private async syncSendMessage(
+        request: SendMessageRequest
+    ): Promise<void> {
+
         const message = await firstValueFrom(
             this.messagesApi.sendMessage(request)
         );
@@ -214,8 +251,13 @@ private async syncDeleteMessage(messageId: string): Promise<void> {
             receiptStatus: 'sent'
         };
 
-        await this.offlineMessages.deleteByClientMessageId(request.clientMessageId);
+        await this.offlineMessages.deleteByClientMessageId(
+            request.clientMessageId
+        );
+
         await this.offlineMessages.save(syncedMessage);
+
+        this.messageSynced$.next(syncedMessage);
     }
 
     private async syncEditMessage(
