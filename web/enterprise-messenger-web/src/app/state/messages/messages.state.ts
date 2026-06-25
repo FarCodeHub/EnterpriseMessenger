@@ -137,13 +137,17 @@ export class MessagesState {
     });
 
     if (!navigator.onLine) {
-      await this.pendingOperations.add('sendMessageWithAttachments', {
-        conversationId: input.conversationId,
-        clientMessageId,
-        body: input.body,
-        replyToMessageId: input.replyToMessageId,
-        fileIds: [pendingFile.id]
-      });
+await this.pendingOperations.upsertByClientMessageId(
+  'sendMessageWithAttachments',
+  clientMessageId,
+  {
+    conversationId: input.conversationId,
+    clientMessageId,
+    body: input.body,
+    replyToMessageId: input.replyToMessageId,
+    fileIds: [pendingFile.id]
+  }
+);
 
       return;
     }
@@ -182,33 +186,37 @@ export class MessagesState {
       await this.offlineMessages.save(syncedMessage);
       await this.offlineFiles.remove(pendingFile.id);
     } catch {
-      await this.pendingOperations.add('sendMessageWithAttachments', {
-        conversationId: input.conversationId,
-        clientMessageId,
-        body: input.body,
-        replyToMessageId: input.replyToMessageId,
-        fileIds: [pendingFile.id]
-      });
+await this.pendingOperations.upsertByClientMessageId(
+  'sendMessageWithAttachments',
+  clientMessageId,
+  {
+    conversationId: input.conversationId,
+    clientMessageId,
+    body: input.body,
+    replyToMessageId: input.replyToMessageId,
+    fileIds: [pendingFile.id]
+  }
+);
       this.offlineSync.requestSync('media-send-failed-queued');
     }
   }
-deletePendingLocally(message: MessageDto): void {
-  this.messagesSignal.set(
-    this.messagesSignal().filter(x => x.id !== message.id)
-  );
+  deletePendingLocally(message: MessageDto): void {
+    this.messagesSignal.set(
+      this.messagesSignal().filter(x => x.id !== message.id)
+    );
 
-  void this.offlineMessages.deleteById(message.id);
+    void this.offlineMessages.deleteById(message.id);
 
-  if (message.clientMessageId) {
-    void this.pendingOperations.deleteByClientMessageId(message.clientMessageId);
-  }
+    if (message.clientMessageId) {
+      void this.pendingOperations.deleteByClientMessageId(message.clientMessageId);
+    }
 
-  for (const attachment of message.attachments ?? []) {
-    if (attachment.localFileId) {
-      void this.offlineFiles.remove(attachment.localFileId);
+    for (const attachment of message.attachments ?? []) {
+      if (attachment.localFileId) {
+        void this.offlineFiles.remove(attachment.localFileId);
+      }
     }
   }
-}
 
 
   deleteLocally(message: MessageDto, deletedAtUtc = new Date().toISOString()): void {
@@ -236,71 +244,117 @@ deletePendingLocally(message: MessageDto): void {
     }
   }
 
+  markMessageDeleteSyncing(messageId: string): void {
+    this.messagesSignal.set(
+      this.messagesSignal().map(message =>
+        message.id === messageId
+          ? {
+            ...message,
+            deleteSyncStatus: 'syncing'
+          }
+          : message
+      )
+    );
 
+    const message = this.messagesSignal().find(x => x.id === messageId);
+
+    if (message) {
+      void this.offlineMessages.save(message, 'pending');
+    }
+  }
+
+  markMessageDeleteFailed(messageId: string): void {
+    this.messagesSignal.set(
+      this.messagesSignal().map(message =>
+        message.id === messageId
+          ? {
+            ...message,
+            deleteSyncStatus: 'failed'
+          }
+          : message
+      )
+    );
+
+    const message = this.messagesSignal().find(x => x.id === messageId);
+
+    if (message) {
+      void this.offlineMessages.save(message, 'pending');
+    }
+  }
+
+  markMessageDeletedSynced(messageId: string, deletedAtUtc: string): void {
+    this.messagesSignal.set(
+      this.messagesSignal().map(message =>
+        message.id === messageId
+          ? {
+            ...message,
+            body: '',
+            attachments: [],
+            deletedAtUtc,
+            deleteSyncStatus: 'idle'
+          }
+          : message
+      )
+    );
+
+    const message = this.messagesSignal().find(x => x.id === messageId);
+
+    if (message) {
+      void this.offlineMessages.save(message);
+    }
+  }
 
   load(conversationId: string): Observable<void> {
     this.isLoadingSignal.set(true);
 
     return from(this.offlineMessages.getByConversationId(conversationId)).pipe(
       tap(cachedMessages => {
+        const normalizedCachedMessages = cachedMessages.map(message =>
+          this.normalizeMessage(message)
+        );
 
-        this.messagesSignal.set(this.sortMessages(cachedMessages));
+        this.messagesSignal.set(
+          this.sortMessages(normalizedCachedMessages)
+        );
       }),
+
       switchMap(() => {
         if (!navigator.onLine) {
           return of(null);
         }
 
-        return this.messagesApi.getConversationMessages(conversationId, 50).pipe(
-          catchError(error => {
-            console.error('load messages from API failed:', error);
-            return of(null);
-          })
-        );
+        return this.messagesApi
+          .getConversationMessages(conversationId, 50)
+          .pipe(
+            catchError(error => {
+              
+              return of(null);
+            })
+          );
       }),
+
       tap(response => {
         if (!response) {
           return;
         }
 
-        const serverMessages = response;
+        const serverMessages = response.map(message =>
+          this.normalizeMessage(message)
+        );
 
-        const localPendingMessages = this.messagesSignal()
-          .filter(message =>
-            message.conversationId === conversationId &&
-            (
+        const localMessages = this.messagesSignal()
+          .filter(message => message.conversationId === conversationId)
+          .map(message => this.normalizeMessage(message));
 
-              message.receiptStatus === 'sending' ||
-              message.attachments.some(a => a.isLocalPending)
-            )
-          );
-
-
-console.log('SERVER messages:', serverMessages.map(x => ({
-  id: x.id,
-  clientMessageId: x.clientMessageId,
-  receiptStatus: x.receiptStatus,
-  deletedAtUtc: x.deletedAtUtc
-})));
-
-console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
-  id: x.id,
-  clientMessageId: x.clientMessageId,
-  receiptStatus: x.receiptStatus,
-  deletedAtUtc: x.deletedAtUtc
-})));
-
-
+        const localPendingMessages = localMessages.filter(message =>
+          this.isLocalPendingMessage(message)
+        );
 
         const merged = this.sortMessages([
           ...serverMessages,
           ...localPendingMessages.filter(local =>
             !serverMessages.some(server =>
-              server.id === local.id ||
-              (
-                !!local.clientMessageId &&
-                server.clientMessageId === local.clientMessageId
-              )
+              this.isSameMessage(server, local)
             )
           )
         ]);
@@ -308,18 +362,35 @@ console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
         this.messagesSignal.set(merged);
 
         void this.offlineMessages.saveMany(serverMessages);
+
         for (const pendingMessage of localPendingMessages) {
+          const existsOnServer = serverMessages.some(server =>
+            this.isSameMessage(server, pendingMessage)
+          );
+
+          if (existsOnServer) {
+            if (pendingMessage.clientMessageId) {
+              void this.offlineMessages.deleteByClientMessageId(
+                pendingMessage.clientMessageId
+              );
+            } else {
+              void this.offlineMessages.deleteById(pendingMessage.id);
+            }
+
+            continue;
+          }
+
           void this.offlineMessages.save(pendingMessage, 'pending');
         }
       }),
+
       finalize(() => {
         this.isLoadingSignal.set(false);
       }),
+
       map(() => void 0)
     );
   }
-
-
 
 
   clear(): void {
@@ -369,10 +440,15 @@ console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
 
     void this.offlineMessages.save(optimisticMessage, 'pending');
 
-    if (!navigator.onLine) {
-      void this.pendingOperations.add('sendMessage', request);
-      return;
-    }
+if (!navigator.onLine) {
+  void this.pendingOperations.upsertByClientMessageId(
+    'sendMessage',
+    request.clientMessageId,
+    request
+  );
+
+  return;
+}
 
     this.messagesApi.sendMessage(request).subscribe({
       next: message => {
@@ -401,7 +477,7 @@ console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
             x.clientMessageId === request.clientMessageId
               ? {
                 ...x,
-                status: 'failed',
+               
                 receiptStatus: 'failed'
               }
               : x
@@ -409,6 +485,46 @@ console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
         );
       }
     });
+  }
+
+
+
+  private normalizeMessage(message: MessageDto): MessageDto {
+    return {
+      ...message,
+      attachments: message.attachments ?? [],
+      receiptStatus: message.receiptStatus ?? 'sent',
+      editSyncStatus: message.editSyncStatus ?? 'idle',
+      deleteSyncStatus: message.deleteSyncStatus ?? 'idle'
+    };
+  }
+
+  private isSameMessage(a: MessageDto, b: MessageDto): boolean {
+    if (a.id === b.id) {
+      return true;
+    }
+
+    if (
+      a.clientMessageId &&
+      b.clientMessageId &&
+      a.clientMessageId === b.clientMessageId
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private isLocalPendingMessage(message: MessageDto): boolean {
+    return (
+      message.receiptStatus === 'sending' ||
+      message.receiptStatus === 'failed' ||
+      message.editSyncStatus === 'syncing' ||
+      message.editSyncStatus === 'failed' ||
+      message.deleteSyncStatus === 'syncing' ||
+      message.deleteSyncStatus === 'failed' ||
+      (message.attachments ?? []).some(attachment => attachment.isLocalPending)
+    );
   }
 
 
@@ -476,7 +592,7 @@ console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
   }): void {
 
 
-    console.log('HANDLE EDIT', event.id);
+    
     let updatedMessage: MessageDto | null = null;
 
     this.messagesSignal.set(
@@ -595,6 +711,40 @@ console.log('LOCAL pending messages:', localPendingMessages.map(x => ({
 
 
   retryMessage(message: MessageDto): void {
+
+
+    const isDeleteRetry =
+      message.deleteSyncStatus === 'failed' ||
+      message.deleteSyncStatus === 'syncing';
+
+    if (isDeleteRetry) {
+      this.messagesSignal.set(
+        this.messagesSignal().map(x =>
+          x.id === message.id
+            ? { ...x, deleteSyncStatus: 'syncing' }
+            : x
+        )
+      );
+
+      void this.offlineMessages.save({
+        ...message,
+        deleteSyncStatus: 'syncing'
+      }, 'pending');
+
+void this.pendingOperations.upsertByMessageId(
+  'deleteMessage',
+  message.id,
+  {
+    messageId: message.id,
+    deletedAtUtc: new Date().toISOString()
+  }
+);
+
+      void this.offlineSync.forceSyncPendingOperations();
+      return;
+    }
+
+
     const isEditRetry =
       message.editSyncStatus === 'failed' ||
       message.editSyncStatus === 'syncing';

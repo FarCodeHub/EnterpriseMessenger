@@ -68,17 +68,25 @@
   "presence": {
     "online": "En línea",
     "offline": "Desconectado",
-    "lastSeenRecently":"Visto por última vez recientemente"
+    "lastSeenRecently":"Visto por última vez recientemente",
+    "Deleteing":"Eliminando ..."
   },
   "attachments": {
     "sendMode": {
       "title": "Enviar imagen",
       "asPhoto": "Enviar como foto",
       "asFile": "Enviar como archivo"
-    }
+    },
+    "Preparingimage": "Preparando imagen...",
+    "ImageUnavailableOffline": "Imagen no disponible sin conexión",
+    "LoadingImage": "Cargando imagen..."
   },
   "common": {
     "cancel": "Cancelar",
-    "sending": "enviando ... "
+    "sending": "enviando ... ",
+    "Deletefailed": "Eliminación fallida",
+    "syncingedit": "Sincronizando edición ...",
+    "editfailed": "Edición fallida",
+    "Connecting": "Conectando ..."
   }
 }

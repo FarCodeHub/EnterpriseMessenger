@@ -7,15 +7,48 @@ import { LocalMessage, appLocalDb } from './app-local-db';
   providedIn: 'root'
 })
 export class OfflineMessagesRepository {
-  async saveMany(messages: MessageDto[]): Promise<void> {
-    const localMessages: LocalMessage[] = messages.map(message => ({
+
+  
+async saveMany(messages: MessageDto[]): Promise<void> {
+  for (const message of messages) {
+    if (message.clientMessageId) {
+      await this.deleteByClientMessageId(message.clientMessageId);
+    } else {
+      await this.deletePendingDuplicateOfServerMessage(message);
+    }
+
+    await appLocalDb.messages.put({
       ...message,
+      attachments: message.attachments ?? [],
       syncStatus: 'synced'
-    }));
-
-    await appLocalDb.messages.bulkPut(localMessages);
+    });
   }
+}
+async deletePendingDuplicateOfServerMessage(serverMessage: MessageDto): Promise<void> {
+  const candidates = await appLocalDb.messages
+    .where('conversationId')
+    .equals(serverMessage.conversationId)
+    .toArray();
 
+  const serverTime = new Date(serverMessage.createdAtUtc).getTime();
+
+  const duplicates = candidates.filter(local => {
+    const localTime = new Date(local.createdAtUtc).getTime();
+    const timeDiffMs = Math.abs(serverTime - localTime);
+
+    return (
+      local.id !== serverMessage.id &&
+      local.senderUserId === serverMessage.senderUserId &&
+      local.body === serverMessage.body &&
+      local.sequenceNumber < 0 &&
+      timeDiffMs < 5 * 60 * 1000
+    );
+  });
+
+  await appLocalDb.messages.bulkDelete(
+    duplicates.map(x => x.id)
+  );
+}
 
   async deleteByClientMessageId(clientMessageId: string): Promise<void> {
   const messages = await appLocalDb.messages

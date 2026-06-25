@@ -23,14 +23,18 @@ import {
   PresenceChangedEvent,
   TypingEvent
 } from './chat-signalr.models';
- 
+import { ConnectionStateService } from '../offline/connection-state.service';
+import { OfflineSyncService } from '../offline/offline-sync.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ChatSignalRService {
   private readonly authService = inject(AuthService);
-
+private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+private reconnectDelayMs = 2000;
+private readonly maxReconnectDelayMs = 60000;
+private isConnecting = false;
   private connection: HubConnection | null = null;
   private presenceRenewTimer: ReturnType<typeof setInterval> | null = null;
   private renewingConversationId: string | null = null;
@@ -52,20 +56,48 @@ export class ChatSignalRService {
   readonly presenceChanged$ = new Subject<PresenceChangedEvent>();
   readonly conversationJoined$ = new Subject<ConversationJoinedEvent>();
   readonly hubError$ = new Subject<HubErrorEvent>();
-
+  private readonly connectionState = inject(ConnectionStateService);
+  private readonly offlineSync = inject(OfflineSyncService);
   // readonly presenceRegistered$ = new Subject<PresenceEvent>();
 
-constructor() {
-  effect(() => {
-    if (!this.networkStatus.isOnline()) {
-      void this.disconnect();
-    }
-  });
+  constructor() {
+    effect(() => {
+      if (!this.networkStatus.isOnline()) {
+        void this.disconnect();
+      }
+    });
+  }
+private scheduleReconnect(reason: string): void {
+  if (this.reconnectTimer) {
+    return;
+  }
+
+ 
+
+  this.reconnectTimer = setTimeout(() => {
+    this.reconnectTimer = null;
+    void this.connect();
+  }, this.reconnectDelayMs);
+
+  this.reconnectDelayMs = Math.min(
+    this.reconnectDelayMs * 2,
+    this.maxReconnectDelayMs
+  );
 }
 
+private clearReconnect(): void {
+  if (this.reconnectTimer) {
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+
+  this.reconnectDelayMs = 2000;
+}
 
 async connect(): Promise<void> {
-  if (!this.networkStatus.isOnline()) {
+ 
+
+  if (this.isConnecting) {
     return;
   }
 
@@ -73,13 +105,18 @@ async connect(): Promise<void> {
     return;
   }
 
-  const token = this.authService.getAccessToken();
-
-  if (!token) {
-    return;
-  }
+  this.isConnecting = true;
 
   try {
+    const token = this.authService.getAccessToken();
+
+    if (!token) {
+      this.connectionState.setDisconnected();
+      return;
+    }
+
+    this.connectionState.setConnecting();
+
     this.connection = new HubConnectionBuilder()
       .withUrl(applicationConfig.signalRHubUrl, {
         accessTokenFactory: () => this.authService.getAccessToken() ?? ''
@@ -88,89 +125,119 @@ async connect(): Promise<void> {
       .configureLogging(LogLevel.Information)
       .build();
 
+    this.connection.onreconnecting(() => {
+      this.connectionState.setConnecting();
+    });
+
     this.connection.onreconnected(() => {
+      this.clearReconnect();
+      this.connectionState.setConnected();
       this.reconnected$.next();
+      this.offlineSync.requestSync('signalr-reconnected');
+    });
+
+    this.connection.onclose(() => {
+      this.connectionState.setDisconnected();
+      this.scheduleReconnect('signalr-closed');
     });
 
     this.registerHandlers();
 
+   
+
     await this.connection.start();
+
+   
+
+    this.clearReconnect();
+    this.connectionState.setConnected();
+    this.offlineSync.requestSync('signalr-started');
+
     await this.registerUser();
   } catch (error) {
-    console.warn('SignalR connect skipped/failed:', error);
-
-    try {
-      await this.connection?.stop();
-    } catch {
-      // ignore
-    }
+   
 
     this.connection = null;
+    this.connectionState.setDisconnected();
+    this.scheduleReconnect('connect-failed');
+  } finally {
+    this.isConnecting = false;
   }
 }
 
-  async disconnect(): Promise<void> {
-    this.stopPresenceRenewTimer();
+async disconnect(): Promise<void> {
+  this.clearReconnect();
+  this.stopPresenceRenewTimer();
 
-    if (!this.connection) {
-      return;
-    }
-    await this.connection.stop();
-    this.connection = null;
+  if (!this.connection) {
+    return;
   }
+
+  const connection = this.connection;
+  this.connection = null;
+
+  await connection.stop();
+  this.connectionState.setDisconnected();
+}
 
   async registerUser(): Promise<void> {
     if (!this.networkStatus.isOnline()) {
-  return;
-}
+      return;
+    }
     await this.invoke('RegisterUser');
   }
 
+async reconnectAndSync(reason: string): Promise<void> {
+ 
 
+  await this.disconnect();
+
+  await this.connect();
+}
 
   async leaveConversation(conversationId: string): Promise<void> {
-   if (!this.networkStatus.isOnline()) {
-  return;
-}
+    if (!this.networkStatus.isOnline()) {
+      return;
+    }
     await this.invoke('LeaveConversation', conversationId);
   }
 
 
-async joinConversation(conversationId: string): Promise<void> {
-  if (!this.networkStatus.isOnline()) {
-    return;
+  async joinConversation(conversationId: string): Promise<void> {
+    if (!this.networkStatus.isOnline()) {
+      return;
+    }
+
+    await this.connect();
+
+    await this.invoke('JoinConversation', conversationId);
   }
-
-  await this.connect();
-
-  await this.invoke('JoinConversation', conversationId);
-}
 
   async startTyping(conversationId: string): Promise<void> {
     if (!this.networkStatus.isOnline()) {
-  return;
-}
+      return;
+    }
     await this.invoke('StartTyping', conversationId);
   }
 
   async stopTyping(conversationId: string): Promise<void> {
     if (!this.networkStatus.isOnline()) {
-  return;
-}
+      return;
+    }
     await this.invoke('StopTyping', conversationId);
   }
 
   async markAsSeen(conversationId: string, sequenceNumber: number): Promise<void> {
     if (!this.networkStatus.isOnline()) {
-  return;
-}
+      return;
+    }
     await this.invoke('MarkAsSeen', conversationId, sequenceNumber);
   }
 
   async markAsDelivered(conversationId: string, sequenceNumber: number): Promise<void> {
     if (!this.networkStatus.isOnline()) {
-  return;
-}
+      return;
+    }
     await this.invoke('MarkAsDelivered', conversationId, sequenceNumber);
   }
 
@@ -178,9 +245,9 @@ async joinConversation(conversationId: string): Promise<void> {
     if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
       return;
     }
-if (!this.networkStatus.isOnline()) {
-  return;
-}
+    if (!this.networkStatus.isOnline()) {
+      return;
+    }
     await this.connection.invoke(methodName, ...args);
   }
 
@@ -261,20 +328,20 @@ if (!this.networkStatus.isOnline()) {
 
   async renewPresence(conversationId: string): Promise<void> {
     if (!this.networkStatus.isOnline()) {
-  return;
-}
+      return;
+    }
     await this.invoke('RenewPresence', conversationId);
   }
 
   startPresenceRenewTimer(conversationId: string): void {
 
-if (!this.networkStatus.isOnline()) {
-  return;
-}
+    if (!this.networkStatus.isOnline()) {
+      return;
+    }
 
 
     this.stopPresenceRenewTimer();
-   
+
     this.renewingConversationId = conversationId;
 
     this.presenceRenewTimer = setInterval(() => {
@@ -286,9 +353,9 @@ if (!this.networkStatus.isOnline()) {
           return;
         }
 
-if (!this.networkStatus.isOnline()) {
-  return;
-}
+        if (!this.networkStatus.isOnline()) {
+          return;
+        }
 
         this.connection.invoke('RenewPresence', conversationId)
           .catch(error => {

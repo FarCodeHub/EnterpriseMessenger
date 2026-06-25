@@ -8,6 +8,7 @@ import { LanguageSwitcherComponent } from '../../shared/components/language-swit
 import { ConversationListComponent } from '../../features/conversations/conversation-list/conversation-list.component';
 import { PresenceState } from '../../state/presence/presence.state';
 import { ConversationsState } from '../../state/conversations/conversations.state';
+import { ConnectionStateService } from '../../core/offline/connection-state.service';
 @Component({
   selector: 'app-main-layout',
   standalone: true,
@@ -18,11 +19,29 @@ import { ConversationsState } from '../../state/conversations/conversations.stat
     ConversationListComponent
   ],
   template: `
-<div dir="ltr" class="grid h-dvh grid-cols-[1fr_320px] overflow-hidden bg-slate-950 text-white">      <main class="min-h-0 min-w-0 overflow-hidden">
-        <router-outlet />
-      </main>
+<div class="relative h-dvh overflow-hidden bg-slate-950 text-white">  
+     @if (connectionState.state() !== 'connected') {
+    <div
+      class="pointer-events-none absolute left-1/2 top-3 z-50 -translate-x-1/2 rounded-full
+             bg-slate-800/95 px-4 py-2 text-xs font-medium shadow-lg ring-1 ring-white/10"
+    >
+      @if (connectionState.state() === 'connecting') {
+        <span class="text-amber-200">🔄{{'common.Connecting' |translate}} </span>
+      } @else {
+        <span class="text-red-200">🔴 {{'presence.offline' |translate}}</span>
+      }
+    </div>
+  }
 
-<aside class="min-h-0 border-s border-white/10 bg-slate-900">        <div class="flex h-full min-h-0 flex-col">
+    <div dir="ltr" class="grid h-full grid-cols-[1fr_320px] overflow-hidden">
+    <main class="min-h-0 min-w-0 overflow-hidden">
+      <router-outlet />
+    </main>
+
+  <aside class="min-h-0 border-s border-white/10 bg-slate-900">     
+  
+
+<div class="flex h-full min-h-0 flex-col">
           <div class="shrink-0 border-b border-white/10 p-4">
 <div class="flex items-center justify-between gap-3">
   <div class="text-start">
@@ -54,6 +73,7 @@ import { ConversationsState } from '../../state/conversations/conversations.stat
         </div>
       </aside>
     </div>
+    </div>
   `
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
@@ -62,6 +82,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly conversationsState = inject(ConversationsState);
   private readonly router = inject(Router);
   private readonly chatSignalR = inject(ChatSignalRService);
+  readonly connectionState = inject(ConnectionStateService);
   private readonly presenceState = inject(PresenceState);
   ngOnInit(): void {
     this.chatSignalR.connect();

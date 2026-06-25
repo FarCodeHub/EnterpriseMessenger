@@ -68,17 +68,27 @@
   "presence": {
     "online": "Online",
     "offline": "Offline",
-    "lastSeenRecently":"Last Seen Recently"
+    "lastSeenRecently":"Last Seen Recently",
+    "Deleteing":"Deleting ..."
+
   },
   "attachments": {
     "sendMode": {
       "title": "Send image as",
       "asPhoto": "Send as photo",
       "asFile": "Send as file"
-    }
+     
+    },
+     "Preparingimage": "Preparing image...",
+     "ImageUnavailableOffline": "Image unavailable offline",
+     "LoadingImage": "Loading image..."
   },
   "common": {
     "cancel": "Cancel",
-    "sending": "sending ..."
+    "sending": "sending ...",
+    "Deletefailed": "Delete failed",
+    "syncingedit": "Syncing edit ...",
+    "editfailed": "Edit failed",
+    "Connecting": "Connecting ..."
   }
 }
