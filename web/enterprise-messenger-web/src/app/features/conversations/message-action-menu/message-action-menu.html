@@ -1,1 +1,66 @@
-<p>message-action-menu works!</p>
+@if (message && position) {
+  <button
+    type="button"
+    class="fixed inset-0 z-40 cursor-default bg-transparent"
+    (click)="close.emit()"
+    aria-label="Close menu"
+  ></button>
+
+  <div
+    class="fixed z-50 min-w-40 overflow-hidden rounded-xl bg-slate-800 py-1 text-sm text-slate-100 shadow-2xl"
+    [style.left.px]="position.x"
+    [style.top.px]="position.y"
+  >
+    <button
+      type="button"
+      class="block w-full px-4 py-2 text-start hover:bg-white/10"
+      (click)="reply.emit(message)"
+    >
+      {{ 'conversations.messages.actions.reply' | translate }}
+    </button>
+
+    <button
+      type="button"
+      class="block w-full px-4 py-2 text-start hover:bg-white/10"
+      (click)="forward.emit(message)"
+    >
+      {{ 'conversations.messages.actions.forward' | translate }}
+    </button>
+
+    <button
+      type="button"
+      class="block w-full px-4 py-2 text-start hover:bg-white/10"
+      (click)="select.emit(message)"
+    >
+      {{ 'conversations.messages.actions.select' | translate }}
+    </button>
+
+    <button
+      type="button"
+      class="block w-full px-4 py-2 text-start hover:bg-white/10"
+      (click)="copy.emit(message)"
+      [disabled]="!message.body || message.body.trim().length === 0"
+      [class.opacity-50]="!message.body || message.body.trim().length === 0"
+    >
+      {{ 'conversations.messages.actions.copy' | translate }}
+    </button>
+
+    @if (isOwnMessage()) {
+      <button
+        type="button"
+        class="block w-full px-4 py-2 text-start hover:bg-white/10"
+        (click)="edit.emit(message)"
+      >
+        {{ 'conversations.messages.actions.edit' | translate }}
+      </button>
+
+      <button
+        type="button"
+        class="block w-full px-4 py-2 text-start text-red-300 hover:bg-red-500/10"
+        (click)="delete.emit(message)"
+      >
+        {{ 'conversations.messages.actions.delete' | translate }}
+      </button>
+    }
+  </div>
+}

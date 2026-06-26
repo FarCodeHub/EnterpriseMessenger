@@ -22,6 +22,8 @@ import { OfflineSyncService } from '../../../core/offline/offline-sync.service';
 import { PendingOperationsRepository } from '../../../core/offline/pending-operations.repository';
 import { MessageComposerComponent } from '../message-composer/message-composer';
 import { MessageBubbleComponent } from '../message-bubble/message-bubble';
+import { MessageActionMenuComponent } from '../message-action-menu/message-action-menu';
+import { MessageForwardModalComponent } from '../message-forward-modal/message-forward-modal';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -31,7 +33,9 @@ import { MessageBubbleComponent } from '../message-bubble/message-bubble';
     FormsModule,
     AttachmentPreviewComponent,
     MessageComposerComponent,
-    MessageBubbleComponent
+    MessageBubbleComponent,
+    MessageActionMenuComponent,
+    MessageForwardModalComponent 
   ] ,
   templateUrl: './conversation-chat.component.html'
  

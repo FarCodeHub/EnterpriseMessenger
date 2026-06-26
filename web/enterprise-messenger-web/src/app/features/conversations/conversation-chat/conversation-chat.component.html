@@ -110,161 +110,37 @@
     </div>
   </div>
 }
+ 
+
+
+<app-message-forward-modal
+  [open]="isForwardModalOpen()"
+  [conversations]="conversationsState.conversations()"
+  [currentConversationId]="conversationId()"
+  [forwardingMessage]="forwardingMessage()"
+  [selectedConversationIds]="selectedForwardConversationIds()"
+  [isForwarding]="isForwarding()"
+  (cancel)="cancelForwardMessage()"
+  (toggleTarget)="toggleForwardTarget($event)"
+  (submit)="forwardSelectedMessage()"
+/>
 
 
 
 
- @if (isForwardModalOpen()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-    <div class="w-full max-w-md overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl">
-      <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div>
-          <h3 class="text-base font-bold">
-            {{ 'conversations.messages.forward.title' | translate }}
-          </h3>
+<app-message-action-menu
+  [message]="actionMenuMessage()"
+  [position]="actionMenuPosition()"
+  [currentUserId]="authService.user()?.id ?? null"
+  (close)="closeActionMenu()"
+  (reply)="replyToMessage($event)"
+  (forward)="startForwardMessage($event)"
+  (select)="startMessageSelection($event)"
+  (copy)="copyMessage($event)"
+  (edit)="startEditMessage($event)"
+  (delete)="deleteMessage($event)"
+/>
 
-          <p class="mt-1 text-xs text-slate-400">
-            {{ forwardingMessage()?.body || '📎 Attachment' }}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          class="text-slate-400 hover:text-white"
-          (click)="cancelForwardMessage()"
-        >
-          ×
-        </button>
-      </div>
-
-      <div class="max-h-80 overflow-y-auto p-3">
-        @for (conversation of conversationsState.conversations(); track conversation.id) {
-          @if (conversation.id !== conversationId()) {
-            <button
-              type="button"
-              class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-start hover:bg-white/10"
-              (click)="toggleForwardTarget(conversation.id)"
-            >
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
-                {{ conversation.displayTitle.charAt(0) }}
-              </div>
-
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-semibold">
-                  {{ conversation.displayTitle }}
-                </div>
-
-                <div class="truncate text-xs text-slate-400">
-                  {{ conversation.lastMessagePreview || ('conversations.list.noMessages' | translate) }}
-                </div>
-              </div>
-
-              @if (isForwardTargetSelected(conversation.id)) {
-                <div class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold">
-                  ✓
-                </div>
-              } @else {
-                <div class="h-6 w-6 rounded-full border border-slate-500"></div>
-              }
-            </button>
-          }
-        }
-      </div>
-
-      <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
-        <button
-          type="button"
-          class="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
-          (click)="cancelForwardMessage()"
-        >
-          {{ 'common.cancel' | translate }}
-        </button>
-
-<button
-  type="button"
-  class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-  [disabled]="selectedForwardConversationIds().length === 0 || isForwarding()"
-  (click)="forwardSelectedMessage()"
->
-  @if (isForwarding()) {
-    {{ 'common.sending' | translate }}
-  } @else {
-    {{ 'conversations.messages.forward.send' | translate }}
-  }
-</button>
-      </div>
-    </div>
-  </div>
-}
-@if (actionMenuMessage(); as actionMessage) {
-  @if (actionMenuPosition(); as pos) {
-    <button
-      type="button"
-      class="fixed inset-0 z-40 cursor-default bg-transparent"
-      (click)="closeActionMenu()"
-      aria-label="Close menu"
-    ></button>
-
-    <div
-      class="fixed z-50 min-w-40 overflow-hidden rounded-xl bg-slate-800 py-1 text-sm text-slate-100 shadow-2xl"
-      [style.left.px]="pos.x"
-      [style.top.px]="pos.y"
-    >
-      <button
-        type="button"
-        class="block w-full px-4 py-2 text-start hover:bg-white/10"
-        (click)="replyToMessage(actionMessage)"
-      >
-        {{ 'conversations.messages.actions.reply' | translate }}
-      </button>
-
-      <button
-  type="button"
-  class="block w-full px-4 py-2 text-start hover:bg-white/10"
-  (click)="startForwardMessage(actionMessage)"
->
-  {{ 'conversations.messages.actions.forward' | translate }}
-</button>
-
-
-<button
-  type="button"
-  class="block w-full px-4 py-2 text-start hover:bg-white/10"
-  (click)="startMessageSelection(actionMessage)"
->
-  {{ 'conversations.messages.actions.select' | translate }}
-</button>
-
-      <button
-        type="button"
-        class="block w-full px-4 py-2 text-start hover:bg-white/10"
-        (click)="copyMessage(actionMessage)"
-        [disabled]="!actionMessage.body || actionMessage.body.trim().length === 0"
-        [class.opacity-50]="!actionMessage.body || actionMessage.body.trim().length === 0"
-      >
-        {{ 'conversations.messages.actions.copy' | translate }}
-      </button>
-
-      @if (actionMessage.senderUserId === currentUserId()) {
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start hover:bg-white/10"
-          (click)="startEditMessage(actionMessage)"
-        >
-          {{ 'conversations.messages.actions.edit' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start text-red-300 hover:bg-red-500/10"
-          (click)="deleteMessage(actionMessage); $event.stopPropagation()"
-        >
-          {{ 'conversations.messages.actions.delete' | translate }}
-        </button>
-      }
-    </div>
-  }
-}
 
 @if (shouldShowBackToLatest()) {
   <button

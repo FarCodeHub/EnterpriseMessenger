@@ -12,7 +12,10 @@ import { AttachmentPreviewComponent } from '../../messages/components/attachment
     TranslateModule,
     AttachmentPreviewComponent
   ],
-  templateUrl: './message-bubble.html'
+  templateUrl: './message-bubble.html',
+    host: {
+    class: 'block'
+  }
 })
 export class MessageBubbleComponent {
   @Input({ required: true }) message!: MessageDto;
