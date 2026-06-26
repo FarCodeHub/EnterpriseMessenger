@@ -8,4 +8,6 @@ export interface SelectedAttachment {
   isUploading: boolean;
   error: string | null;
   localPreviewUrl?: string;
+  localFile?: File;
+isOfflinePending?: boolean;
 }

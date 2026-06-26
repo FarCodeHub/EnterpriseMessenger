@@ -80,7 +80,12 @@ if (!hasBody && !hasAttachments)
                 duplicateMessage.ReplyToMessageId,
                 duplicateMessage.ReplyToSequenceNumber,
                 duplicateMessage.CreatedAtUtc,
+                
                 true,
+                ForwardedFromMessageId: null,
+ForwardedFromUserId: null,
+ForwardedFromDisplayName: null,
+
                 null);
         }
 
@@ -200,7 +205,10 @@ if (command.Attachments is not null && command.Attachments.Count > 0)
                 message.SequenceNumber,
                 message.SenderUserId,
                 message.Body,
-                message.CreatedAtUtc),
+                message.CreatedAtUtc,
+                ForwardedFromMessageId: null,
+                ForwardedFromUserId: null,
+                ForwardedFromDisplayName: null),
             cancellationToken);
 
 
@@ -233,6 +241,9 @@ return new SendMessageResult(
     message.ReplyToSequenceNumber,
     message.CreatedAtUtc,
     false,
+    ForwardedFromMessageId: null,
+ForwardedFromUserId: null,
+ForwardedFromDisplayName: null,
     createdAttachments.Select(x =>
         new SendMessageAttachmentResult(
             x.Id,

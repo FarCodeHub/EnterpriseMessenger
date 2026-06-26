@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { TypingState } from '../../../state/messages/typing.state';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslateModule } from '@ngx-translate/core';
 import { ConversationsState } from '../../../state/conversations/conversations.state';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -17,6 +17,13 @@ import imageCompression from 'browser-image-compression';
 import { SelectedAttachment } from '../../files/models/selected-attachment';
 import { HttpEventType } from '@angular/common/http';
 import { MessageDto } from '../../messages/models/message.dto';
+import { MessagesApiService } from '../../../core/services/messages-api.service';
+import { OfflineSyncService } from '../../../core/offline/offline-sync.service';
+import { PendingOperationsRepository } from '../../../core/offline/pending-operations.repository';
+import { MessageComposerComponent } from '../message-composer/message-composer';
+import { MessageBubbleComponent } from '../message-bubble/message-bubble';
+import { MessageActionMenuComponent } from '../message-action-menu/message-action-menu';
+import { MessageForwardModalComponent } from '../message-forward-modal/message-forward-modal';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -24,488 +31,37 @@ import { MessageDto } from '../../messages/models/message.dto';
     DatePipe,
     TranslateModule,
     FormsModule,
-    AttachmentPreviewComponent
-  ],
-  template: `
-  
-<div class="relative grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
-<header class="border-b border-white/10 px-6 py-4">
-<div class="flex flex-row-reverse items-start gap-3">
-<div
-  class="flex h-11 w-11 items-center justify-center rounded-xl border-2 bg-blue-600 text-sm font-bold text-white"
-  [class.border-emerald-400]="presenceState.isOnline(conversationId(), conversationPresenceUserId())"
-  [class.border-slate-500]="!presenceState.isOnline(conversationId(), conversationPresenceUserId())">
-  {{ conversation()?.displayTitle?.charAt(0) || '?' }}
-</div>
-
-  <div class="min-w-0">
-    <h2 class="truncate text-lg font-bold text-white">
-      {{ conversation()?.displayTitle || ('messages.title' | translate) }}
-    </h2>
-
-
-<p class="text-xs text-slate-400">
-  @if (conversation()?.type === 1) {
-    {{ 'presence.lastSeenRecently' | translate }}
-  } @else {
-    {{ 'conversations.type.group' | translate }}
-  }
-</p>
-
-
-
-    <p class="text-xs text-slate-400">
-      {{ conversation()?.type === 1 ? 'Private' : 'Group' }}
-    </p>
-  </div>
-</div>
-      </header>
-@if (typingState.isAnyoneTyping(conversationId()!, currentUserId())) {
-  <div class="shrink-0 border-b border-white/10 bg-slate-900/60 px-6 py-2 text-xs text-blue-400">
-    {{ 'conversations.messages.typing' | translate }}
-  </div>
-}
-<section
-   #messagesContainer
-  dir="ltr"
-  class="min-h-0 overflow-y-auto px-6 py-4"
-  (scroll)="onMessagesScroll()"
-  >
-        @if (messagesState.isLoading()) {
-          <div class="text-sm text-slate-400">
-            {{ 'messages.loading' | translate }}
-          </div>
-        }
-
-        @if (!messagesState.isLoading() && messagesState.messages().length === 0) {
-          <div class="flex h-full items-center justify-center text-sm text-slate-500">
-            {{ 'messages.empty' | translate }}
-          </div>
-        }
-
-
-
-
-
-        <div class="space-y-3">
+    AttachmentPreviewComponent,
+    MessageComposerComponent,
+    MessageBubbleComponent,
+    MessageActionMenuComponent,
+    MessageForwardModalComponent 
+  ] ,
+  templateUrl: './conversation-chat.component.html'
  
-
-
-          @for (message of messagesState.messages(); track message.id) {
-         
-<div
-  [id]="'message-' + message.id"
-  class="group flex items-center gap-2"
-  [class.justify-end]="message.senderUserId === currentUserId()"
-  [class.justify-start]="message.senderUserId !== currentUserId()"
->
-
-  
-
-
-
-
-
-
-
-<div
-  class="max-w-[70%] rounded-2xl text-sm shadow"
- [class.bg-blue-600]="message.senderUserId === currentUserId() && !isMediaOnlyMessage(message)"
-[class.bg-slate-800]="message.senderUserId !== currentUserId() && !isMediaOnlyMessage(message)"
-  [class.bg-slate-800]="message.senderUserId !== currentUserId()"
-  [class.text-slate-100]="message.senderUserId !== currentUserId()"
-[class.px-4]="!isMediaOnlyMessage(message)"
-[class.py-3]="!isMediaOnlyMessage(message)"
-  [class.overflow-hidden]="isImageOnlyMessage(message)"
->
-                @if (message.deletedAtUtc) {
-                  <div class="italic text-slate-300">
-                    {{ 'messages.deleted' | translate }}
-                  </div>
-                } @else {
-@if (message.body && message.body.trim().length > 0) {
-  <div
-    class="text-start"
-    [attr.dir]="getTextDirection(message.body)"
-  >
-
- 
-
-
-    @if (!isMediaOnlyMessage(message) && isLongTextMessage(message)) {
-      <div class="mb-1 inline-flex items-center gap-1 text-[12px] leading-none opacity-70">
-        <span>
-          {{ message.createdAtUtc | date:'shortTime' }}
-        </span>
-
-        @if (message.senderUserId === currentUserId()) {
-          <span
-            class="font-bold tracking-[-0.18em]"
-           [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-          >
-            {{ getReceiptIcon(message) }}
-          </span>
-        }
-      </div>
-@if (message.replyToMessageId) {
-    <button
-    type="button"
-    class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
-    (click)="jumpToReplyMessage(message)"
-  >
-    @if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
-      <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingTo' | translate }}
-      </div>
-
-      <div class="mt-1 line-clamp-2 text-slate-200">
-        {{ repliedMessage.body || '📎 Attachment' }}
-      </div>
-    } @else {
-      <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingToMessage' | translate }}
-        #{{ message.replyToSequenceNumber }}
-      </div>
-    }
-  </button>
-}
-      <div class="whitespace-pre-wrap break-words">
-        {{ message.body }}
-      </div>
-    } 
-    
-    
-    @else {
-      @if (!isMediaOnlyMessage(message)) {
-        <span class="inline-flex items-center gap-1 pe-2 text-[12px] leading-none opacity-70 align-baseline">
-          <span>
-            {{ message.createdAtUtc | date:'shortTime' }}
-          </span>
-
-          @if (message.senderUserId === currentUserId()) {
-            <span
-              class="font-bold tracking-[-0.18em]"
-             [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-            >
-              {{ getReceiptIcon(message) }}
-            </span>
-          }
-        </span>
-      }
-@if (message.replyToMessageId) {
-    <button
-    type="button"
-    class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
-    (click)="jumpToReplyMessage(message)"
-  >
-    @if (findReplyMessage(message.replyToMessageId); as repliedMessage) {
-      <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingTo' | translate }}
-      </div>
-
-      <div class="mt-1 line-clamp-2 text-slate-200">
-        {{ repliedMessage.body || '📎 Attachment' }}
-      </div>
-    } @else {
-      <div class="font-semibold text-blue-300">
-        {{ 'messages.replyingToMessage' | translate }}
-        #{{ message.replyToSequenceNumber }}
-      </div>
-    }
-  </button>
-}
-      <span class="whitespace-pre-wrap break-words">
-        {{ message.body }}
-      </span>
-    }
-  </div>
-}
-@if (message.attachments.length > 0) {
-  <div
-    class="relative overflow-hidden rounded-xl"
-    [class.mt-2]="!isImageOnlyMessage(message)"
-    [class.grid]="isImageAlbumMessage(message)"
-    [class.grid-cols-2]="isImageAlbumMessage(message)"
-    [class.gap-1]="isImageAlbumMessage(message)"
-    [class.max-w-sm]="isImageAlbumMessage(message)"
-  >
-    @for (attachment of message.attachments; track attachment.id) {
-      <div
-        [class.aspect-square]="isImageAlbumMessage(message)"
-        [class.overflow-hidden]="isImageAlbumMessage(message)"
-      >
-        <app-attachment-preview
-          [attachment]="attachment"
-          [compact]="isImageAlbumMessage(message)"
-        />
-      </div>
-    }
-
-    @if (isMediaOnlyMessage(message)) {
-      <div class="absolute bottom-2 end-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white">
-        {{ message.createdAtUtc | date:'shortTime' }}
-      @if (message.senderUserId === currentUserId()) {
-  <span
-    class="ms-1"
-    [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-  >
-    {{ getReceiptIcon(message) }}
-  </span>
-}
-      </div>
-    }
-  </div>
-}
-                }
-
-@if (
-  !isMediaOnlyMessage(message) &&
-  (!message.body || message.body.trim().length === 0)
-) {
-  <div class="mt-2 flex items-center gap-1 text-[12px] opacity-70">
-    @if (message.senderUserId === currentUserId()) {
-      <span
-        class="font-bold tracking-[-0.18em]"
-        [class.text-sky-300]="getReceiptStatus(message) === 'seen'"
-      >
-        {{ getReceiptIcon(message) }}
-      </span>
-    }
-
-    <span>
-      {{ message.createdAtUtc | date:'shortTime' }}
-    </span>
-  </div>
-}
-              </div>
-
-
-@if (message.senderUserId !== currentUserId()) {
-  <div class="relative shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
-    <button
-      type="button"
-      class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 shadow hover:bg-slate-600"
-      (click)="toggleActionMenu(message.id)"
-    >
-      ⋯
-    </button>
-
-    @if (openActionMenuMessageId() === message.id) {
-      <div class="absolute bottom-10 start-0 z-30 min-w-36 overflow-hidden rounded-xl bg-slate-800 py-1 text-sm text-slate-100 shadow-xl">
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start hover:bg-white/10"
-          (click)="replyToMessage(message)"
-        >
-          {{ 'conversations.messages.actions.reply' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="block w-full px-4 py-2 text-start hover:bg-white/10"
-         
-          [disabled]="!message.body || message.body.trim().length === 0"
-          [class.opacity-50]="!message.body || message.body.trim().length === 0"
-        >
-          {{ 'conversations.messages.actions.copy' | translate }}
-        </button>
-      </div>
-    }
-  </div>
-}
-
-
-            </div>
-          }
-        </div>
-      </section>
-
-@if (shouldShowBackToLatest()) {
-  <button
-    type="button"
-    class="absolute bottom-24 end-6 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-white shadow-xl hover:bg-slate-600"
-    (click)="backToLatestMessages()"
-  >
-    @if ((conversation()?.unreadCount ?? 0) > 0) {
-      <span class="absolute -top-2 -end-2 rounded-full bg-blue-500 px-2 py-0.5 text-xs font-bold">
-        {{ conversation()?.unreadCount }}
-      </span>
-    }
-
-    <span class="text-xl leading-none">⌄</span>
-  </button>
-}
-
-<footer class="border-t border-white/10 bg-slate-900 px-4 py-3">
-  
-@if (selectedAttachments().length > 0) {
-  <div class="mb-3 flex w-full flex-wrap gap-3">
-    @for (attachment of selectedAttachments(); track attachment.fileId) {
-      <div class="relative w-32 rounded-2xl bg-slate-800 p-2 shadow">
-        <button
-          type="button"
-          class="absolute -end-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-xs text-white hover:bg-red-500"
-          (click)="removeSelectedAttachment(attachment.fileId)"
-        >
-          ×
-        </button>
-
-        @if (attachment.localPreviewUrl) {
-          <img
-            class="h-24 w-full rounded-xl object-cover"
-            [src]="attachment.localPreviewUrl"
-            [alt]="attachment.fileName"
-          />
-        } @else {
-          <div class="flex h-24 w-full items-center justify-center rounded-xl bg-slate-700 px-2 text-center text-xs text-slate-300">
-            📎 {{ attachment.fileName }}
-          </div>
-        }
-
-        <!-- <div class="mt-2 truncate text-xs text-slate-300">
-          {{ attachment.fileName }}
-        </div> -->
-
-        @if (attachment.isUploading) {
-          <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700">
-            <div
-              class="h-full rounded-full bg-blue-500"
-              [style.width.%]="attachment.progress"
-            ></div>
-          </div>
-        }
-
-        @if (!attachment.isUploading && !attachment.error) {
-          <div class="mt-2 text-center text-xs text-emerald-400">
-            ✓ Uploaded
-          </div>
-        }
-
-        @if (attachment.error) {
-          <div class="mt-2 text-center text-xs text-red-400">
-            Upload failed
-          </div>
-        }
-      </div>
-    }
-  </div>
-}
-
-
-
-@if (replyingToMessage()) {
-  <div class="mb-3 w-full overflow-hidden rounded-xl border-s-4 border-blue-500 bg-slate-800 px-4 py-3">
-    <div class="flex min-w-0 items-start justify-between gap-3">
-      <div class="min-w-0 flex-1">
-        <div class="text-xs font-semibold text-blue-400">
-          {{ 'messages.replyingTo' | translate }}
-        </div>
-
-        <div
-          class="mt-1 max-h-10 overflow-hidden break-words text-sm leading-5 text-slate-300"
-          dir="auto"
-        >
-          {{ replyingToMessage()?.body || '📎 Attachment' }}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        class="shrink-0 text-slate-400 hover:text-white"
-        (click)="cancelReply()"
-      >
-        ×
-      </button>
-    </div>
-  </div>
-}
-
-
-
-
-
-<form class="flex w-full items-end gap-3" (ngSubmit)="sendMessage()">
-<label
-  class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl bg-slate-800 text-slate-300 hover:bg-slate-700">
-  📎
-<input
-  type="file"
-  class="hidden"
-  multiple
-  (change)="onFileSelected($event)"
-/>
-</label>
-  <textarea
-  rows="1"
-  name="messageText"
-  [ngModel]="messageText()"
-  (ngModelChange)="messageText.set($event)"
-  (input)="resizeTextarea($event); handleTyping()"
-  (keydown.enter)="handleEnter($event)"
-class="max-h-40 min-h-11 min-w-0 flex-1 resize-none overflow-hidden rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-blue-500"  [placeholder]="'conversations.messages.input.placeholder' | translate"></textarea>
-
-<button
-  type="submit"
-  [disabled]="hasUploadingAttachments()"
-  [class.opacity-50]="hasUploadingAttachments()"
-[class.cursor-not-allowed]="hasUploadingAttachments()"
-  class="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500">
-  {{ 'conversations.messages.input.send' | translate }}
-</button>
-  </form>
-</footer>
-@if (isSendModeOpen()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-    <div class="w-full max-w-sm rounded-2xl bg-slate-900 p-5 text-white shadow-2xl">
-      <h3 class="text-lg font-bold">
-        {{ 'attachments.sendMode.title' | translate }}
-      </h3>
-
-      <p class="mt-2 text-sm text-slate-400">
-        {{ pendingImageFile()?.name }}
-      </p>
-
-      <div class="mt-5 space-y-3">
-        <button
-          type="button"
-          class="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold hover:bg-blue-500"
-          (click)="sendPendingImageAsPhoto()"
-        >
-          {{ 'attachments.sendMode.asPhoto' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="w-full rounded-xl bg-slate-800 px-4 py-3 text-sm font-semibold hover:bg-slate-700"
-          (click)="sendPendingImageAsFile()"
-        >
-          {{ 'attachments.sendMode.asFile' | translate }}
-        </button>
-
-        <button
-          type="button"
-          class="w-full rounded-xl px-4 py-3 text-sm text-slate-400 hover:bg-white/5"
-          (click)="cancelSendMode()"
-        >
-          {{ 'common.cancel' | translate }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-    </div>
-  `
 })
 export class ConversationChatComponent implements OnInit, OnDestroy {
+  private readonly pendingOperations = inject(PendingOperationsRepository);
+
+  readonly editingMessage = signal<MessageDto | null>(null);
+  readonly isMessageSelectionMode = signal(false);
+  readonly selectedMessageIds = signal<string[]>([]);
+  private readonly router = inject(Router);
+  private readonly messagesApi = inject(MessagesApiService);
+  readonly offlineSync = inject(OfflineSyncService);
+  readonly isForwarding = signal(false);
+  readonly selectedForwardConversationIds = signal<string[]>([]);
+  readonly actionMenuPosition = signal<{ x: number; y: number } | null>(null);
+  readonly actionMenuMessage = signal<MessageDto | null>(null);
   readonly openActionMenuMessageId = signal<string | null>(null);
   readonly isAwayFromBottom = signal(false);
-readonly shouldShowBackToLatest = computed(() => {
-  const conversation = this.conversation();
+  readonly shouldShowBackToLatest = computed(() => {
+    const conversation = this.conversation();
 
-  return this.isViewingAroundMessages() ||
-    this.isAwayFromBottom() ||
-    (conversation?.unreadCount ?? 0) > 0;
-});
+    return this.isViewingAroundMessages() ||
+      this.isAwayFromBottom() ||
+      (conversation?.unreadCount ?? 0) > 0;
+  });
   private lastDeliveredSequenceNumber: number | null = null;
   private lastSeenSequenceNumber: number | null = null;
   private readonly destroy$ = new Subject<void>();
@@ -515,9 +71,10 @@ readonly shouldShowBackToLatest = computed(() => {
   readonly selectedAttachments = signal<SelectedAttachment[]>([]);
   readonly isUploadingFile = signal(false);
   private readonly route = inject(ActivatedRoute);
-  private readonly authService = inject(AuthService);
+    readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
-  private readonly conversationsState = inject(ConversationsState);
+
+  readonly conversationsState = inject(ConversationsState);
   private readonly chatSignalR = inject(ChatSignalRService);
   readonly typingState = inject(TypingState);
   readonly presenceState = inject(PresenceState);
@@ -537,6 +94,9 @@ readonly shouldShowBackToLatest = computed(() => {
   readonly hasUploadingAttachments = computed(() =>
     this.selectedAttachments().some(x => x.isUploading)
   );
+
+
+
   readonly conversationPresenceUserId = computed(() => {
     const conversation = this.conversation();
 
@@ -554,11 +114,16 @@ readonly shouldShowBackToLatest = computed(() => {
     return this.authService.user()?.id;
   });
   readonly replyingToMessage = signal<MessageDto | null>(null);
+  readonly forwardingMessage = signal<MessageDto | null>(null);
+  readonly isForwardModalOpen = signal(false);
+
 
 
   @ViewChild('messagesContainer')
   private messagesContainer?: ElementRef<HTMLDivElement>;
   ngOnInit(): void {
+
+    window.addEventListener('online', this.onlineHandler);
 
     document.addEventListener(
       'visibilitychange',
@@ -575,7 +140,7 @@ readonly shouldShowBackToLatest = computed(() => {
     this.chatSignalR.presenceSnapshot$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-        console.log('presence.snapshot received:', event);
+
         this.presenceState.setSnapshot(
           event.conversationId,
           event.userIds
@@ -588,7 +153,7 @@ readonly shouldShowBackToLatest = computed(() => {
     this.chatSignalR.presenceChanged$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => {
-        console.log('presence.changed received:', event);
+
 
 
         this.presenceState.setUserPresence(
@@ -598,6 +163,43 @@ readonly shouldShowBackToLatest = computed(() => {
         );
       });
 
+
+    this.offlineSync.messageEditSynced$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+       
+
+
+        this.messagesState.handleMessageEdited(
+          {
+            id: event.messageId,
+            body: event.body,
+            editedAtUtc: event.editedAtUtc,
+            editSyncStatus: 'idle'
+          });
+      });
+
+    this.offlineSync.messageDeleteSynced$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => {
+        this.messagesState.markMessageDeletedSynced(
+          event.messageId,
+          event.deletedAtUtc
+        );
+      });
+
+    this.offlineSync.messageDeleteSyncFailed$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(messageId => {
+       
+        this.messagesState.markMessageDeleteFailed(messageId);
+      });
+
+    this.offlineSync.messageSyncFailed$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(clientMessageId => {
+        this.messagesState.markMessageAsFailed(clientMessageId);
+      });
 
     this.chatSignalR.messageCreated$
       .pipe(takeUntil(this.destroy$))
@@ -645,12 +247,26 @@ readonly shouldShowBackToLatest = computed(() => {
         }
       });
 
+    this.offlineSync.messageEditSyncFailed$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(messageId => {
+        this.messagesState.markMessageEditAsFailed(messageId);
+      });
+
+    this.offlineSync.messageSynced$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(message => {
+        if (message.conversationId === this.conversationId()) {
+          this.messagesState.handleSyncedMessage(message);
+        }
+      });
+
 
     this.chatSignalR.reconnected$
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         const conversationId = this.conversationId();
-
+        this.offlineSync.requestSync('signalr-reconnected');
         if (conversationId) {
           this.chatSignalR.joinConversation(conversationId);
           this.chatSignalR.startPresenceRenewTimer(conversationId);
@@ -699,27 +315,71 @@ readonly shouldShowBackToLatest = computed(() => {
 
   }
 
+
+
+  syncNow(): void {
+    alert('sync clicked');
+
+    void this.offlineSync.forceSyncPendingOperations();
+  }
+
+
+  startForwardMessage(message: MessageDto): void {
+    this.forwardingMessage.set(message);
+    this.isForwardModalOpen.set(true);
+    this.closeActionMenu();
+  }
+
+  cancelForwardMessage(): void {
+    this.forwardingMessage.set(null);
+    this.isForwardModalOpen.set(false);
+    this.selectedForwardConversationIds.set([]);
+  }
+
   private readonly handleVisibilityChange = (): void => {
     if (document.visibilityState === 'visible') {
       this.markCurrentConversationAsSeenIfAllowed();
     }
   };
 
+  toggleActionMenu(event: MouseEvent, message: MessageDto): void {
+    event.stopPropagation();
 
-  toggleActionMenu(messageId: string): void {
-  this.openActionMenuMessageId.update(current =>
-    current === messageId ? null : messageId
-  );
-}
+    if (this.openActionMenuMessageId() === message.id) {
+      this.closeActionMenu();
+      return;
+    }
 
-closeActionMenu(): void {
-  this.openActionMenuMessageId.set(null);
-}
+    this.openActionMenuMessageId.set(message.id);
+    this.actionMenuMessage.set(message);
 
-replyToMessage(message: MessageDto): void {
-  this.startReply(message);
-  this.closeActionMenu();
-}
+    const menuWidth = 160;
+    const menuHeight = message.senderUserId === this.currentUserId() ? 180 : 100;
+
+    let x = event.clientX;
+    let y = event.clientY;
+
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 12;
+    }
+
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 12;
+    }
+
+    this.actionMenuPosition.set({ x, y });
+  }
+
+  closeActionMenu(): void {
+    this.openActionMenuMessageId.set(null);
+    this.actionMenuMessage.set(null);
+    this.actionMenuPosition.set(null);
+  }
+
+  replyToMessage(message: MessageDto): void {
+    this.startReply(message);
+    this.closeActionMenu();
+  }
 
   findReplyMessage(replyToMessageId: string | null): MessageDto | null {
     if (!replyToMessageId) {
@@ -736,45 +396,12 @@ replyToMessage(message: MessageDto): void {
   cancelReply(): void {
     this.replyingToMessage.set(null);
   }
-  sendMessage(): void {
-    const conversationId = this.conversationId();
-    const rawBody = this.messageText().trim();
-
-    const attachments = this.selectedAttachments()
-      .filter(x => !x.isUploading && !x.error)
-      .map(file => ({
-        fileId: file.fileId,
-        fileName: file.fileName,
-        contentType: file.contentType,
-        size: file.size,
-        storagePath: file.storagePath
-      }));
-
-    const hasAttachments = attachments.length > 0;
-
-    if (!conversationId || (!rawBody && !hasAttachments)) {
-      return;
-    }
-
-    if (this.hasUploadingAttachments()) {
-      return;
-    }
 
 
 
-    this.messagesState.send({
-      conversationId,
-      clientMessageId: crypto.randomUUID(),
-      body: rawBody,
-      replyToMessageId: this.replyingToMessage()?.id ?? null,
-      attachments
-    });
-
-    this.messageText.set('');
-    this.selectedAttachments.set([]);
-    this.replyingToMessage.set(null);
+  private stopTypingState(conversationId: string | null): void {
     if (conversationId && this.isTypingSent) {
-      this.chatSignalR.stopTyping(conversationId);
+      void this.chatSignalR.stopTyping(conversationId);
       this.isTypingSent = false;
     }
 
@@ -782,10 +409,103 @@ replyToMessage(message: MessageDto): void {
       clearTimeout(this.typingStopTimer);
       this.typingStopTimer = null;
     }
+  }
 
+
+  sendMessage(): void {
+    const conversationId = this.conversationId();
+    const rawBody = this.messageText().trim();
+
+    const editingMessage = this.editingMessage();
+
+    if (editingMessage) {
+      if (!rawBody) {
+        return;
+      }
+
+      const editedAtUtc = new Date().toISOString();
+
+      this.messagesState.handleMessageEdited({
+        id: editingMessage.id,
+        body: rawBody,
+        editedAtUtc,
+        editSyncStatus: 'syncing'
+      });
+
+      this.editingMessage.set(null);
+      this.messageText.set('');
+
+if (!navigator.onLine) {
+  void this.pendingOperations.upsertByMessageId(
+    'editMessage',
+    editingMessage.id,
+    {
+      messageId: editingMessage.id,
+      body: rawBody,
+      editedAtUtc
+    }
+  );
+
+  this.stopTypingState(conversationId);
+  return;
+}
+
+      this.messagesApi.editMessage(editingMessage.id, {
+        body: rawBody
+      }).subscribe({
+        next: () => {
+          this.messagesState.handleMessageEdited({
+            id: editingMessage.id,
+            body: rawBody,
+            editedAtUtc,
+            editSyncStatus: 'idle'
+          });
+        },
+        error: () => {
+
+
+          void this.pendingOperations.upsertByMessageId(
+            'editMessage',
+            editingMessage.id,
+            {
+              messageId: editingMessage.id,
+              body: rawBody,
+              editedAtUtc
+            }
+          );
+
+          this.offlineSync.requestSync('edit-message-failed-queued');
+        }
+      });
+
+      this.stopTypingState(conversationId);
+      return;
+    }
+
+    if (!conversationId || !rawBody) {
+      return;
+    }
+
+    this.messagesState.send({
+      conversationId,
+      clientMessageId: crypto.randomUUID(),
+      body: rawBody,
+      replyToMessageId: this.replyingToMessage()?.id ?? null,
+      attachments: []
+    });
+
+    this.messageText.set('');
+    this.replyingToMessage.set(null);
+    this.selectedAttachments.set([]);
+
+    this.stopTypingState(conversationId);
     this.scrollToBottom();
   }
+
+
+
   ngOnDestroy(): void {
+    window.removeEventListener('online', this.onlineHandler);
     this.chatSignalR.stopPresenceRenewTimer();
 
     if (this.activeConversationId) {
@@ -864,7 +584,7 @@ replyToMessage(message: MessageDto): void {
     this.chatSignalR.stopPresenceRenewTimer();
 
     if (oldConversationId && oldConversationId !== newConversationId) {
-      console.log('Leaving conversation:', oldConversationId);
+
 
       await this.chatSignalR.leaveConversation(oldConversationId);
       this.presenceState.clearConversation(oldConversationId);
@@ -873,7 +593,11 @@ replyToMessage(message: MessageDto): void {
     this.activeConversationId = newConversationId;
     this.conversationId.set(newConversationId);
     this.messagesState.clear();
-
+    this.selectedAttachments.set([]);
+    this.pendingImageFile.set(null);
+    this.isSendModeOpen.set(false);
+    this.replyingToMessage.set(null);
+    this.editingMessage.set(null);
     this.lastDeliveredSequenceNumber = null;
     this.lastSeenSequenceNumber = null;
 
@@ -883,13 +607,20 @@ replyToMessage(message: MessageDto): void {
 
     this.messagesState.load(newConversationId)
       .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.scrollToBottom();
+      .subscribe({
+        next: () => {
 
-        requestAnimationFrame(() => {
-          this.markCurrentConversationAsDelivered();
-          this.markCurrentConversationAsSeenIfAllowed();
-        });
+
+          this.scrollToBottom();
+
+          requestAnimationFrame(() => {
+            this.markCurrentConversationAsDelivered();
+            this.markCurrentConversationAsSeenIfAllowed();
+          });
+        },
+        error: error => {
+          console.error('messagesState.load failed:', error);
+        }
       });
 
     await this.chatSignalR.joinConversation(newConversationId);
@@ -903,27 +634,39 @@ replyToMessage(message: MessageDto): void {
 
     input.value = '';
 
-    if (files.length === 0) {
+    const conversationId = this.conversationId();
+
+    if (!conversationId || files.length === 0) {
       return;
     }
 
     files.forEach(file => {
       if (file.type.startsWith('image/')) {
-        // فعلاً پیش‌فرض Send as Photo
-        void this.compressAndUploadImage(file);
+        void this.sendImageAsLocalMediaMessage(file);
         return;
       }
 
-      this.uploadAttachment(file);
+      void this.messagesState.sendLocalMediaMessage({
+        conversationId,
+        file,
+        body: '',
+        replyToMessageId: this.replyingToMessage()?.id ?? null
+      });
     });
+
+    this.replyingToMessage.set(null);
+    this.scrollToBottom();
   }
 
 
-  private async compressAndUploadImage(file: File): Promise<void> {
-    const tempId = this.addPendingAttachment(file);
+  private async sendImageAsLocalMediaMessage(file: File): Promise<void> {
+    const conversationId = this.conversationId();
+
+    if (!conversationId) {
+      return;
+    }
 
     try {
-
       const compressedFile = await imageCompression(file, {
         maxSizeMB: 1,
         maxWidthOrHeight: 1600,
@@ -941,14 +684,23 @@ replyToMessage(message: MessageDto): void {
         }
       );
 
-      this.uploadAttachmentByTempId(tempId, renamedFile);
+      await this.messagesState.sendLocalMediaMessage({
+        conversationId,
+        file: renamedFile,
+        body: '',
+        replyToMessageId: this.replyingToMessage()?.id ?? null
+      });
     } catch {
-      this.updateSelectedAttachment(tempId, {
-        isUploading: false,
-        error: 'Compression failed'
+      await this.messagesState.sendLocalMediaMessage({
+        conversationId,
+        file,
+        body: '',
+        replyToMessageId: this.replyingToMessage()?.id ?? null
       });
     }
   }
+
+ 
 
 
   sendPendingImageAsFile(): void {
@@ -961,7 +713,7 @@ replyToMessage(message: MessageDto): void {
     this.isSendModeOpen.set(false);
     this.pendingImageFile.set(null);
 
-    this.uploadAttachment(file);
+    // this.uploadAttachment(file);
   }
 
   async sendPendingImageAsPhoto(): Promise<void> {
@@ -982,7 +734,7 @@ replyToMessage(message: MessageDto): void {
       initialQuality: 0.8
     });
 
-    this.uploadAttachment(compressedFile);
+    // this.uploadAttachment(compressedFile);
   }
 
   cancelSendMode(): void {
@@ -991,12 +743,21 @@ replyToMessage(message: MessageDto): void {
   }
 
 
-  private uploadAttachment(file: File): void {
-    const tempId = this.addPendingAttachment(file);
-    this.uploadAttachmentByTempId(tempId, file);
-  }
+  // private uploadAttachment(file: File): void {
+  //   const tempId = this.addPendingAttachment(file);
 
+  //   if (!navigator.onLine) {
+  //     return;
+  //   }
 
+  //   this.uploadAttachmentByTempId(tempId, file);
+  // }
+
+  private readonly onlineHandler = (): void => {
+   
+
+    void this.chatSignalR.reconnectAndSync('browser-online');
+  };
 
   private updateSelectedAttachment(
     fileId: string,
@@ -1030,63 +791,65 @@ replyToMessage(message: MessageDto): void {
       (!message.body || message.body.trim().length === 0)
     );
   }
-  private addPendingAttachment(file: File): string {
-    const tempId = crypto.randomUUID();
+  // private addPendingAttachment(file: File): string {
+  //   const tempId = crypto.randomUUID();
 
-    const localPreviewUrl = file.type.startsWith('image/')
-      ? URL.createObjectURL(file)
-      : undefined;
+  //   const localPreviewUrl = file.type.startsWith('image/')
+  //     ? URL.createObjectURL(file)
+  //     : undefined;
 
-    this.selectedAttachments.set([
-      ...this.selectedAttachments(),
-      {
-        fileId: tempId,
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        size: file.size,
-        storagePath: '',
-        progress: 0,
-        isUploading: true,
-        error: null,
-        localPreviewUrl
-      }
-    ]);
+  //   this.selectedAttachments.set([
+  //     ...this.selectedAttachments(),
+  //     {
+  //       fileId: tempId,
+  //       fileName: file.name,
+  //       contentType: file.type || 'application/octet-stream',
+  //       size: file.size,
+  //       storagePath: '',
+  //       progress: 0,
+  //       isUploading: navigator.onLine,
+  //       error: null,
+  //       localPreviewUrl,
+  //       localFile: file,
+  //       isOfflinePending: !navigator.onLine,
+  //     }
+  //   ]);
 
-    return tempId;
-  }
+  //   return tempId;
+  // }
 
-  private uploadAttachmentByTempId(tempId: string, file: File): void {
-    this.filesApi.uploadWithProgress(file).subscribe({
-      next: event => {
-        if (event.type === HttpEventType.UploadProgress) {
-          const progress = event.total
-            ? Math.round((event.loaded / event.total) * 100)
-            : 0;
+  // private uploadAttachmentByTempId(tempId: string, file: File): void {
+  //   this.filesApi.uploadWithProgress(file).subscribe({
+  //     next: event => {
+  //       if (event.type === HttpEventType.UploadProgress) {
+  //         const progress = event.total
+  //           ? Math.round((event.loaded / event.total) * 100)
+  //           : 0;
 
-          this.updateSelectedAttachment(tempId, { progress });
-        }
+  //         this.updateSelectedAttachment(tempId, { progress });
+  //       }
 
-        if (event.type === HttpEventType.Response && event.body) {
-          this.updateSelectedAttachment(tempId, {
-            fileId: event.body.fileId,
-            fileName: event.body.fileName,
-            contentType: event.body.contentType,
-            size: event.body.size,
-            storagePath: event.body.storagePath,
-            progress: 100,
-            isUploading: false,
-            error: null
-          });
-        }
-      },
-      error: () => {
-        this.updateSelectedAttachment(tempId, {
-          isUploading: false,
-          error: 'Upload failed'
-        });
-      }
-    });
-  }
+  //       if (event.type === HttpEventType.Response && event.body) {
+  //         this.updateSelectedAttachment(tempId, {
+  //           fileId: event.body.fileId,
+  //           fileName: event.body.fileName,
+  //           contentType: event.body.contentType,
+  //           size: event.body.size,
+  //           storagePath: event.body.storagePath,
+  //           progress: 100,
+  //           isUploading: false,
+  //           error: null
+  //         });
+  //       }
+  //     },
+  //     error: () => {
+  //       this.updateSelectedAttachment(tempId, {
+  //         isUploading: false,
+  //         error: 'Upload failed'
+  //       });
+  //     }
+  //   });
+  // }
   isImageAlbumMessage(message: MessageDto): boolean {
     return (
       message.attachments.length > 1 &&
@@ -1188,6 +951,9 @@ replyToMessage(message: MessageDto): void {
   }
 
   private markCurrentConversationAsDelivered(): void {
+    if (!navigator.onLine) {
+      return;
+    }
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
@@ -1206,7 +972,20 @@ replyToMessage(message: MessageDto): void {
     this.chatSignalR.markAsDelivered(conversationId, lastSequenceNumber);
   }
 
+
+
+  retryMessage(message: MessageDto, event?: Event): void {
+    event?.stopPropagation();
+
+ 
+
+    this.messagesState.retryMessage(message);
+  }
+
   private markCurrentConversationAsSeenIfAllowed(): void {
+    if (!navigator.onLine) {
+      return;
+    }
     const conversationId = this.conversationId();
     const lastSequenceNumber = this.messagesState.getLastSequenceNumber();
 
@@ -1232,10 +1011,10 @@ replyToMessage(message: MessageDto): void {
     this.lastSeenSequenceNumber = lastSequenceNumber;
     this.chatSignalR.markAsSeen(conversationId, lastSequenceNumber);
   }
-onMessagesScroll(): void {
-  this.isAwayFromBottom.set(!this.isNearBottom());
-  this.markCurrentConversationAsSeenIfAllowed();
-}
+  onMessagesScroll(): void {
+    this.isAwayFromBottom.set(!this.isNearBottom());
+    this.markCurrentConversationAsSeenIfAllowed();
+  }
 
 
   getTextDirection(text: string | null | undefined): 'rtl' | 'ltr' {
@@ -1341,4 +1120,208 @@ onMessagesScroll(): void {
         this.markCurrentConversationAsSeenIfAllowed();
       });
   }
+  isMyMessage(message: MessageDto): boolean {
+    return message.senderUserId === this.currentUserId();
+  }
+
+  startEditMessage(message: MessageDto): void {
+    if (!message.body || message.body.trim().length === 0) {
+      return;
+    }
+
+    this.editingMessage.set(message);
+    this.messageText.set(message.body);
+    this.closeActionMenu();
+  }
+
+  cancelEditMessage(): void {
+    this.editingMessage.set(null);
+    this.messageText.set('');
+  }
+
+  deleteMessage(message: MessageDto): void {
+    this.closeActionMenu();
+
+    const isPendingMessage =
+      message.receiptStatus === 'sending' ||
+      message.sequenceNumber < 0 ||
+      (message.attachments ?? []).some(x => x.isLocalPending);
+
+    if (isPendingMessage) {
+      this.messagesState.deletePendingLocally(message);
+      return;
+    }
+
+    this.messagesState.markMessageDeleteSyncing(message.id);
+
+    void this.pendingOperations.upsertByMessageId(
+      'deleteMessage',
+      message.id,
+      {
+        messageId: message.id,
+        deletedAtUtc: new Date().toISOString()
+      }
+    );
+
+    this.offlineSync.requestSync('delete-message-queued');
+  }
+
+
+
+  copyMessage(message: MessageDto): void {
+    if (!message.body) {
+      return;
+    }
+  }
+  shouldOpenMenuUp(messageId: string): boolean {
+    const element = document.getElementById(`message-${messageId}`);
+
+    if (!element) {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+
+    return viewportHeight - rect.bottom < 180;
+  }
+  toggleForwardTarget(conversationId: string): void {
+    const current = this.selectedForwardConversationIds();
+
+    if (current.includes(conversationId)) {
+      this.selectedForwardConversationIds.set(
+        current.filter(x => x !== conversationId)
+      );
+      return;
+    }
+
+    this.selectedForwardConversationIds.set([
+      ...current,
+      conversationId
+    ]);
+  }
+
+  isForwardTargetSelected(conversationId: string): boolean {
+    return this.selectedForwardConversationIds().includes(conversationId);
+  }
+
+
+  forwardSelectedMessage(): void {
+    const targetConversationIds = this.selectedForwardConversationIds();
+
+    if (targetConversationIds.length === 0) {
+      return;
+    }
+
+    this.isForwarding.set(true);
+
+    if (this.isMessageSelectionMode()) {
+      const sourceMessageIds = this.selectedMessageIds();
+
+      if (sourceMessageIds.length === 0) {
+        this.isForwarding.set(false);
+        return;
+      }
+
+      this.messagesApi.forwardMessagesBatch({
+        sourceMessageIds,
+        targetConversationIds,
+        comment: null
+      }).subscribe({
+        next: () => {
+          const targetConversationId = targetConversationIds[0];
+
+          this.isForwarding.set(false);
+          this.cancelForwardMessage();
+          this.cancelMessageSelection();
+
+          this.router.navigate([
+            '/app/conversations',
+            targetConversationId
+          ]);
+        },
+        error: () => {
+          this.isForwarding.set(false);
+        }
+      });
+
+      return;
+    }
+
+    const message = this.forwardingMessage();
+
+    if (!message) {
+      this.isForwarding.set(false);
+      return;
+    }
+
+    this.messagesApi.forwardMessage({
+      sourceMessageId: message.id,
+      targetConversationIds,
+      comment: null
+    }).subscribe({
+      next: () => {
+        const targetConversationId = targetConversationIds[0];
+
+        this.isForwarding.set(false);
+        this.cancelForwardMessage();
+
+        this.router.navigate([
+          '/app/conversations',
+          targetConversationId
+        ]);
+      },
+      error: () => {
+        this.isForwarding.set(false);
+      }
+    });
+  }
+
+
+
+  startMessageSelection(message: MessageDto): void {
+    this.isMessageSelectionMode.set(true);
+    this.selectedMessageIds.set([message.id]);
+    this.closeActionMenu();
+  }
+
+  cancelMessageSelection(): void {
+    this.isMessageSelectionMode.set(false);
+    this.selectedMessageIds.set([]);
+  }
+
+  toggleMessageSelection(message: MessageDto): void {
+    const current = this.selectedMessageIds();
+
+    if (current.includes(message.id)) {
+      const next = current.filter(x => x !== message.id);
+
+      this.selectedMessageIds.set(next);
+
+      if (next.length === 0) {
+        this.isMessageSelectionMode.set(false);
+      }
+
+      return;
+    }
+
+    this.selectedMessageIds.set([...current, message.id]);
+  }
+
+  isMessageSelected(message: MessageDto): boolean {
+    return this.selectedMessageIds().includes(message.id);
+  }
+
+  startForwardSelectedMessages(): void {
+    if (this.selectedMessageIds().length === 0) {
+      return;
+    }
+
+    this.forwardingMessage.set(null);
+    this.isForwardModalOpen.set(true);
+    this.closeActionMenu();
+  }
+
+
+
 }

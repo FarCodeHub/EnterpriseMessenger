@@ -30,41 +30,63 @@
       "archived": "آرشیو شده"
     },
     "messages": {
-        "actions": {
-    "reply": "پاسخ"
-        },
-   "typing": "در حال تایپ...",
-  "title": "پیام‌ها",
-  "loading": "در حال دریافت پیام‌ها...",
-  "empty": "هنوز پیامی وجود ندارد.",
-  "deleted": "این پیام حذف شده است",
-  "edited": "ویرایش شده",
-  "failed": "ارسال ناموفق",
-   "reply": "پاسخ",
-   "replyingTo": "در پاسخ به",
-   "replyingToMessage": "در پاسخ به پیام",
-  "input": {
-  "placeholder": "پیام خود را بنویسید...",
-  "send": "ارسال" 
-  
-}
-}
-
+      "selection": {
+        "selected": "پیام انتخاب شده"
+      },
+      "actions": {
+        "reply": "پاسخ",
+        "copy": "کپی",
+        "edit": "ویرایش",
+        "delete": "حذف",
+        "forward": "ارسال به دیگران",
+        "select": "انتخاب"
+      },
+      "forward": {
+        "title": "ارسال به",
+        "send": "ارسال",
+        "forwardedFrom": "ارسال شده از"
+      },
+      "typing": "در حال تایپ...",
+      "title": "پیام‌ها",
+      "loading": "در حال دریافت پیام‌ها...",
+      "empty": "هنوز پیامی وجود ندارد.",
+      "deleted": "این پیام حذف شده است",
+      "edited": "ویرایش شده",
+      "failed": "ارسال ناموفق",
+      "reply": "پاسخ",
+      "retry": "مجدد",
+      "replyingTo": "در پاسخ به",
+      "replyingToMessage": "در پاسخ به پیام",
+      "editing": "در حال ویرایش پیام",
+      "input": {
+        "placeholder": "پیام خود را بنویسید...",
+        "send": "ارسال",
+        "save": "ذخیره"
+      }
+    }
   },
-
-"presence": {
-  "online": "آنلاین",
-  "offline": "آفلاین"
-},
-"attachments": {
-  "sendMode": {
-    "title": "نحوه ارسال تصویر",
-    "asPhoto": "ارسال به عنوان عکس",
-    "asFile": "ارسال به عنوان فایل"
+  "presence": {
+    "online": "آنلاین",
+    "offline": "آفلاین",
+    "lastSeenRecently":"اخیرا اینجا بوده ...",
+    "Deleteing":"در حال حذف ..."
+  },
+  "attachments": {
+    "sendMode": {
+      "title": "نحوه ارسال تصویر",
+      "asPhoto": "ارسال به عنوان عکس",
+      "asFile": "ارسال به عنوان فایل"
+    },
+     "Preparingimage": "در حال آماده سازی تصویر ...",
+    "ImageUnavailableOffline": "تصویر در حالت آفلاین در دسترس نیست",
+    "LoadingImage": "در حال بارگذاری تصویر ..."
+  },
+  "common": {
+    "cancel": "انصراف",
+    "sending": "در حال ارسال ...",
+    "Deletefailed": "حذف ناموفق",
+    "syncingedit": "هماهنگ سازی ویرایش ...",
+    "editfailed": "ویرایش ناموفق",
+    "Connecting": "در حال اتصال ..."
   }
-},
-"common": {
-  "cancel": "انصراف"
-}
-
 }

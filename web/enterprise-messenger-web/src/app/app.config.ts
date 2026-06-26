@@ -2,7 +2,8 @@ import {
   ApplicationConfig,
   importProvidersFrom,
   provideBrowserGlobalErrorListeners,
-  provideZoneChangeDetection
+  provideZoneChangeDetection,
+  isDevMode,
 } from '@angular/core';
 
 import { provideRouter } from '@angular/router';
@@ -12,29 +13,33 @@ import { TranslateLoader, TranslateModule } from '@ngx-translate/core';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { routes } from './app.routes';
 import { HttpTranslateLoader } from './core/i18n/http-translate-loader';
+import { provideServiceWorker } from '@angular/service-worker';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
 
     provideZoneChangeDetection({
-      eventCoalescing: true
+      eventCoalescing: true,
     }),
 
     provideRouter(routes),
+    provideHttpClient(withInterceptors([])),
 
-provideHttpClient(
-  withInterceptors([authInterceptor])
-),
+    provideHttpClient(withInterceptors([authInterceptor])),
 
     importProvidersFrom(
       TranslateModule.forRoot({
         defaultLanguage: 'fa',
         loader: {
           provide: TranslateLoader,
-          useClass: HttpTranslateLoader
-        }
-      })
-    )
-  ]
+          useClass: HttpTranslateLoader,
+        },
+      }),
+    ),
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000',
+    }),
+  ],
 };

@@ -1,0 +1,172 @@
+ 
+  
+<div class="relative grid h-full min-h-0 w-full grid-rows-[auto_1fr_auto] overflow-hidden bg-slate-950">
+<header class="border-b border-white/10 px-6 py-4">
+<div class="flex flex-row-reverse items-start gap-3">
+<div
+  class="flex h-11 w-11 items-center justify-center rounded-xl border-2 bg-blue-600 text-sm font-bold text-white"
+  [class.border-emerald-400]="presenceState.isOnline(conversationId(), conversationPresenceUserId())"
+  [class.border-slate-500]="!presenceState.isOnline(conversationId(), conversationPresenceUserId())">
+  {{ conversation()?.displayTitle?.charAt(0) || '?' }}
+</div>
+
+  <div class="min-w-0">
+    <h2 class="truncate text-lg font-bold text-white">
+      {{ conversation()?.displayTitle || ('messages.title' | translate) }}
+    </h2>
+
+
+<p class="text-xs text-slate-400">
+  @if (conversation()?.type === 1) {
+    {{ 'presence.lastSeenRecently' | translate }}
+  } @else {
+    {{ 'conversations.type.group' | translate }}
+  }
+</p>
+
+
+
+    <p class="text-xs text-slate-400">
+      {{ conversation()?.type === 1 ? 'Private' : 'Group' }}
+    </p>
+  </div>
+</div>
+      </header>
+@if (typingState.isAnyoneTyping(conversationId()!, currentUserId())) {
+  <div class="shrink-0 border-b border-white/10 bg-slate-900/60 px-6 py-2 text-xs text-blue-400">
+    {{ 'conversations.messages.typing' | translate }}
+  </div>
+}
+<section
+   #messagesContainer
+  dir="ltr"
+  class="min-h-0 overflow-y-auto px-6 py-4"
+  (scroll)="onMessagesScroll()"
+  >
+        @if (messagesState.isLoading()) {
+          <div class="text-sm text-slate-400">
+            {{ 'messages.loading' | translate }}
+          </div>
+        }
+
+        @if (!messagesState.isLoading() && messagesState.messages().length === 0) {
+          <div class="flex h-full items-center justify-center text-sm text-slate-500">
+            {{ 'messages.empty' | translate }}
+          </div>
+        }
+
+
+
+
+
+        <div class="space-y-3">
+ 
+
+@for (message of messagesState.messages(); track message.id) {
+<app-message-bubble
+  [message]="message"
+  [currentUserId]="authService.user()?.id ?? null"
+  [selectionMode]="isMessageSelectionMode()"
+  [selected]="isMessageSelected(message)"
+  [repliedMessage]="message.replyToMessageId ? findReplyMessage(message.replyToMessageId) : null"
+  [receiptIcon]="getReceiptIcon(message)"
+  [receiptStatus]="getReceiptStatus(message)"
+  (toggleSelection)="toggleMessageSelection($event)"
+  (openActions)="toggleActionMenu($event.event, $event.message)"
+  (retry)="retryMessage($event.message, $event.event)"
+  (replyJump)="jumpToReplyMessage($event)"
+/>
+}
+    
+
+
+        </div>
+      </section>
+
+
+@if (isMessageSelectionMode()) {
+  <div class="border-t border-white/10 bg-slate-900 px-4 py-3">
+    <div class="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">
+      <button
+        type="button"
+        class="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
+        (click)="cancelMessageSelection()"
+      >
+        {{ 'common.cancel' | translate }}
+      </button>
+
+      <div class="text-sm text-slate-300">
+        {{ selectedMessageIds().length }}
+        {{ 'conversations.messages.selection.selected' | translate }}
+      </div>
+
+      <button
+        type="button"
+        class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
+        (click)="startForwardSelectedMessages()"
+      >
+        {{ 'conversations.messages.actions.forward' | translate }}
+      </button>
+    </div>
+  </div>
+}
+ 
+
+
+<app-message-forward-modal
+  [open]="isForwardModalOpen()"
+  [conversations]="conversationsState.conversations()"
+  [currentConversationId]="conversationId()"
+  [forwardingMessage]="forwardingMessage()"
+  [selectedConversationIds]="selectedForwardConversationIds()"
+  [isForwarding]="isForwarding()"
+  (cancel)="cancelForwardMessage()"
+  (toggleTarget)="toggleForwardTarget($event)"
+  (submit)="forwardSelectedMessage()"
+/>
+
+
+
+
+<app-message-action-menu
+  [message]="actionMenuMessage()"
+  [position]="actionMenuPosition()"
+  [currentUserId]="authService.user()?.id ?? null"
+  (close)="closeActionMenu()"
+  (reply)="replyToMessage($event)"
+  (forward)="startForwardMessage($event)"
+  (select)="startMessageSelection($event)"
+  (copy)="copyMessage($event)"
+  (edit)="startEditMessage($event)"
+  (delete)="deleteMessage($event)"
+/>
+
+
+@if (shouldShowBackToLatest()) {
+  <button
+    type="button"
+    class="absolute bottom-24 end-6 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-slate-700 text-white shadow-xl hover:bg-slate-600"
+    (click)="backToLatestMessages()"
+  >
+    @if ((conversation()?.unreadCount ?? 0) > 0) {
+      <span class="absolute -top-2 -end-2 rounded-full bg-blue-500 px-2 py-0.5 text-xs font-bold">
+        {{ conversation()?.unreadCount }}
+      </span>
+    }
+
+    <span class="text-xl leading-none">⌄</span>
+  </button>
+}
+ <app-message-composer
+  [messageText]="messageText()"
+  [editingMessage]="editingMessage()"
+  [replyingToMessage]="replyingToMessage()"
+  (messageTextChange)="messageText.set($event)"
+  (sendClicked)="sendMessage()"
+  (fileSelected)="onFileSelected($event)"
+  (cancelEditClicked)="cancelEditMessage()"
+  (cancelReplyClicked)="cancelReply()"
+  (typingChanged)="handleTyping()"
+/>
+    </div>
+  

@@ -31,9 +31,11 @@ public sealed class MessageReader : IMessageReader
             .OrderByDescending(x => x.SequenceNumber)
             .Take(take)
             .OrderBy(x => x.SequenceNumber)
-            .Select(x => new MessageListItemResult(
+            .Select(x => new
+            {
                 x.Id,
                 x.ConversationId,
+                x.ClientMessageId,
                 x.SequenceNumber,
                 x.SenderUserId,
                 x.Body,
@@ -42,18 +44,86 @@ public sealed class MessageReader : IMessageReader
                 x.CreatedAtUtc,
                 x.EditedAtUtc,
                 x.DeletedAtUtc,
-                _dbContext.Attachments
-                    .Where(a => a.MessageId == x.Id)
-                    .Select(a => new MessageAttachmentResult(
-                        a.Id,
-                        a.FileName,
-                        a.ContentType,
-                        a.Size,
-                        a.StoragePath))
-                    .ToList()))
+                x.ForwardedFromMessageId,
+                x.ForwardedFromUserId
+            })
             .ToListAsync(cancellationToken);
 
-        return messages;
+        var messageIds = messages
+            .Select(x => x.Id)
+            .ToList();
+
+        var attachmentsByMessageId = await _dbContext.Attachments
+            .Where(a => messageIds.Contains(a.MessageId))
+            .Select(a => new
+            {
+                a.MessageId,
+                Attachment = new MessageAttachmentResult(
+                    a.Id,
+                    a.FileName,
+                    a.ContentType,
+                    a.Size,
+                    a.StoragePath)
+            })
+            .GroupBy(x => x.MessageId)
+            .ToDictionaryAsync(
+                x => x.Key,
+                x => x.Select(y => y.Attachment).ToList(),
+                cancellationToken);
+
+        var forwardedFromUserIds = messages
+            .Where(x => x.ForwardedFromUserId.HasValue)
+            .Select(x => x.ForwardedFromUserId!.Value)
+            .Distinct()
+            .ToList();
+
+        var forwardedUsers = await _dbContext.Users
+            .Where(x => forwardedFromUserIds.Contains(x.Id))
+            .Select(x => new
+            {
+                x.Id,
+                x.DisplayName,
+                x.UserName
+            })
+            .ToDictionaryAsync(
+                x => x.Id,
+                x => x,
+                cancellationToken);
+
+        return messages
+            .Select(x =>
+            {
+                string? forwardedFromDisplayName = null;
+
+                if (x.ForwardedFromUserId.HasValue &&
+                    forwardedUsers.TryGetValue(x.ForwardedFromUserId.Value, out var forwardedUser))
+                {
+                    forwardedFromDisplayName =
+                        forwardedUser.DisplayName ?? forwardedUser.UserName;
+                }
+
+                attachmentsByMessageId.TryGetValue(
+                    x.Id,
+                    out var attachments);
+
+                return new MessageListItemResult(
+                    x.Id,
+                    x.ConversationId,
+                    x.ClientMessageId,
+                    x.SequenceNumber,
+                    x.SenderUserId,
+                    x.Body,
+                    x.ReplyToMessageId,
+                    x.ReplyToSequenceNumber,
+                    x.CreatedAtUtc,
+                    x.EditedAtUtc,
+                    x.DeletedAtUtc,
+                    x.ForwardedFromMessageId,
+                    x.ForwardedFromUserId,
+                    forwardedFromDisplayName,
+                    attachments ?? []);
+            })
+            .ToList();
     }
 
     public async Task<IReadOnlyCollection<MessageListItemResult>> GetMessagesAroundAsync(
@@ -76,6 +146,7 @@ public sealed class MessageReader : IMessageReader
             .Select(x => new MessageListItemResult(
                 x.Id,
                 x.ConversationId,
+                x.ClientMessageId,
                 x.SequenceNumber,
                 x.SenderUserId,
                 x.Body,
@@ -84,6 +155,9 @@ public sealed class MessageReader : IMessageReader
                 x.CreatedAtUtc,
                 x.EditedAtUtc,
                 x.DeletedAtUtc,
+                ForwardedFromMessageId: null,
+ForwardedFromUserId: null,
+ForwardedFromDisplayName: null,
                 _dbContext.Attachments
                     .Where(a => a.MessageId == x.Id)
                     .Select(a => new MessageAttachmentResult(

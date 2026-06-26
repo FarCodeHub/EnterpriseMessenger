@@ -1,0 +1,74 @@
+@if (open) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div class="w-full max-w-md overflow-hidden rounded-2xl bg-slate-900 text-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div>
+          <h3 class="text-base font-bold">
+            {{ 'conversations.messages.forward.title' | translate }}
+          </h3>
+
+          <p class="mt-1 text-xs text-slate-400">
+            {{ forwardingMessage?.body || '📎 Attachment' }}
+          </p>
+        </div>
+
+        <button type="button" class="text-slate-400 hover:text-white" (click)="cancel.emit()">
+          ×
+        </button>
+      </div>
+
+      <div class="max-h-80 overflow-y-auto p-3">
+        @for (conversation of conversations; track conversation.id) {
+          @if (conversation.id !== currentConversationId) {
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-start hover:bg-white/10"
+              (click)="toggleTarget.emit(conversation.id)"
+            >
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
+                {{ conversation.displayTitle.charAt(0) }}
+              </div>
+
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-semibold">
+                  {{ conversation.displayTitle }}
+                </div>
+
+                <div class="truncate text-xs text-slate-400">
+                  {{ conversation.lastMessagePreview || ('conversations.list.noMessages' | translate) }}
+                </div>
+              </div>
+
+              @if (isSelected(conversation.id)) {
+                <div class="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold">
+                  ✓
+                </div>
+              } @else {
+                <div class="h-6 w-6 rounded-full border border-slate-500"></div>
+              }
+            </button>
+          }
+        }
+      </div>
+
+      <div class="flex items-center justify-end gap-3 border-t border-white/10 px-5 py-4">
+        <button type="button" class="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-white/10" (click)="cancel.emit()">
+          {{ 'common.cancel' | translate }}
+        </button>
+
+        <button
+          type="button"
+          class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+          [disabled]="selectedConversationIds.length === 0 || isForwarding"
+          (click)="submit.emit()"
+        >
+          @if (isForwarding) {
+            {{ 'common.sending' | translate }}
+          } @else {
+            {{ 'conversations.messages.forward.send' | translate }}
+          }
+        </button>
+      </div>
+    </div>
+  </div>
+}

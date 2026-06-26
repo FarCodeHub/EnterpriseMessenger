@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
 using Messenger.Contracts.Realtime;
+using Messenger.Application.Messages.ForwardMessage;
 
 namespace Messenger.Api.Controllers;
 
@@ -31,7 +32,7 @@ public sealed class MessagesController : ControllerBase
     private readonly IMessageReader _messageReader;
     private readonly IMessageSearchService _messageSearchService;
     private readonly IConversationReadMarker _conversationReadMarker;
-
+    private readonly IMessageForwarder _messageForwarder;
     public MessagesController(
         MessengerDbContext dbContext,
         IHubContext<ChatHub> hubContext,
@@ -40,7 +41,8 @@ public sealed class MessagesController : ControllerBase
         IMessageDeleter messageDeleter,
         IMessageReader messageReader,
         IMessageSearchService messageSearchService,
-        IConversationReadMarker conversationReadMarker)
+        IConversationReadMarker conversationReadMarker,
+        IMessageForwarder messageForwarder)
     {
         _dbContext = dbContext;
         _hubContext = hubContext;
@@ -50,8 +52,138 @@ public sealed class MessagesController : ControllerBase
         _messageReader = messageReader;
         _messageSearchService = messageSearchService;
         _conversationReadMarker = conversationReadMarker;
+        _messageForwarder = messageForwarder;
     }
 
+
+
+
+[HttpPost("forward-batch")]
+public async Task<IActionResult> ForwardMessages(
+    ForwardMessagesRequest request,
+    CancellationToken cancellationToken)
+{
+    var currentUserId = GetCurrentUserId();
+
+    var result = await _messageForwarder.ForwardBatchAsync(
+        new ForwardMessagesCommand(
+            request.SourceMessageIds,
+            currentUserId,
+            request.TargetConversationIds,
+            request.Comment),
+        cancellationToken);
+
+    foreach (var message in result)
+    {
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync(
+                RealtimeEvents.MessageCreated,
+                new
+                {
+                    message.Id,
+                    message.ConversationId,
+                    message.SequenceNumber,
+                    message.SenderUserId,
+                    message.ClientMessageId,
+                    message.Body,
+                    message.ReplyToMessageId,
+                    message.ReplyToSequenceNumber,
+                    message.CreatedAtUtc,
+                    message.IsDuplicate,
+                    message.Attachments,
+                    message.ForwardedFromMessageId,
+                    message.ForwardedFromUserId,
+                    message.ForwardedFromDisplayName
+                },
+                cancellationToken);
+    }
+
+    var lastMessageByConversation = result
+        .GroupBy(x => x.ConversationId)
+        .Select(x => x.OrderByDescending(m => m.SequenceNumber).First())
+        .ToList();
+
+    foreach (var message in lastMessageByConversation)
+    {
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync(
+                RealtimeEvents.ConversationUpdated,
+                new ConversationUpdatedEvent(
+                    message.ConversationId,
+                    message.Id,
+                    message.Body,
+                    message.SenderUserId,
+                    null,
+                    message.SequenceNumber,
+                    message.CreatedAtUtc),
+                cancellationToken);
+    }
+
+    return Ok(result);
+}
+
+
+
+
+[HttpPost("forward")]
+public async Task<IActionResult> ForwardMessage(
+    ForwardMessageRequest request,
+    CancellationToken cancellationToken)
+{
+    var currentUserId = GetCurrentUserId();
+
+    var result = await _messageForwarder.ForwardAsync(
+        new ForwardMessageCommand(
+            request.SourceMessageId,
+            currentUserId,
+            request.TargetConversationIds,
+            request.Comment),
+        cancellationToken);
+
+    foreach (var message in result)
+    {
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync(
+                RealtimeEvents.MessageCreated,
+                new
+                {
+                    message.Id,
+                    message.ConversationId,
+                    message.SequenceNumber,
+                    message.SenderUserId,
+                    message.ClientMessageId,
+                    message.Body,
+                    message.ReplyToMessageId,
+                    message.ReplyToSequenceNumber,
+                    message.CreatedAtUtc,
+                    message.IsDuplicate,
+                    message.Attachments,
+                    message.ForwardedFromMessageId,
+                    message.ForwardedFromUserId,
+                    message.ForwardedFromDisplayName
+                },
+                cancellationToken);
+
+        await _hubContext.Clients
+            .Group($"conversation:{message.ConversationId}")
+            .SendAsync(
+                RealtimeEvents.ConversationUpdated,
+                new ConversationUpdatedEvent(
+                    message.ConversationId,
+                    message.Id,
+                    message.Body,
+                    message.SenderUserId,
+                    null,
+                    message.SequenceNumber,
+                    message.CreatedAtUtc),
+                cancellationToken);
+    }
+
+    return Ok(result);
+}
 
     [EnableRateLimiting("messages")]
     [HttpPost]

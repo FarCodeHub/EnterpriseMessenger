@@ -54,7 +54,8 @@ using Microsoft.Extensions.Hosting;
 using Messenger.Application.Search;
 using Messenger.Infrastructure.Search;
 using OpenSearch.Client;
-
+using Messenger.Application.Messages.ForwardMessage;
+ 
 
 namespace Messenger.Infrastructure;
 
@@ -178,6 +179,7 @@ public static class DependencyInjection
         }
 
         services.AddScoped<IMessageFullTextSearchService, OpenSearchMessageFullTextSearchService>();
+        services.AddScoped<IMessageForwarder, MessageForwarder>();
         return services;
     }
 }

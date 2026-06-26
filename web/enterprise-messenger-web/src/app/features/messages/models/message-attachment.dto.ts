@@ -4,4 +4,9 @@ export interface MessageAttachmentDto {
   contentType: string;
   size: number;
   storagePath: string;
+ 
+localFileId?: string;
+localPreviewUrl?: string;
+isLocalPending?: boolean;
+uploadProgress?: number | null;
 }

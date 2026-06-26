@@ -15,8 +15,10 @@ public class Message : BaseEntity
     public Guid? ReplyToMessageId { get; private set; }
 
     public long? ReplyToSequenceNumber { get; private set; }
+    public Guid? ForwardedFromMessageId { get; private set; }
 
-    public string Body { get; private set; }
+    public Guid? ForwardedFromUserId { get; private set; }
+    public string Body { get; private set; }= null!;
     public DateTime? EditedAtUtc { get; private set; }
     public DateTime? DeletedAtUtc { get; private set; }
     private Message()
@@ -30,7 +32,9 @@ public class Message : BaseEntity
         Guid clientMessageId,
         string body,
         Guid? replyToMessageId = null,
-        long? replyToSequenceNumber = null)
+        long? replyToSequenceNumber = null,
+        Guid? forwardedFromMessageId = null,
+Guid? forwardedFromUserId = null)
     {
         ConversationId = conversationId;
         SequenceNumber = sequenceNumber;
@@ -40,6 +44,8 @@ public class Message : BaseEntity
 
         ReplyToMessageId = replyToMessageId;
         ReplyToSequenceNumber = replyToSequenceNumber;
+        ForwardedFromMessageId = forwardedFromMessageId;
+        ForwardedFromUserId = forwardedFromUserId;
     }
     public void Edit(string newBody)
     {
@@ -52,8 +58,8 @@ public class Message : BaseEntity
 
 
     public void Delete()
-{
-    DeletedAtUtc = DateTime.UtcNow;
-    Body = string.Empty;
-}
+    {
+        DeletedAtUtc = DateTime.UtcNow;
+        Body = string.Empty;
+    }
 }

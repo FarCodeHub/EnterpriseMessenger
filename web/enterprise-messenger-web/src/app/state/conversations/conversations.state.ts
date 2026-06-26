@@ -3,33 +3,48 @@ import { Injectable, inject, signal } from '@angular/core';
 import { ConversationsApiService } from '../../core/services/conversations-api.service';
 import { ConversationUpdatedEvent } from '../../core/signalr/chat-signalr.models';
 import { ConversationListItemDto } from '../../features/conversations/models/conversation-list-item.dto';
-
+import { OfflineConversationsRepository } from '../../core/offline/offline-conversations.repository';
 @Injectable({
   providedIn: 'root'
 })
 export class ConversationsState {
   private readonly conversationsApi = inject(ConversationsApiService);
-
+private readonly offlineConversations = inject(OfflineConversationsRepository);
   private readonly conversationsSignal = signal<ConversationListItemDto[]>([]);
   private readonly isLoadingSignal = signal(false);
 
   readonly conversations = this.conversationsSignal.asReadonly();
   readonly isLoading = this.isLoadingSignal.asReadonly();
 
-  load(): void {
-    this.isLoadingSignal.set(true);
+load(): void {
+  this.isLoadingSignal.set(true);
 
-    this.conversationsApi.getMyConversations()
-      .subscribe({
-        next: response => {
-          this.conversationsSignal.set(response);
-          this.isLoadingSignal.set(false);
-        },
-        error: () => {
-          this.isLoadingSignal.set(false);
-        }
-      });
-  }
+  void this.offlineConversations.getAll()
+    .then(cachedConversations => {
+      if (cachedConversations.length > 0) {
+        this.conversationsSignal.set(cachedConversations);
+      }
+
+      if (!navigator.onLine) {
+        this.isLoadingSignal.set(false);
+        return;
+      }
+
+      this.conversationsApi.getMyConversations()
+        .subscribe({
+          next: conversations => {
+            this.conversationsSignal.set(conversations);
+
+            void this.offlineConversations.saveMany(conversations);
+
+            this.isLoadingSignal.set(false);
+          },
+          error: () => {
+            this.isLoadingSignal.set(false);
+          }
+        });
+    });
+}
   getById(conversationId: string) {
     return this.conversationsSignal()
       .find(conversation => conversation.id === conversationId) ?? null;
@@ -38,7 +53,7 @@ export class ConversationsState {
 
   handleConversationUpdated(event: ConversationUpdatedEvent): void {
     
-console.log(event);
+ 
     const current = this.conversationsSignal();
 
     const index = current.findIndex(x => x.id === event.conversationId);
@@ -51,8 +66,7 @@ console.log(event);
 
     const conversation = updated[index];
 
-    console.log('before update:', conversation.lastMessageSenderDisplayName);
-console.log('event sender:', event.senderDisplayName);
+ 
     updated[index] = {
       ...conversation,
       lastMessageId: event.lastMessageId,
@@ -61,7 +75,7 @@ console.log('event sender:', event.senderDisplayName);
       lastMessageSenderDisplayName: event.senderDisplayName,
       lastMessageAtUtc: event.createdAtUtc
     };
-console.log('after update:', updated[index].lastMessageSenderDisplayName);
+ 
 
     
 
@@ -122,5 +136,44 @@ updateOtherParticipantSeen(
     })
   );
 }
+
+
+
+
+  updateLastMessageLocally(input: {
+  conversationId: string;
+  body: string;
+  senderUserId: string;
+  senderDisplayName?: string | null;
+  createdAtUtc: string;
+}): void {
+  const updated = this.conversationsSignal().map(conversation =>
+    conversation.id === input.conversationId
+      ? {
+          ...conversation,
+          lastMessagePreview: input.body,
+          lastMessageAtUtc: input.createdAtUtc,
+          lastMessageSenderUserId: input.senderUserId,
+          lastMessageSenderDisplayName:
+            input.senderDisplayName ?? conversation.lastMessageSenderDisplayName
+        }
+      : conversation
+  );
+
+  this.conversationsSignal.set(
+    [...updated].sort((a, b) =>
+      new Date(b.lastMessageAtUtc ?? '').getTime() -
+      new Date(a.lastMessageAtUtc ?? '').getTime()
+    )
+  );
+
+  const updatedConversation = updated.find(x => x.id === input.conversationId);
+
+  if (updatedConversation) {
+    void this.offlineConversations.save(updatedConversation);
+  }
+}
+
+
 
 }
