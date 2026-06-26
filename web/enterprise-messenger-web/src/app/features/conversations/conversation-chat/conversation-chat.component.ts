@@ -20,6 +20,7 @@ import { MessageDto } from '../../messages/models/message.dto';
 import { MessagesApiService } from '../../../core/services/messages-api.service';
 import { OfflineSyncService } from '../../../core/offline/offline-sync.service';
 import { PendingOperationsRepository } from '../../../core/offline/pending-operations.repository';
+import { MessageComposerComponent } from '../message-composer/message-composer';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -27,7 +28,8 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
     DatePipe,
     TranslateModule,
     FormsModule,
-    AttachmentPreviewComponent
+    AttachmentPreviewComponent,
+    MessageComposerComponent
   ] ,
   templateUrl: './conversation-chat.component.html'
  
