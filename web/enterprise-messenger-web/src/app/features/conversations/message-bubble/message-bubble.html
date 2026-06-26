@@ -1,0 +1,142 @@
+<div [id]="'message-' + message.id" class="group flex items-center gap-2" [class.justify-end]="isOwnMessage()"
+    [class.justify-start]="!isOwnMessage()">
+    @if (selectionMode) {
+    <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs"
+        [class.border-blue-400]="selected" [class.bg-blue-500]="selected" [class.text-white]="selected"
+        [class.border-slate-500]="!selected" [class.text-transparent]="!selected"
+        (click)="toggleSelection.emit(message)">
+        ✓
+    </button>
+    }
+
+    @if (isOwnMessage()) {
+    <button type="button"
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 opacity-0 shadow transition-opacity hover:bg-slate-600 group-hover:opacity-100"
+        (click)="onOpenActions($event)">
+        ⋯
+    </button>
+    }
+
+    <div class="max-w-[70%] rounded-2xl text-sm shadow" [class.bg-blue-600]="isOwnMessage() && !isMediaOnlyMessage()"
+        [class.bg-slate-800]="!isOwnMessage() && !isMediaOnlyMessage()" [class.text-slate-100]="!isOwnMessage()"
+        [class.px-4]="!isMediaOnlyMessage()" [class.py-3]="!isMediaOnlyMessage()"
+        [class.overflow-hidden]="isImageOnlyMessage()">
+        @if (message.deleteSyncStatus === 'syncing') {
+        <div class="italic text-amber-300">
+            {{ 'presence.Deleteing' | translate }}
+        </div>
+        } @else if (message.deleteSyncStatus === 'failed') {
+        <div class="flex items-center gap-2 italic text-red-300">
+            <span>{{ 'common.Deletefailed' | translate }}</span>
+
+            <button type="button" class="rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
+                (click)="onRetry($event)">
+                {{ 'conversations.messages.retry' | translate }}
+            </button>
+        </div>
+        } @else if (message.deletedAtUtc) {
+        <div class="italic text-slate-300">
+            {{ 'conversations.messages.deleted' | translate }}
+        </div>
+        } @else {
+        @if (message.forwardedFromMessageId) {
+        <div class="mb-2 text-xs font-semibold text-blue-300">
+            {{ 'conversations.messages.forward.forwardedFrom' | translate }}
+            {{ message.forwardedFromDisplayName || 'Unknown' }}
+        </div>
+        }
+
+
+
+        @if (message.replyToMessageId) {
+        <button type="button"
+            class="mb-2 w-full rounded-lg border-s-4 border-blue-400 bg-black/20 px-3 py-2 text-start text-xs hover:bg-black/30"
+            (click)="replyJump.emit(message)">
+            @if (repliedMessage) {
+            <div class="font-semibold text-blue-300">
+                {{ 'conversations.messages.replyingTo' | translate }}
+            </div>
+
+            @if (repliedMessage.deletedAtUtc) {
+            <div class="mt-1 italic text-slate-400">
+                {{ 'conversations.messages.deleted' | translate }}
+            </div>
+            } @else {
+            <div class="mt-1 line-clamp-2 text-slate-200">
+                {{
+                repliedMessage.body
+                ? repliedMessage.body
+                : ((repliedMessage.attachments ?? []).length > 0 ? '📎 Attachment' : '')
+                }}
+            </div>
+            }
+            } @else {
+            <div class="font-semibold text-blue-300">
+                {{ 'conversations.messages.replyingToMessage' | translate }}
+                #{{ message.replyToSequenceNumber }}
+            </div>
+            }
+        </button>
+        }
+
+
+
+
+
+        @if (message.body && message.body.trim().length > 0) {
+        <div class="whitespace-pre-wrap break-words text-start" [attr.dir]="getTextDirection(message.body)">
+            {{ message.body }}
+        </div>
+        }
+
+        @if ((message.attachments ?? []).length > 0) {
+        <div class="relative overflow-hidden rounded-xl" [class.mt-2]="!isImageOnlyMessage()"
+            [class.grid]="isImageAlbumMessage()" [class.grid-cols-2]="isImageAlbumMessage()"
+            [class.gap-1]="isImageAlbumMessage()" [class.max-w-sm]="isImageAlbumMessage()">
+            @for (attachment of (message.attachments ?? []); track attachment.id) {
+            <div [class.aspect-square]="isImageAlbumMessage()" [class.overflow-hidden]="isImageAlbumMessage()">
+                <app-attachment-preview [attachment]="attachment" [compact]="isImageAlbumMessage()" />
+            </div>
+            }
+        </div>
+        }
+
+        <div class="mt-2 flex items-center gap-1 text-[12px] opacity-70">
+            <span>{{ message.createdAtUtc | date:'shortTime' }}</span>
+
+            @if (message.editedAtUtc) {
+            @if (message.editSyncStatus === 'syncing') {
+            <span class="text-amber-300">{{ 'common.syncingedit' | translate }}</span>
+            } @else if (message.editSyncStatus === 'failed') {
+            <span class="text-red-300">{{ 'common.editfailed' | translate }}</span>
+            } @else {
+            <span>{{ 'conversations.messages.edited' | translate }}</span>
+            }
+            }
+
+
+
+            @if (isOwnMessage()) {
+            <span class="font-bold tracking-[-0.18em]" [class.text-sky-300]="receiptStatus === 'seen'">
+                {{ receiptIcon }}
+            </span>
+            }
+
+            @if (message.receiptStatus === 'failed' || message.editSyncStatus === 'failed') {
+            <button type="button" class="ms-2 rounded-full bg-red-500/80 px-2 py-1 text-[11px] font-semibold text-white"
+                (click)="onRetry($event)">
+                {{ 'conversations.messages.retry' | translate }}
+            </button>
+            }
+        </div>
+        }
+    </div>
+
+    @if (!isOwnMessage()) {
+    <button type="button"
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700/90 text-slate-200 opacity-0 shadow transition-opacity hover:bg-slate-600 group-hover:opacity-100"
+        (click)="onOpenActions($event)">
+        ⋯
+    </button>
+    }
+</div>

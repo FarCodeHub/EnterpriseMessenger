@@ -21,6 +21,7 @@ import { MessagesApiService } from '../../../core/services/messages-api.service'
 import { OfflineSyncService } from '../../../core/offline/offline-sync.service';
 import { PendingOperationsRepository } from '../../../core/offline/pending-operations.repository';
 import { MessageComposerComponent } from '../message-composer/message-composer';
+import { MessageBubbleComponent } from '../message-bubble/message-bubble';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -29,7 +30,8 @@ import { MessageComposerComponent } from '../message-composer/message-composer';
     TranslateModule,
     FormsModule,
     AttachmentPreviewComponent,
-    MessageComposerComponent
+    MessageComposerComponent,
+    MessageBubbleComponent
   ] ,
   templateUrl: './conversation-chat.component.html'
  
@@ -65,7 +67,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   readonly selectedAttachments = signal<SelectedAttachment[]>([]);
   readonly isUploadingFile = signal(false);
   private readonly route = inject(ActivatedRoute);
-  private readonly authService = inject(AuthService);
+    readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
 
   readonly conversationsState = inject(ConversationsState);
