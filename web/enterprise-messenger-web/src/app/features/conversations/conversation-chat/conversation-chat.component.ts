@@ -20,6 +20,10 @@ import { MessageDto } from '../../messages/models/message.dto';
 import { MessagesApiService } from '../../../core/services/messages-api.service';
 import { OfflineSyncService } from '../../../core/offline/offline-sync.service';
 import { PendingOperationsRepository } from '../../../core/offline/pending-operations.repository';
+import { MessageComposerComponent } from '../message-composer/message-composer';
+import { MessageBubbleComponent } from '../message-bubble/message-bubble';
+import { MessageActionMenuComponent } from '../message-action-menu/message-action-menu';
+import { MessageForwardModalComponent } from '../message-forward-modal/message-forward-modal';
 @Component({
   selector: 'app-conversation-chat',
   standalone: true,
@@ -27,7 +31,11 @@ import { PendingOperationsRepository } from '../../../core/offline/pending-opera
     DatePipe,
     TranslateModule,
     FormsModule,
-    AttachmentPreviewComponent
+    AttachmentPreviewComponent,
+    MessageComposerComponent,
+    MessageBubbleComponent,
+    MessageActionMenuComponent,
+    MessageForwardModalComponent 
   ] ,
   templateUrl: './conversation-chat.component.html'
  
@@ -63,7 +71,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
   readonly selectedAttachments = signal<SelectedAttachment[]>([]);
   readonly isUploadingFile = signal(false);
   private readonly route = inject(ActivatedRoute);
-  private readonly authService = inject(AuthService);
+    readonly authService = inject(AuthService);
   private activeConversationId: string | null = null;
 
   readonly conversationsState = inject(ConversationsState);
