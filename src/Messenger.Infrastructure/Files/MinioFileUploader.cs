@@ -1,4 +1,6 @@
 using Messenger.Application.Files.UploadFile;
+using Messenger.Domain.Attachments;
+using Messenger.Infrastructure.Persistence;
 using Microsoft.Extensions.Configuration;
 using Minio;
 using Minio.DataModel.Args;
@@ -9,13 +11,16 @@ public sealed class MinioFileUploader : IFileUploader
 {
     private readonly IMinioClient _minioClient;
     private readonly IConfiguration _configuration;
+    private readonly MessengerDbContext _dbContext;
 
     public MinioFileUploader(
         IMinioClient minioClient,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        MessengerDbContext dbContext)
     {
         _minioClient = minioClient;
         _configuration = configuration;
+        _dbContext = dbContext;
     }
 
     public async Task<UploadFileResult> UploadAsync(
@@ -81,6 +86,17 @@ public sealed class MinioFileUploader : IFileUploader
                 .WithObjectSize(command.Size)
                 .WithContentType(command.ContentType),
             cancellationToken);
+
+        // Remember who uploaded the file: messages may only attach files their sender uploaded.
+        _dbContext.UploadedFiles.Add(new UploadedFile(
+            fileId,
+            command.UploaderUserId,
+            command.FileName,
+            command.ContentType,
+            command.Size,
+            objectName));
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new UploadFileResult(
             fileId,

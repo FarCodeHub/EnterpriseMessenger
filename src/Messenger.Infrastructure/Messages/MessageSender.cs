@@ -132,23 +132,38 @@ ForwardedFromDisplayName: null,
         _dbContext.Messages.Add(message);
 
 
-var createdAttachments = new List<Messenger.Domain.Attachments.Attachment>();
+        var createdAttachments = new List<Messenger.Domain.Attachments.Attachment>();
 
-if (command.Attachments is not null && command.Attachments.Count > 0)
-{
-    foreach (var attachment in command.Attachments)
-    {
-        var createdAttachment = new Messenger.Domain.Attachments.Attachment(
-            message.Id,
-            attachment.FileName,
-            attachment.ContentType,
-            attachment.Size,
-            attachment.StoragePath);
+        if (command.Attachments is not null && command.Attachments.Count > 0)
+        {
+            var fileIds = command.Attachments
+                .Select(x => x.FileId)
+                .Distinct()
+                .ToList();
 
-        createdAttachments.Add(createdAttachment);
-        _dbContext.Attachments.Add(createdAttachment);
-    }
-}
+            // Only files uploaded by the sender can be attached; metadata comes from the upload record.
+            var uploadedFiles = await _dbContext.UploadedFiles
+                .Where(x =>
+                    fileIds.Contains(x.Id) &&
+                    x.UploaderUserId == command.SenderUserId)
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+            foreach (var attachment in command.Attachments)
+            {
+                if (!uploadedFiles.TryGetValue(attachment.FileId, out var uploadedFile))
+                    throw new InvalidOperationException("Attachment file not found.");
+
+                var createdAttachment = new Messenger.Domain.Attachments.Attachment(
+                    message.Id,
+                    uploadedFile.FileName,
+                    uploadedFile.ContentType,
+                    uploadedFile.Size,
+                    uploadedFile.StoragePath);
+
+                createdAttachments.Add(createdAttachment);
+                _dbContext.Attachments.Add(createdAttachment);
+            }
+        }
 
         var conversation = await _dbContext.Conversations
             .FirstAsync(x => x.Id == command.ConversationId, cancellationToken);
