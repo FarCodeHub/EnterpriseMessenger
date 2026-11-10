@@ -40,6 +40,18 @@ services:
     volumes:
       - enterprise_messenger_minio_data:/data
     restart: unless-stopped
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: enterprise-messenger-keycloak
+    command: start-dev --import-realm
+    ports:
+      - "8081:8080"
+    environment:
+      KC_HTTP_RELATIVE_PATH: /sso
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/realm-messenger.json:/opt/keycloak/data/import/realm-messenger.json:ro
 volumes:
   enterprise_messenger_postgres_data:
   enterprise_messenger_redis_data:
