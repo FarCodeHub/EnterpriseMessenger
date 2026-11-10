@@ -1,17 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { MessageComposer } from './message-composer';
+import { MessageComposerComponent } from './message-composer';
 
-describe('MessageComposer', () => {
-  let component: MessageComposer;
-  let fixture: ComponentFixture<MessageComposer>;
+describe('MessageComposerComponent', () => {
+  let component: MessageComposerComponent;
+  let fixture: ComponentFixture<MessageComposerComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MessageComposer],
+      imports: [MessageComposerComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(MessageComposer);
+    fixture = TestBed.createComponent(MessageComposerComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
