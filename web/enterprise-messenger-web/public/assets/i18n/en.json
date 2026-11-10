@@ -11,7 +11,16 @@
       "usernameRequired": "Username is required.",
       "submit": "Sign in",
       "submitting": "Signing in...",
-      "failed": "Login failed. Please check your username."
+      "failed": "Login failed. Please check your username.",
+      "organization": "Sign in with your organization account",
+      "developmentLogin": "Development sign-in",
+      "organizationFailed": "Could not reach the organization sign-in server. Please try again.",
+      "configFailed": "Could not load sign-in settings from the server. Check your connection."
+    },
+    "callback": {
+      "signingIn": "Signing in...",
+      "failed": "Sign-in failed. Please try again.",
+      "backToLogin": "Back to sign-in"
     }
   },
   "layout": {
@@ -68,20 +77,18 @@
   "presence": {
     "online": "Online",
     "offline": "Offline",
-    "lastSeenRecently":"Last Seen Recently",
-    "Deleteing":"Deleting ..."
-
+    "lastSeenRecently": "Last Seen Recently",
+    "Deleteing": "Deleting ..."
   },
   "attachments": {
     "sendMode": {
       "title": "Send image as",
       "asPhoto": "Send as photo",
       "asFile": "Send as file"
-     
     },
-     "Preparingimage": "Preparing image...",
-     "ImageUnavailableOffline": "Image unavailable offline",
-     "LoadingImage": "Loading image..."
+    "Preparingimage": "Preparing image...",
+    "ImageUnavailableOffline": "Image unavailable offline",
+    "LoadingImage": "Loading image..."
   },
   "common": {
     "cancel": "Cancel",
