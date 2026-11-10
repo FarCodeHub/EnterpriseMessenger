@@ -4,6 +4,7 @@ using Messenger.Application.Search;
 using Messenger.Application.Sync;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Messenger.Infrastructure.Messages;
 
@@ -13,9 +14,11 @@ public sealed class MessageDeleter : IMessageDeleter
     private readonly IUserSyncEventWriter _syncEventWriter;
     private readonly IAuditLogWriter _auditLogWriter;
     private readonly IMessageSearchIndexer _messageSearchIndexer;
+    private readonly ILogger<MessageDeleter> _logger;
 
-    public MessageDeleter(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer)
+    public MessageDeleter(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer, ILogger<MessageDeleter> logger)
     {
+        _logger = logger;
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
         _auditLogWriter = auditLogWriter;
@@ -34,6 +37,9 @@ public sealed class MessageDeleter : IMessageDeleter
 
         if (message.SenderUserId != command.UserId)
             throw new UnauthorizedAccessException("You can only delete your own messages.");
+
+        // The sync event writer locks members' counters until commit.
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         message.Delete();
 
@@ -64,11 +70,20 @@ public sealed class MessageDeleter : IMessageDeleter
           cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
 
-        await _messageSearchIndexer.DeleteAsync(
-    message.Id,
-    cancellationToken);
+        // The message is already saved; a search outage must not fail the request (the index can be rebuilt).
+        try
+        {
+            await _messageSearchIndexer.DeleteAsync(
+                message.Id,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Updating the search index failed for message {MessageId}.", message.Id);
+        }
 
         return new DeleteMessageResult(
             message.Id,

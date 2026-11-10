@@ -21,19 +21,16 @@ public sealed class MessageForwarder : IMessageForwarder
     private readonly IOutboxWriter _outboxWriter;
     private readonly IAuditLogWriter _auditLogWriter;
 
-    private readonly IMessageSearchIndexer _messageSearchIndexer;
     public MessageForwarder(
         MessengerDbContext dbContext,
         IUserSyncEventWriter syncEventWriter,
         IOutboxWriter outboxWriter,
-        IAuditLogWriter auditLogWriter,
-        IMessageSearchIndexer messageSearchIndexer)
+        IAuditLogWriter auditLogWriter)
     {
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
         _outboxWriter = outboxWriter;
         _auditLogWriter = auditLogWriter;
-        _messageSearchIndexer = messageSearchIndexer;
     }
 
     public async Task<IReadOnlyCollection<SendMessageResult>> ForwardAsync(
@@ -64,7 +61,6 @@ public sealed class MessageForwarder : IMessageForwarder
 
         if (!sourceMembershipExists)
             throw new UnauthorizedAccessException();
-        var searchDocuments = new List<MessageSearchDocument>();
 
         var targetConversationIds = command.TargetConversationIds
             .Distinct()
@@ -124,14 +120,19 @@ public sealed class MessageForwarder : IMessageForwarder
 
 
 
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        // Lock all target counters (in id order) and members' sync counters before numbering messages.
+        var lockedCounters = (await _dbContext.LockConversationCountersAsync(
+                targetConversationIds,
+                cancellationToken))
+            .ToDictionary(x => x.ConversationId);
+
+        await _syncEventWriter.LockMemberCountersAsync(targetConversationIds, cancellationToken);
+
         foreach (var targetConversationId in targetConversationIds)
         {
-            var counter = await _dbContext.ConversationCounters
-                .FirstOrDefaultAsync(
-                    x => x.ConversationId == targetConversationId,
-                    cancellationToken);
-
-            if (counter is null)
+            if (!lockedCounters.TryGetValue(targetConversationId, out var counter))
                 throw new InvalidOperationException("Conversation counter not found.");
 
             var sequenceNumber = counter.GetNextSequenceNumber();
@@ -152,15 +153,6 @@ public sealed class MessageForwarder : IMessageForwarder
 
 
 
-            searchDocuments.Add(new MessageSearchDocument(
-                message.Id,
-                message.ConversationId,
-                message.SenderUserId,
-                message.Body,
-                message.SequenceNumber,
-                message.CreatedAtUtc,
-                message.EditedAtUtc,
-                IsDeleted: false));
 
 
 
@@ -274,12 +266,7 @@ public sealed class MessageForwarder : IMessageForwarder
           ));
         }
         await _dbContext.SaveChangesAsync(cancellationToken);
-        foreach (var document in searchDocuments)
-        {
-            await _messageSearchIndexer.IndexAsync(
-                document,
-                cancellationToken);
-        }
+        await transaction.CommitAsync(cancellationToken);
         return results;
 
     }
@@ -385,11 +372,13 @@ await using var transaction =
                 x => x.Id,
                 cancellationToken);
 
-        var targetCounters = await _dbContext.ConversationCounters
-            .Where(x => targetConversationIds.Contains(x.ConversationId))
-            .ToDictionaryAsync(
-                x => x.ConversationId,
-                cancellationToken);
+        // Lock all target counters (in id order) and members' sync counters before numbering messages.
+        var targetCounters = (await _dbContext.LockConversationCountersAsync(
+                targetConversationIds,
+                cancellationToken))
+            .ToDictionary(x => x.ConversationId);
+
+        await _syncEventWriter.LockMemberCountersAsync(targetConversationIds, cancellationToken);
 
         var targetConversations = await _dbContext.Conversations
             .Where(x => targetConversationIds.Contains(x.Id))
@@ -400,7 +389,6 @@ await using var transaction =
 
         var results = new List<SendMessageResult>();
 
-        var searchDocuments = new List<MessageSearchDocument>();
 
 
 
@@ -555,15 +543,6 @@ try
                             x.Size,
                             x.StoragePath)).ToList()));
 
-                searchDocuments.Add(new MessageSearchDocument(
-                    message.Id,
-                    message.ConversationId,
-                    message.SenderUserId,
-                    message.Body,
-                    message.SequenceNumber,
-                    message.CreatedAtUtc,
-                    message.EditedAtUtc,
-                    IsDeleted: false));
             }
         }
 
@@ -576,12 +555,6 @@ try
     throw;
 }
 
-        foreach (var document in searchDocuments)
-        {
-            await _messageSearchIndexer.IndexAsync(
-                document,
-                cancellationToken);
-        }
 
         return results;
     }
