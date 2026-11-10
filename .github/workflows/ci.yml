@@ -13,6 +13,20 @@ jobs:
   backend:
     name: Backend (build + tests)
     runs-on: ubuntu-latest
+    services:
+      # Real PostgreSQL for the tests that check row locks, unique indexes and the migrations.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +41,8 @@ jobs:
         run: dotnet build EnterpriseMessenger.slnx --configuration Release --no-restore
 
       - name: Test
+        env:
+          MESSENGER_TEST_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=postgres
         run: >
           dotnet test EnterpriseMessenger.slnx
           --configuration Release
