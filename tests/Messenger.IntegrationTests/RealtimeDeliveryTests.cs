@@ -4,6 +4,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Messenger.Contracts.Conversations;
 using Messenger.Contracts.Messages;
+using Messenger.Contracts.Realtime;
 using Messenger.Contracts.Users;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
@@ -35,8 +36,8 @@ public sealed class RealtimeDeliveryTests : IClassFixture<CustomWebApplicationFa
 
         // The receiver is connected but has not called JoinConversation (e.g. looking at the chat list).
         await using var connection = CreateHubConnection(receiver);
-        connection.On<JsonElement>("MessageCreated", payload => messageCreated.TrySetResult(payload));
-        connection.On<JsonElement>("ConversationUpdated", payload => conversationUpdated.TrySetResult(payload));
+        connection.On<JsonElement>(RealtimeEvents.MessageCreated, payload => messageCreated.TrySetResult(payload));
+        connection.On<JsonElement>(RealtimeEvents.ConversationUpdated, payload => conversationUpdated.TrySetResult(payload));
         await connection.StartAsync();
 
         var response = await CreateApiClient(sender).PostAsJsonAsync(
@@ -67,11 +68,11 @@ public sealed class RealtimeDeliveryTests : IClassFixture<CustomWebApplicationFa
         var stayingUserReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var leftConnection = CreateHubConnection(leaves);
-        leftConnection.On<JsonElement>("MessageCreated", _ => leftUserReceived = true);
+        leftConnection.On<JsonElement>(RealtimeEvents.MessageCreated, _ => leftUserReceived = true);
         await leftConnection.StartAsync();
 
         await using var stayingConnection = CreateHubConnection(stays);
-        stayingConnection.On<JsonElement>("MessageCreated", _ => stayingUserReceived.TrySetResult());
+        stayingConnection.On<JsonElement>(RealtimeEvents.MessageCreated, _ => stayingUserReceived.TrySetResult());
         await stayingConnection.StartAsync();
 
         var response = await CreateApiClient(owner).PostAsJsonAsync(
