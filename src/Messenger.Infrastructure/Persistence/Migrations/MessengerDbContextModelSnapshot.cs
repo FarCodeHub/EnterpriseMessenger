@@ -585,6 +585,10 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<string>("ExternalSubject")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -597,6 +601,9 @@ namespace Messenger.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ExternalSubject")
+                        .IsUnique();
 
                     b.HasIndex("UserName")
                         .IsUnique();
