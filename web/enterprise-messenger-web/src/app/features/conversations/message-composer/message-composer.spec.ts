@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
+import { provideTranslateService } from '@ngx-translate/core';
+
 import { MessageComposerComponent } from './message-composer';
 
 describe('MessageComposerComponent', () => {
@@ -9,6 +11,7 @@ describe('MessageComposerComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [MessageComposerComponent],
+      providers: [provideTranslateService()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(MessageComposerComponent);
