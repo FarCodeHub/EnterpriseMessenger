@@ -233,7 +233,7 @@ var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
         result.Id,
         result.Body,
         result.SenderUserId,
-        senderUserDisplayName ?? "TEST DISPLAY NAME", 
+        senderUserDisplayName, 
         result.SequenceNumber,
         result.CreatedAtUtc), cancellationToken);
         }

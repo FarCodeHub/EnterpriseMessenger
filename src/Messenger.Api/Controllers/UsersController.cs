@@ -118,6 +118,7 @@ return Ok(new UserAdminActionResponse(
 
 
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> CreateUser(
       CreateUserRequest request,
@@ -169,6 +170,10 @@ return Ok(new UserAdminActionResponse(
        RegisterDeviceRequest request,
        CancellationToken cancellationToken)
     {
+        // Devices can only be registered for yourself, unless you are an admin.
+        if (userId != GetCurrentUserId() && !User.IsInRole("Admin"))
+            return Forbid();
+
         try
         {
             var result = await _userDeviceRegistrar.RegisterAsync(
