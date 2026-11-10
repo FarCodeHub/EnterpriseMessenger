@@ -74,7 +74,7 @@ services:
       OpenSearch__Url: http://opensearch:9200
       OpenSearch__MessagesIndex: messenger-messages
       # Organization sign-in. Tokens carry the public issuer; the API reads keys from Keycloak inside the network.
-      Keycloak__Authority: ${KEYCLOAK_PUBLIC_URL}/realms/messenger
+      Keycloak__Authority: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL must be set in .env.production}/realms/messenger
       Keycloak__MetadataAddress: http://keycloak:8080/sso/realms/messenger/.well-known/openid-configuration
       Keycloak__RequireHttpsMetadata: "false"
     depends_on:
@@ -120,7 +120,7 @@ services:
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
       KC_HTTP_ENABLED: "true"
       KC_HTTP_RELATIVE_PATH: /sso
-      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL must be set in .env.production}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
