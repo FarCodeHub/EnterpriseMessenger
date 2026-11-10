@@ -55,6 +55,16 @@ internal static class RowLockExtensions
                 .ToListAsync(cancellationToken);
         }
 
+        // Create missing counters first. ON CONFLICT makes concurrent first-time writers wait for each other
+        // instead of failing on the unique UserId index.
+        await dbContext.Database.ExecuteSqlAsync($"""
+            INSERT INTO "UserSyncCounters" ("Id", "UserId", "LastEventId", "CreatedAtUtc")
+            SELECT gen_random_uuid(), user_id, 0, now()
+            FROM unnest({ids}) AS user_id
+            ORDER BY user_id
+            ON CONFLICT ("UserId") DO NOTHING
+            """, cancellationToken);
+
         return await dbContext.UserSyncCounters
             .FromSql($"""
                 SELECT * FROM "UserSyncCounters"

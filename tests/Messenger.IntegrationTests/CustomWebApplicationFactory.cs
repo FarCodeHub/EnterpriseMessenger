@@ -15,7 +15,7 @@ using OpenSearch.Client;
 using Messenger.Application.Search;
 namespace Messenger.IntegrationTests;
 
-  public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
+public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = $"MessengerTestDb_{Guid.NewGuid()}";
 
