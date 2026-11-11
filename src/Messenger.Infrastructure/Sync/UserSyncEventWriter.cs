@@ -21,17 +21,21 @@ public sealed class UserSyncEventWriter : IUserSyncEventWriter
         object payload,
         CancellationToken cancellationToken)
     {
-        var memberUserIds = await _dbContext.ConversationMembers
-            .Where(x => x.ConversationId == conversationId)
-            .Select(x => x.UserId)
-            .ToListAsync(cancellationToken);
+        // Members who left the conversation stop receiving its events (they contain message bodies).
+        var memberUserIds = await GetActiveMemberUserIdsAsync([conversationId], cancellationToken);
 
         var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
 
+        // One query for all members, locked until the caller's transaction commits, so concurrent
+        // writers never hand out the same event id to a user.
+        var syncCounters = (await _dbContext.LockUserSyncCountersAsync(memberUserIds, cancellationToken))
+            .ToDictionary(x => x.UserId);
+
         foreach (var memberUserId in memberUserIds)
         {
-            var syncCounter = await _dbContext.UserSyncCounters
-                .FirstOrDefaultAsync(x => x.UserId == memberUserId, cancellationToken);
+            // A counter created earlier in this unit of work is not in the database yet.
+            var syncCounter = syncCounters.GetValueOrDefault(memberUserId)
+                ?? _dbContext.UserSyncCounters.Local.FirstOrDefault(x => x.UserId == memberUserId);
 
             if (syncCounter is null)
             {
@@ -50,5 +54,27 @@ public sealed class UserSyncEventWriter : IUserSyncEventWriter
                     conversationId,
                     messageId));
         }
+    }
+
+    public async Task LockMemberCountersAsync(
+        IReadOnlyCollection<Guid> conversationIds,
+        CancellationToken cancellationToken)
+    {
+        var memberUserIds = await GetActiveMemberUserIdsAsync(conversationIds, cancellationToken);
+
+        await _dbContext.LockUserSyncCountersAsync(memberUserIds, cancellationToken);
+    }
+
+    private Task<List<Guid>> GetActiveMemberUserIdsAsync(
+        IReadOnlyCollection<Guid> conversationIds,
+        CancellationToken cancellationToken)
+    {
+        return _dbContext.ConversationMembers
+            .Where(x =>
+                conversationIds.Contains(x.ConversationId) &&
+                x.LeftAtUtc == null)
+            .Select(x => x.UserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
     }
 }
