@@ -81,15 +81,32 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddInfrastructure(
     builder.Configuration,
     builder.Environment);
+var allowedCorsOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()?
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .ToArray() ?? [];
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowLocalTest", policy =>
+    options.AddPolicy(CorsPolicyName, policy =>
     {
         policy
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .SetIsOriginAllowed(_ => true)
             .AllowCredentials();
+
+        if (builder.Environment.IsDevelopment())
+        {
+            // Local development: the Angular dev server and test pages run on other origins.
+            policy.SetIsOriginAllowed(_ => true);
+        }
+        else
+        {
+            // Production: only explicitly configured origins. When the web app is served
+            // by the bundled nginx it is same-origin and needs no CORS at all.
+            policy.WithOrigins(allowedCorsOrigins);
+        }
     });
 });
 
@@ -113,10 +130,12 @@ else
 
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
 
-var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
+var jwtSecretKey = JwtSecretKeyResolver.Resolve(
+    builder.Configuration["Jwt:SecretKey"],
+    builder.Environment);
 
-if (string.IsNullOrWhiteSpace(jwtSecretKey))
-    throw new InvalidOperationException("JWT secret key is not configured.");
+// JwtTokenService reads the key from configuration, so make sure it sees the resolved one.
+builder.Configuration["Jwt:SecretKey"] = jwtSecretKey;
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -240,7 +259,7 @@ app.UseSerilogRequestLogging(options =>
         "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
 });
 
-app.UseCors("AllowLocalTest");
+app.UseCors(CorsPolicyName);
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -307,4 +326,9 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+public partial class Program
+{
+    private const string CorsPolicyName = "DefaultCors";
 }

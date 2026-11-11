@@ -125,6 +125,10 @@ public sealed class ConversationsController : ControllerBase
        Guid userId,
        CancellationToken cancellationToken)
     {
+        // A user may only list their own conversations (they include last-message previews).
+        if (userId != GetCurrentUserId())
+            return Forbid();
+
         var result = await _userConversationReader.GetAsync(
             new GetUserConversationsQuery(userId),
             cancellationToken);

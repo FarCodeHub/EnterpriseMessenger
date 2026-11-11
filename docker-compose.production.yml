@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "15432:5432"
+      - "127.0.0.1:15432:5432"
     volumes:
       - enterprise_messenger_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -26,8 +26,8 @@ services:
     image: rabbitmq:3-management
     container_name: enterprise-messenger-rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -40,7 +40,7 @@ services:
     container_name: enterprise-messenger-minio
     ports:
       - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -55,8 +55,9 @@ services:
     ports:
       - "8580:8080"
     environment:
-      # ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      Jwt__SecretKey: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in .env.production}
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN:-}
       ConnectionStrings__MessengerDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Redis__ConnectionString: redis:6379
       RabbitMq__Host: rabbitmq
@@ -100,8 +101,8 @@ services:
       bootstrap.memory_lock: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
     ports:
-      - "9200:9200"
-      - "9600:9600"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9600:9600"
     volumes:
       - enterprise_messenger_opensearch_data:/usr/share/opensearch/data
     restart: unless-stopped
@@ -113,7 +114,7 @@ services:
       OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
       DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
     depends_on:
       - opensearch
     restart: unless-stopped

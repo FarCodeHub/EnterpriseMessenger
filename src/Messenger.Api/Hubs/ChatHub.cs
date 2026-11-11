@@ -50,6 +50,11 @@ public sealed class ChatHub : Hub
         if (!Guid.TryParse(conversationId, out var parsedConversationId))
             throw new InvalidOperationException("Invalid conversation id.");
 
+        await _permissionChecker.EnsureActiveMemberAsync(
+            parsedConversationId,
+            userId,
+            Context.ConnectionAborted);
+
         await _typingService.StartTypingAsync(
             parsedConversationId,
             userId,
@@ -69,6 +74,11 @@ public sealed class ChatHub : Hub
 
         if (!Guid.TryParse(conversationId, out var parsedConversationId))
             throw new InvalidOperationException("Invalid conversation id.");
+
+        await _permissionChecker.EnsureActiveMemberAsync(
+            parsedConversationId,
+            userId,
+            Context.ConnectionAborted);
 
         await _typingService.StopTypingAsync(
           parsedConversationId,

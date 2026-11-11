@@ -2,6 +2,7 @@ using Messenger.Application.Sync.CommitSync;
 using Messenger.Application.Sync.GetSyncEvents;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Messenger.Api.Controllers;
 [Authorize]
@@ -28,6 +29,10 @@ public sealed class SyncController : ControllerBase
         int take = 100,
         CancellationToken cancellationToken = default)
     {
+        // Sync events contain message bodies: only the owner of the account may read or commit them.
+        if (!IsCurrentUser(userId))
+            return Forbid();
+
         try
         {
             var result = await _syncEventReader.GetAsync(
@@ -53,6 +58,10 @@ public sealed class SyncController : ControllerBase
         long lastSyncedEventId,
         CancellationToken cancellationToken)
     {
+        // Sync events contain message bodies: only the owner of the account may read or commit them.
+        if (!IsCurrentUser(userId))
+            return Forbid();
+
         try
         {
             var result = await _syncCommitter.CommitAsync(
@@ -68,5 +77,12 @@ public sealed class SyncController : ControllerBase
         {
             return BadRequest(ex.Message);
         }
+    }
+
+    private bool IsCurrentUser(Guid userId)
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        return Guid.TryParse(value, out var currentUserId) && currentUserId == userId;
     }
 }

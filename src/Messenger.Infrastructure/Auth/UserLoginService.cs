@@ -31,10 +31,10 @@ public sealed class UserLoginService : IUserLoginService
             .FirstOrDefaultAsync(x => x.UserName == command.UserName, cancellationToken);
 
             if (user is null)
-                throw new UnauthorizedAccessException("Invalid username.");
+                throw new UnauthorizedAccessException("Invalid credentials.");
 
             if (!user.IsActive)
-                throw new UnauthorizedAccessException("User is not active.");
+                throw new UnauthorizedAccessException("Invalid credentials.");
 
         var accessToken = _tokenService.CreateAccessToken(
             user.Id,

@@ -72,6 +72,7 @@ if (string.IsNullOrWhiteSpace(query))
     }
 
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("messages/rebuild-index")]
 public async Task<IActionResult> RebuildMessagesIndex(
     CancellationToken cancellationToken)

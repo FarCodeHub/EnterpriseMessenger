@@ -9,6 +9,7 @@ namespace Messenger.IntegrationTests;
 public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public const string SchemeName = "Test";
+    public const string RoleHeaderName = "X-Test-Role";
 
     public TestAuthHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -24,10 +25,16 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
             ? headerUserId.ToString()
             : Guid.Empty.ToString();
 
+        // Tests run as an admin unless they ask for another role with the X-Test-Role header.
+        var role = Request.Headers.TryGetValue(RoleHeaderName, out var headerRole)
+            ? headerRole.ToString()
+            : "Admin";
+
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, userId),
             new Claim(ClaimTypes.Name, "test-user"),
+            new Claim(ClaimTypes.Role, role),
             new Claim("display_name", "Test User")
         };
 
