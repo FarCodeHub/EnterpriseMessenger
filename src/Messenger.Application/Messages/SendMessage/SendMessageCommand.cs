@@ -10,9 +10,5 @@ public sealed record SendMessageCommand(
 );
 
 public sealed record SendMessageAttachmentCommand(
-    Guid? Id,
-    string FileName,
-    string ContentType,
-    long Size,
-    string StoragePath
+    Guid FileId
 );

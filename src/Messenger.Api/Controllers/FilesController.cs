@@ -72,6 +72,7 @@ public sealed class FilesController : ControllerBase
         {
             var result = await _fileUploader.UploadAsync(
                 new UploadFileCommand(
+                    GetCurrentUserId(),
                     file.FileName,
                     file.ContentType,
                     file.Length,

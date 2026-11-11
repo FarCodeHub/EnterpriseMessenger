@@ -34,6 +34,17 @@ jobs:
           --logger "trx;LogFileName=test-results.trx"
           --results-directory TestResults
 
+      - name: Check EF Core model matches migrations
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+        run: |
+          dotnet tool install --global dotnet-ef --version "10.*"
+          dotnet ef migrations has-pending-model-changes \
+            --project src/Messenger.Infrastructure \
+            --startup-project src/Messenger.Api \
+            --configuration Release \
+            --no-build
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
