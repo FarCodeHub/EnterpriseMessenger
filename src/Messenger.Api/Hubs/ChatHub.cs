@@ -171,6 +171,12 @@ public sealed class ChatHub : Hub
     {
         var userId = GetCurrentUserId();
 
+        // Every device of the user receives its conversations' messages, also for chats that are not open.
+        await Groups.AddToGroupAsync(
+            Context.ConnectionId,
+            RealtimeGroups.User(userId),
+            Context.ConnectionAborted);
+
         await _presenceService.SetOnlineAsync(
             userId,
             Context.ConnectionId,

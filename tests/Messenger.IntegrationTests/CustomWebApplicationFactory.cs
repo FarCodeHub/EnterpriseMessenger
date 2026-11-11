@@ -62,6 +62,8 @@ services.AddSingleton<IMessageFullTextSearchService, FakeMessageFullTextSearchSe
             });
 
             services.AddSingleton<IPresenceService, FakePresenceService>();
+            services.RemoveAll<Messenger.Application.Realtime.IConnectionTracker>();
+            services.AddSingleton<Messenger.Application.Realtime.IConnectionTracker, FakeConnectionTracker>();
 
             services.AddAuthentication(options =>
             {
