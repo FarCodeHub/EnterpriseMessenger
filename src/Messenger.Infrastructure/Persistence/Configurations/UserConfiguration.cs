@@ -22,5 +22,11 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.HasIndex(x => x.UserName)
             .IsUnique();
+
+        builder.Property(x => x.ExternalSubject)
+            .HasMaxLength(255);
+
+        builder.HasIndex(x => x.ExternalSubject)
+            .IsUnique();
     }
 }

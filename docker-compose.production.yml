@@ -73,6 +73,12 @@ services:
       SeedAdmin__DisplayName: ${SEED_ADMIN_DISPLAY_NAME}
       OpenSearch__Url: http://opensearch:9200
       OpenSearch__MessagesIndex: messenger-messages
+      # Organization sign-in. Tokens carry the public issuer; the API reads keys from Keycloak inside the network.
+      Keycloak__Authority: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL must be set in .env.production}/realms/messenger
+      Keycloak__MetadataAddress: http://keycloak:8080/sso/realms/messenger/.well-known/openid-configuration
+      Keycloak__RequireHttpsMetadata: "false"
+    depends_on:
+      - keycloak
 
   messenger-web:
     build:
@@ -89,8 +95,43 @@ services:
       - rabbitmq
       - minio
       - opensearch
+      - keycloak
     restart: unless-stopped
     
+  keycloak-postgres:
+    image: postgres:17
+    container_name: enterprise-messenger-keycloak-postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - enterprise_messenger_keycloak_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: enterprise-messenger-keycloak
+    command: start --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /sso
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL must be set in .env.production}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ./keycloak/realm-messenger.json:/opt/keycloak/data/import/realm-messenger.json:ro
+    depends_on:
+      - keycloak-postgres
+    restart: unless-stopped
+
   opensearch:
     image: opensearchproject/opensearch:2
     container_name: enterprise-messenger-opensearch
@@ -127,3 +168,4 @@ volumes:
   enterprise_messenger_rabbitmq_data:
   enterprise_messenger_minio_data:
   enterprise_messenger_opensearch_data:
+  enterprise_messenger_keycloak_postgres_data:
