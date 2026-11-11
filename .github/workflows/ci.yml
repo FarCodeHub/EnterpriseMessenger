@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (build + tests)
+    runs-on: ubuntu-latest
+    services:
+      # Real PostgreSQL for the tests that check row locks, unique indexes and the migrations.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore EnterpriseMessenger.slnx
+
+      - name: Build
+        run: dotnet build EnterpriseMessenger.slnx --configuration Release --no-restore
+
+      - name: Test
+        env:
+          MESSENGER_TEST_POSTGRES: Host=localhost;Port=5432;Username=postgres;Password=postgres
+        run: >
+          dotnet test EnterpriseMessenger.slnx
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+
+      - name: Check EF Core model matches migrations
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+        run: |
+          dotnet tool install --global dotnet-ef --version "10.*"
+          dotnet ef migrations has-pending-model-changes \
+            --project src/Messenger.Infrastructure \
+            --startup-project src/Messenger.Api \
+            --configuration Release \
+            --no-build
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: TestResults
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend (build + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/enterprise-messenger-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/enterprise-messenger-web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npx ng build --configuration production
+
+      - name: Test
+        run: npx ng test --watch=false

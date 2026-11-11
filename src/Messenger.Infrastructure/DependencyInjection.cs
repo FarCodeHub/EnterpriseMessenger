@@ -134,6 +134,7 @@ public static class DependencyInjection
         services.AddScoped<IConversationMemberSettingsUpdater, ConversationMemberSettingsUpdater>();
         services.AddScoped<IConversationMemberReader, ConversationMemberReader>();
         services.AddScoped<IUserLoginService, UserLoginService>();
+        services.AddScoped<Messenger.Application.Auth.External.IExternalUserProvisioner, ExternalUserProvisioner>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ISessionRevoker, SessionRevoker>();
         services.AddScoped<IUserSessionReader, UserSessionReader>();

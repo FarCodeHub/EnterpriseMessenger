@@ -8,6 +8,7 @@ using Messenger.Application.Auth.Refresh;
 using Messenger.Application.Auth.RevokeSession;
 using Messenger.Application.Auth.GetSessions;
 using Messenger.Api.Common;
+using Messenger.Api.Auth;
 namespace Messenger.Api.Controllers;
 
 [ApiController]
@@ -19,14 +20,17 @@ public sealed class AuthController : ControllerBase
     private readonly IRefreshTokenService _refreshTokenService;
     private readonly IUserSessionReader _userSessionReader;
     private readonly ISessionRevoker _sessionRevoker;
+    private readonly AuthModeSettings _authMode;
 
     public AuthController(
         MessengerDbContext dbContext,
         IUserLoginService userLoginService,
         IRefreshTokenService refreshTokenService,
         ISessionRevoker sessionRevoker,
-        IUserSessionReader userSessionReader)
+        IUserSessionReader userSessionReader,
+        AuthModeSettings authMode)
     {
+        _authMode = authMode;
         _dbContext = dbContext;
         _userLoginService = userLoginService;
         _refreshTokenService = refreshTokenService;
@@ -44,6 +48,8 @@ public sealed class AuthController : ControllerBase
     LoginRequest request,
     CancellationToken cancellationToken)
     {
+        if (!_authMode.LocalLoginEnabled)
+            return LocalLoginDisabled();
 
         var result = await _userLoginService.LoginAsync(
             new LoginCommand(request.UserName, request.DeviceId),
@@ -60,6 +66,37 @@ public sealed class AuthController : ControllerBase
          result.User.UserName)));
 
     }
+
+    /// <summary>
+    /// Tells the web app how to sign in: through Keycloak, the local username login (development), or both.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("config")]
+    public IActionResult GetConfig()
+    {
+        var keycloak = _authMode.Keycloak;
+
+        return Ok(new
+        {
+            LocalLoginEnabled = _authMode.LocalLoginEnabled,
+            Keycloak = keycloak.IsConfigured
+                ? new
+                {
+                    Authority = keycloak.Authority!.TrimEnd('/'),
+                    keycloak.ClientId
+                }
+                : null
+        });
+    }
+
+    private ObjectResult LocalLoginDisabled() =>
+        StatusCode(
+            StatusCodes.Status404NotFound,
+            new ApiErrorResponse(
+                "local_login_disabled",
+                "Sign in through the organization account.",
+                StatusCodes.Status404NotFound,
+                DateTime.UtcNow));
 
     [Authorize]
     [HttpGet("me")]
@@ -89,6 +126,8 @@ public sealed class AuthController : ControllerBase
     RefreshTokenRequest request,
     CancellationToken cancellationToken)
     {
+        if (!_authMode.LocalLoginEnabled)
+            return LocalLoginDisabled();
 
         var result = await _refreshTokenService.RefreshAsync(
             new RefreshTokenCommand(

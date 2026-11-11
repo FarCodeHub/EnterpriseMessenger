@@ -1,17 +1,20 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { MessageComposer } from './message-composer';
+import { provideTranslateService } from '@ngx-translate/core';
 
-describe('MessageComposer', () => {
-  let component: MessageComposer;
-  let fixture: ComponentFixture<MessageComposer>;
+import { MessageComposerComponent } from './message-composer';
+
+describe('MessageComposerComponent', () => {
+  let component: MessageComposerComponent;
+  let fixture: ComponentFixture<MessageComposerComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MessageComposer],
+      imports: [MessageComposerComponent],
+      providers: [provideTranslateService()],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(MessageComposer);
+    fixture = TestBed.createComponent(MessageComposerComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

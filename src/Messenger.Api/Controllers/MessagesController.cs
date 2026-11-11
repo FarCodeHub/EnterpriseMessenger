@@ -199,12 +199,9 @@ public async Task<IActionResult> ForwardMessage(
             request.ClientMessageId,
             request.Body,
             request.ReplyToMessageId,
-            request.Attachments?.Select(x =>new SendMessageAttachmentCommand(
-                   x.Id,
-                    x.FileName,
-                    x.ContentType,
-                    x.Size,
-                    x.StoragePath)).ToList());
+            request.Attachments?.Select(x => new SendMessageAttachmentCommand(
+                x.FileId ?? x.Id ?? throw new InvalidOperationException(
+                    "Attachment file id is required."))).ToList());
 
         var result = await _messageSender.SendAsync(command, cancellationToken);
 
@@ -233,7 +230,7 @@ var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
         result.Id,
         result.Body,
         result.SenderUserId,
-        senderUserDisplayName ?? "TEST DISPLAY NAME", 
+        senderUserDisplayName, 
         result.SequenceNumber,
         result.CreatedAtUtc), cancellationToken);
         }

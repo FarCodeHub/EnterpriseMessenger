@@ -11,6 +11,11 @@ public class User : BaseEntity
     public bool IsActive { get; private set; } = true;
     public bool IsAdmin { get; private set; }
 
+    /// <summary>
+    /// The identity provider's subject id (Keycloak "sub") once the user has signed in through it.
+    /// </summary>
+    public string? ExternalSubject { get; private set; }
+
 
 
     private User()
@@ -37,5 +42,19 @@ public void Activate()
 {
     IsActive = true;
 }
+
+    public void LinkExternalSubject(string externalSubject)
+    {
+        if (string.IsNullOrWhiteSpace(externalSubject))
+            throw new ArgumentException("External subject is required.", nameof(externalSubject));
+
+        ExternalSubject = externalSubject;
+    }
+
+    public void UpdateDisplayName(string displayName)
+    {
+        if (!string.IsNullOrWhiteSpace(displayName))
+            DisplayName = displayName;
+    }
     
 }
