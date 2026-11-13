@@ -1,5 +1,12 @@
 # EnterpriseMessenger API Contract
 
+> **Outdated (May 2026).** Several endpoints and payloads here no longer match the code: login is Keycloak
+> (the local login takes only `userName` and `deviceId`), there is no `GET /conversations` (use
+> `GET /conversations/user/{userId}`), and many endpoints and SignalR events are missing (sync, messages,
+> users, audit, `message.edited`, `message.deleted`, `conversation.read`, ...).
+> The source of truth is Swagger UI in Development (`http://localhost:5113/swagger`), plus
+> `src/Messenger.Contracts/RealTime/RealtimeEvents.cs` for SignalR event names.
+
 Base URL:
 
 ```text

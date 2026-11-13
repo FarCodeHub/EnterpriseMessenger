@@ -7,9 +7,14 @@ Frontend stack:
 - Tailwind CSS
 - RxJS
 - SignalR Client
+- ngx-translate (fa/en, RTL)
+- Dexie / IndexedDB for offline data (`core/offline`), PWA service worker
+- Sign-in: Keycloak, Authorization Code + PKCE (`core/auth`); the username-only login exists only where the
+  API allows it (`GET /api/v1/auth/config`)
 - REST API: `/api/v1`
-- Backend base URL in Docker: `http://localhost:8080/api/v1`
-- SignalR Hub: `http://localhost:8080/hubs/chat`
+- Backend base URL in development: `http://localhost:8580/api/v1` (the API container of
+  `docker-compose.production.yml`; set in `src/environments/environment.ts`). Production builds use `/api/v1`.
+- SignalR Hub: `http://localhost:8580/hubs/chat`
 
 ## Rules
 
@@ -26,3 +31,4 @@ Frontend stack:
 - Use Tailwind for styling.
 - Avoid `any`.
 - Use strict TypeScript models.
+- New offline/sync work follows `docs/roadmap.md` (phase 3: render from IndexedDB with `liveQuery`).
