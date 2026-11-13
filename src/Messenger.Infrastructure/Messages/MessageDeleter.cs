@@ -1,10 +1,10 @@
 using Messenger.Application.Auditing;
 using Messenger.Application.Messages.DeleteMessage;
-using Messenger.Application.Search;
+using Messenger.Application.Outbox;
 using Messenger.Application.Sync;
+using Messenger.Contracts.IntegrationEvents;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace Messenger.Infrastructure.Messages;
 
@@ -13,16 +13,18 @@ public sealed class MessageDeleter : IMessageDeleter
     private readonly MessengerDbContext _dbContext;
     private readonly IUserSyncEventWriter _syncEventWriter;
     private readonly IAuditLogWriter _auditLogWriter;
-    private readonly IMessageSearchIndexer _messageSearchIndexer;
-    private readonly ILogger<MessageDeleter> _logger;
+    private readonly IOutboxWriter _outboxWriter;
 
-    public MessageDeleter(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer, ILogger<MessageDeleter> logger)
+    public MessageDeleter(
+        MessengerDbContext dbContext,
+        IUserSyncEventWriter syncEventWriter,
+        IAuditLogWriter auditLogWriter,
+        IOutboxWriter outboxWriter)
     {
-        _logger = logger;
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
         _auditLogWriter = auditLogWriter;
-        _messageSearchIndexer = messageSearchIndexer;
+        _outboxWriter = outboxWriter;
     }
 
     public async Task<DeleteMessageResult> DeleteAsync(
@@ -69,21 +71,17 @@ public sealed class MessageDeleter : IMessageDeleter
           },
           cancellationToken);
 
+        // The search index (and later integrations) are updated from this event, outside the request.
+        await _outboxWriter.AddAsync(
+            new MessageDeletedIntegrationEvent(
+                message.Id,
+                message.ConversationId,
+                message.SequenceNumber,
+                message.DeletedAtUtc!.Value),
+            cancellationToken);
+
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-
-
-        // The message is already saved; a search outage must not fail the request (the index can be rebuilt).
-        try
-        {
-            await _messageSearchIndexer.DeleteAsync(
-                message.Id,
-                cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Updating the search index failed for message {MessageId}.", message.Id);
-        }
 
         return new DeleteMessageResult(
             message.Id,
@@ -91,6 +89,5 @@ public sealed class MessageDeleter : IMessageDeleter
             message.SequenceNumber,
             message.DeletedAtUtc);
     }
-
 
 }

@@ -1,10 +1,10 @@
 using Messenger.Application.Auditing;
 using Messenger.Application.Messages.EditMessage;
+using Messenger.Application.Outbox;
 using Messenger.Application.Sync;
+using Messenger.Contracts.IntegrationEvents;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Messenger.Application.Search;
 
 namespace Messenger.Infrastructure.Messages;
 
@@ -13,16 +13,18 @@ public sealed class MessageEditor : IMessageEditor
     private readonly MessengerDbContext _dbContext;
     private readonly IUserSyncEventWriter _syncEventWriter;
     private readonly IAuditLogWriter _auditLogWriter;
-    private readonly IMessageSearchIndexer _messageSearchIndexer;
-    private readonly ILogger<MessageEditor> _logger;
+    private readonly IOutboxWriter _outboxWriter;
 
-    public MessageEditor(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer, ILogger<MessageEditor> logger)
+    public MessageEditor(
+        MessengerDbContext dbContext,
+        IUserSyncEventWriter syncEventWriter,
+        IAuditLogWriter auditLogWriter,
+        IOutboxWriter outboxWriter)
     {
-        _logger = logger;
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
         _auditLogWriter = auditLogWriter;
-        _messageSearchIndexer = messageSearchIndexer;
+        _outboxWriter = outboxWriter;
     }
 
     public async Task<EditMessageResult> EditAsync(
@@ -70,29 +72,20 @@ public sealed class MessageEditor : IMessageEditor
     },
     cancellationToken);
 
+        // The search index (and later integrations) are updated from this event, outside the request.
+        await _outboxWriter.AddAsync(
+            new MessageEditedIntegrationEvent(
+                message.Id,
+                message.ConversationId,
+                message.SequenceNumber,
+                message.SenderUserId,
+                message.Body,
+                message.EditedAtUtc!.Value),
+            cancellationToken);
+
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-
-        // The message is already saved; a search outage must not fail the request (the index can be rebuilt).
-        try
-        {
-            await _messageSearchIndexer.IndexAsync(
-                new MessageSearchDocument(
-                    message.Id,
-                    message.ConversationId,
-                    message.SenderUserId,
-                    message.Body,
-                    message.SequenceNumber,
-                    message.CreatedAtUtc,
-                    message.EditedAtUtc,
-                    IsDeleted: false),
-                cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Updating the search index failed for message {MessageId}.", message.Id);
-        }
 var sender = await _dbContext.Users
     .Where(x => x.Id == message.SenderUserId)
     .Select(x => new
