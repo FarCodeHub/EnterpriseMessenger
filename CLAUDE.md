@@ -102,6 +102,3 @@ Next, in order:
 5. **Integration layer** — bot accounts with API keys, signed webhooks, structured messages
    (`Type` + JSON `Payload`, e.g. invoice approval cards); workflow engine (Elsa Workflows).
 6. **AI service** consuming the same outbox events, with per-user access filtering.
-
-Also pending: bump the transitive `MessagePack` 2.5.187 (known vulnerability, CI warns); remove the dev
-`signalr-test.html` / `signalR-test3.html` pages.
