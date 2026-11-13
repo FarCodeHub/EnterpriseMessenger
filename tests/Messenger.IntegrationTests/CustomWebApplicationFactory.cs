@@ -19,6 +19,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     private readonly string _databaseName = $"MessengerTestDb_{Guid.NewGuid()}";
 
+    /// <summary>Replace the search services with fakes. Off in factories that test the real search setup.</summary>
+    protected virtual bool UseFakeSearch => true;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -37,11 +40,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<IHostedService>();
             services.RemoveAll<IConnectionMultiplexer>();
             services.RemoveAll<IPresenceService>();
-            services.RemoveAll<IOpenSearchClient>();
-services.RemoveAll<IMessageSearchIndexer>();
-services.AddSingleton<IMessageSearchIndexer, FakeMessageSearchIndexer>();
-services.RemoveAll<IMessageFullTextSearchService>();
-services.AddSingleton<IMessageFullTextSearchService, FakeMessageFullTextSearchService>();
+            if (UseFakeSearch)
+            {
+                services.RemoveAll<IOpenSearchClient>();
+                services.RemoveAll<IMessageSearchIndexer>();
+                services.AddSingleton<IMessageSearchIndexer, FakeMessageSearchIndexer>();
+                services.RemoveAll<IMessageFullTextSearchService>();
+                services.AddSingleton<IMessageFullTextSearchService, FakeMessageFullTextSearchService>();
+            }
 
             var dbContextDescriptors = services
                 .Where(d =>
