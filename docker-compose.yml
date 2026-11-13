@@ -1,7 +1,12 @@
+# Local development dependencies. A separate compose project from docker-compose.production.yml
+# (different project name, container names and volumes), so the two never replace each other's containers.
+# They publish some of the same host ports, so stop one stack before starting the other.
+name: enterprise-messenger-dev
+
 services:
   postgres:
     image: postgres:17
-    container_name: enterprise-messenger-postgres
+    container_name: enterprise-messenger-dev-postgres
     environment:
       POSTGRES_DB: enterprise_messenger
       POSTGRES_USER: postgres
@@ -12,12 +17,12 @@ services:
       - enterprise_messenger_postgres_data:/var/lib/postgresql/data
   redis:
     image: redis:7
-    container_name: enterprise-messenger-redis
+    container_name: enterprise-messenger-dev-redis
     ports:
-      - "6379:6379"  
+      - "6379:6379"
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: enterprise-messenger-rabbitmq
+    container_name: enterprise-messenger-dev-rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -29,7 +34,7 @@ services:
     restart: unless-stopped
   minio:
     image: minio/minio
-    container_name: enterprise-messenger-minio
+    container_name: enterprise-messenger-dev-minio
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -40,8 +45,33 @@ services:
     volumes:
       - enterprise_messenger_minio_data:/data
     restart: unless-stopped
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: enterprise-messenger-dev-keycloak
+    command: start-dev --import-realm
+    ports:
+      - "8081:8080"
+    environment:
+      KC_HTTP_RELATIVE_PATH: /sso
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/realm-messenger.json:/opt/keycloak/data/import/realm-messenger.json:ro
+  opensearch:
+    image: opensearchproject/opensearch:2
+    container_name: enterprise-messenger-dev-opensearch
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - enterprise_messenger_opensearch_data:/usr/share/opensearch/data
 volumes:
   enterprise_messenger_postgres_data:
   enterprise_messenger_redis_data:
   enterprise_messenger_rabbitmq_data:
   enterprise_messenger_minio_data:
+  enterprise_messenger_opensearch_data:

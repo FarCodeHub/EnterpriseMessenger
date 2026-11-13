@@ -1,3 +1,6 @@
+# Keep this project name: the existing volumes (enterprisemessenger_*) belong to it.
+name: enterprisemessenger
+
 services:
   postgres:
     image: postgres:15
@@ -7,7 +10,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "15432:5432"
+      - "127.0.0.1:15432:5432"
     volumes:
       - enterprise_messenger_postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -26,8 +29,8 @@ services:
     image: rabbitmq:3-management
     container_name: enterprise-messenger-rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -40,7 +43,7 @@ services:
     container_name: enterprise-messenger-minio
     ports:
       - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -55,8 +58,9 @@ services:
     ports:
       - "8580:8080"
     environment:
-      # ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      Jwt__SecretKey: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in .env.production}
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN:-}
       ConnectionStrings__MessengerDb: Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Redis__ConnectionString: redis:6379
       RabbitMq__Host: rabbitmq
@@ -72,6 +76,12 @@ services:
       SeedAdmin__DisplayName: ${SEED_ADMIN_DISPLAY_NAME}
       OpenSearch__Url: http://opensearch:9200
       OpenSearch__MessagesIndex: messenger-messages
+      # Organization sign-in. Tokens carry the public issuer; the API reads keys from Keycloak inside the network.
+      Keycloak__Authority: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL must be set in .env.production}/realms/messenger
+      Keycloak__MetadataAddress: http://keycloak:8080/sso/realms/messenger/.well-known/openid-configuration
+      Keycloak__RequireHttpsMetadata: "false"
+    depends_on:
+      - keycloak
 
   messenger-web:
     build:
@@ -88,8 +98,43 @@ services:
       - rabbitmq
       - minio
       - opensearch
+      - keycloak
     restart: unless-stopped
     
+  keycloak-postgres:
+    image: postgres:17
+    container_name: enterprise-messenger-keycloak-postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - enterprise_messenger_keycloak_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.3
+    container_name: enterprise-messenger-keycloak
+    command: start --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_RELATIVE_PATH: /sso
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL must be set in .env.production}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    volumes:
+      - ./keycloak/realm-messenger.json:/opt/keycloak/data/import/realm-messenger.json:ro
+    depends_on:
+      - keycloak-postgres
+    restart: unless-stopped
+
   opensearch:
     image: opensearchproject/opensearch:2
     container_name: enterprise-messenger-opensearch
@@ -100,8 +145,8 @@ services:
       bootstrap.memory_lock: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
     ports:
-      - "9200:9200"
-      - "9600:9600"
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9600:9600"
     volumes:
       - enterprise_messenger_opensearch_data:/usr/share/opensearch/data
     restart: unless-stopped
@@ -113,7 +158,7 @@ services:
       OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
       DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
     ports:
-      - "5601:5601"
+      - "127.0.0.1:5601:5601"
     depends_on:
       - opensearch
     restart: unless-stopped
@@ -126,3 +171,4 @@ volumes:
   enterprise_messenger_rabbitmq_data:
   enterprise_messenger_minio_data:
   enterprise_messenger_opensearch_data:
+  enterprise_messenger_keycloak_postgres_data:

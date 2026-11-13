@@ -13,6 +13,39 @@
       </p>
     </div>
 
+    @if (config()?.keycloak) {
+      <button
+        type="button"
+        (click)="loginWithOrganization()"
+        [disabled]="isLoading()"
+        class="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {{ 'auth.login.organization' | translate }}
+      </button>
+
+      @if (config()?.localLoginEnabled) {
+        <div class="my-6 flex items-center gap-3 text-xs text-slate-400">
+          <span class="h-px flex-1 bg-white/10"></span>
+          {{ 'auth.login.developmentLogin' | translate }}
+          <span class="h-px flex-1 bg-white/10"></span>
+        </div>
+      }
+    }
+
+    @if (configFailed()) {
+      <div class="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        {{ 'auth.login.configFailed' | translate }}
+      </div>
+    }
+
+    <!-- With only organization sign-in there is no form to show the error in. -->
+    @if (config()?.keycloak && errorMessage() && !config()?.localLoginEnabled) {
+      <div class="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        {{ errorMessage()! | translate }}
+      </div>
+    }
+
+    @if (config()?.localLoginEnabled) {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-5">
       <div>
         <label class="block text-sm font-medium text-slate-200 mb-2">
@@ -52,5 +85,6 @@
         }
       </button>
     </form>
+    }
   </div>
 </div>

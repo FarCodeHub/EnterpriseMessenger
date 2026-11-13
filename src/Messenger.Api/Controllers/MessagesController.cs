@@ -33,6 +33,7 @@ public sealed class MessagesController : ControllerBase
     private readonly IMessageSearchService _messageSearchService;
     private readonly IConversationReadMarker _conversationReadMarker;
     private readonly IMessageForwarder _messageForwarder;
+    private readonly ConversationBroadcaster _broadcaster;
     public MessagesController(
         MessengerDbContext dbContext,
         IHubContext<ChatHub> hubContext,
@@ -42,8 +43,10 @@ public sealed class MessagesController : ControllerBase
         IMessageReader messageReader,
         IMessageSearchService messageSearchService,
         IConversationReadMarker conversationReadMarker,
-        IMessageForwarder messageForwarder)
+        IMessageForwarder messageForwarder,
+        ConversationBroadcaster broadcaster)
     {
+        _broadcaster = broadcaster;
         _dbContext = dbContext;
         _hubContext = hubContext;
         _messageSender = messageSender;
@@ -75,9 +78,8 @@ public async Task<IActionResult> ForwardMessages(
 
     foreach (var message in result)
     {
-        await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync(
+        await _broadcaster.SendToMembersAsync(
+                message.ConversationId,
                 RealtimeEvents.MessageCreated,
                 new
                 {
@@ -106,9 +108,8 @@ public async Task<IActionResult> ForwardMessages(
 
     foreach (var message in lastMessageByConversation)
     {
-        await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync(
+        await _broadcaster.SendToMembersAsync(
+                message.ConversationId,
                 RealtimeEvents.ConversationUpdated,
                 new ConversationUpdatedEvent(
                     message.ConversationId,
@@ -144,9 +145,8 @@ public async Task<IActionResult> ForwardMessage(
 
     foreach (var message in result)
     {
-        await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync(
+        await _broadcaster.SendToMembersAsync(
+                message.ConversationId,
                 RealtimeEvents.MessageCreated,
                 new
                 {
@@ -167,9 +167,8 @@ public async Task<IActionResult> ForwardMessage(
                 },
                 cancellationToken);
 
-        await _hubContext.Clients
-            .Group($"conversation:{message.ConversationId}")
-            .SendAsync(
+        await _broadcaster.SendToMembersAsync(
+                message.ConversationId,
                 RealtimeEvents.ConversationUpdated,
                 new ConversationUpdatedEvent(
                     message.ConversationId,
@@ -199,18 +198,15 @@ public async Task<IActionResult> ForwardMessage(
             request.ClientMessageId,
             request.Body,
             request.ReplyToMessageId,
-            request.Attachments?.Select(x =>new SendMessageAttachmentCommand(
-                   x.Id,
-                    x.FileName,
-                    x.ContentType,
-                    x.Size,
-                    x.StoragePath)).ToList());
+            request.Attachments?.Select(x => new SendMessageAttachmentCommand(
+                x.FileId ?? x.Id ?? throw new InvalidOperationException(
+                    "Attachment file id is required."))).ToList());
 
         var result = await _messageSender.SendAsync(command, cancellationToken);
 
-        await _hubContext.Clients
-            .Group($"conversation:{result.ConversationId}")
-            .SendAsync(RealtimeEvents.MessageCreated, result, cancellationToken);
+        await _broadcaster.SendToMembersAsync(
+                result.ConversationId,
+                RealtimeEvents.MessageCreated, result, cancellationToken);
 
         if (!result.IsDuplicate)
         {
@@ -226,14 +222,14 @@ var sender = await _dbContext.Users
 
 var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
 
-            await _hubContext.Clients
-                .Group($"conversation:{result.ConversationId}")
-                .SendAsync(RealtimeEvents.ConversationUpdated, new ConversationUpdatedEvent(
+            await _broadcaster.SendToMembersAsync(
+                result.ConversationId,
+                RealtimeEvents.ConversationUpdated, new ConversationUpdatedEvent(
         result.ConversationId,
         result.Id,
         result.Body,
         result.SenderUserId,
-        senderUserDisplayName ?? "TEST DISPLAY NAME", 
+        senderUserDisplayName, 
         result.SequenceNumber,
         result.CreatedAtUtc), cancellationToken);
         }
@@ -347,9 +343,9 @@ var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
                 request.Body),
             cancellationToken);
 
-        await _hubContext.Clients
-            .Group($"conversation:{result.ConversationId}")
-            .SendAsync(RealtimeEvents.MessageEdited, result, cancellationToken);
+        await _broadcaster.SendToMembersAsync(
+                result.ConversationId,
+                RealtimeEvents.MessageEdited, result, cancellationToken);
 
         return Ok(result);
     }
@@ -367,9 +363,9 @@ var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
             new DeleteMessageCommand(messageId, currentUserId),
             cancellationToken);
 
-        await _hubContext.Clients
-            .Group($"conversation:{result.ConversationId}")
-            .SendAsync(RealtimeEvents.MessageDeleted, result, cancellationToken);
+        await _broadcaster.SendToMembersAsync(
+                result.ConversationId,
+                RealtimeEvents.MessageDeleted, result, cancellationToken);
 
         return Ok(result);
 

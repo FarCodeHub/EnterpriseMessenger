@@ -81,6 +81,16 @@ public sealed class ConversationsController : ControllerBase
         CreatePrivateConversationRequest request,
         CancellationToken cancellationToken)
     {
+        // You can only start a private chat that you are part of (admins may create any).
+        var currentUserId = GetCurrentUserId();
+
+        if (request.FirstUserId != currentUserId &&
+            request.SecondUserId != currentUserId &&
+            !User.IsInRole("Admin"))
+        {
+            return Forbid();
+        }
+
         try
         {
             var result = await _privateConversationCreator.CreateAsync(
@@ -106,10 +116,15 @@ public sealed class ConversationsController : ControllerBase
     {
         try
         {
+            // The creator is the signed-in user; only admins may create a group on someone else's behalf.
+            var createdByUserId = User.IsInRole("Admin")
+                ? request.CreatedByUserId
+                : GetCurrentUserId();
+
             var result = await _groupConversationCreator.CreateAsync(
                 new CreateGroupConversationCommand(
                     request.Title,
-                    request.CreatedByUserId,
+                    createdByUserId,
                     request.MemberUserIds),
                 cancellationToken);
 
@@ -125,6 +140,10 @@ public sealed class ConversationsController : ControllerBase
        Guid userId,
        CancellationToken cancellationToken)
     {
+        // A user may only list their own conversations (they include last-message previews).
+        if (userId != GetCurrentUserId())
+            return Forbid();
+
         var result = await _userConversationReader.GetAsync(
             new GetUserConversationsQuery(userId),
             cancellationToken);

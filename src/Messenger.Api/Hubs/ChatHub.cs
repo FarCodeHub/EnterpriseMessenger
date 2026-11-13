@@ -50,6 +50,11 @@ public sealed class ChatHub : Hub
         if (!Guid.TryParse(conversationId, out var parsedConversationId))
             throw new InvalidOperationException("Invalid conversation id.");
 
+        await _permissionChecker.EnsureActiveMemberAsync(
+            parsedConversationId,
+            userId,
+            Context.ConnectionAborted);
+
         await _typingService.StartTypingAsync(
             parsedConversationId,
             userId,
@@ -69,6 +74,11 @@ public sealed class ChatHub : Hub
 
         if (!Guid.TryParse(conversationId, out var parsedConversationId))
             throw new InvalidOperationException("Invalid conversation id.");
+
+        await _permissionChecker.EnsureActiveMemberAsync(
+            parsedConversationId,
+            userId,
+            Context.ConnectionAborted);
 
         await _typingService.StopTypingAsync(
           parsedConversationId,
@@ -160,6 +170,12 @@ public sealed class ChatHub : Hub
     public override async Task OnConnectedAsync()
     {
         var userId = GetCurrentUserId();
+
+        // Every device of the user receives its conversations' messages, also for chats that are not open.
+        await Groups.AddToGroupAsync(
+            Context.ConnectionId,
+            RealtimeGroups.User(userId),
+            Context.ConnectionAborted);
 
         await _presenceService.SetOnlineAsync(
             userId,

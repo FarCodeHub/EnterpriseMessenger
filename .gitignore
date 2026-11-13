@@ -470,3 +470,8 @@ logs/
 
 .DS_Store
 Thumbs.db
+
+# Environment files with real secrets
+.env
+.env.*
+!.env.*.example

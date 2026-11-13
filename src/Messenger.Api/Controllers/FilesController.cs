@@ -61,7 +61,7 @@ public sealed class FilesController : ControllerBase
 /// </summary>
     [ProducesResponseType(typeof(UploadFileResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status400BadRequest)]
-    [EnableRateLimiting("messages")]
+    [EnableRateLimiting("files")]
     [HttpPost("upload")]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> UploadFile(
@@ -72,6 +72,7 @@ public sealed class FilesController : ControllerBase
         {
             var result = await _fileUploader.UploadAsync(
                 new UploadFileCommand(
+                    GetCurrentUserId(),
                     file.FileName,
                     file.ContentType,
                     file.Length,

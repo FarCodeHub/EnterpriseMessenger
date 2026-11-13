@@ -1,17 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { MessageForwardModal } from './message-forward-modal';
+import { MessageForwardModalComponent } from './message-forward-modal';
 
-describe('MessageForwardModal', () => {
-  let component: MessageForwardModal;
-  let fixture: ComponentFixture<MessageForwardModal>;
+describe('MessageForwardModalComponent', () => {
+  let component: MessageForwardModalComponent;
+  let fixture: ComponentFixture<MessageForwardModalComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [MessageForwardModal],
+      imports: [MessageForwardModalComponent],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(MessageForwardModal);
+    fixture = TestBed.createComponent(MessageForwardModalComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });

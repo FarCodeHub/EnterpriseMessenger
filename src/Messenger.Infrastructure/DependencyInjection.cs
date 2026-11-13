@@ -105,6 +105,9 @@ public static class DependencyInjection
             services.AddSingleton<IPresenceService, RedisPresenceService>();
         }
 
+        var openSearchUrl = configuration["OpenSearch:Url"];
+        var searchEnabled = !string.IsNullOrWhiteSpace(openSearchUrl);
+
         services.AddMassTransit(options =>
         {
             options.UsingRabbitMq((context, cfg) =>
@@ -119,12 +122,21 @@ public static class DependencyInjection
                     h.Password(password);
                 });
 
+                // Transient failures (database, search cluster) are retried before a message is faulted.
+                cfg.UseMessageRetry(retry => retry.Intervals(
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(5),
+                    TimeSpan.FromSeconds(15)));
+
                 cfg.ConfigureEndpoints(context);
             });
 
 
             options.AddConsumer<MessageCreatedIntegrationEventConsumer>();
             options.AddConsumer<NotificationRequestedIntegrationEventConsumer>();
+
+            if (searchEnabled)
+                options.AddConsumer<MessageSearchIndexingConsumer>();
         });
         services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
         services.AddScoped<IConversationMemberAdder, ConversationMemberAdder>();
@@ -134,6 +146,7 @@ public static class DependencyInjection
         services.AddScoped<IConversationMemberSettingsUpdater, ConversationMemberSettingsUpdater>();
         services.AddScoped<IConversationMemberReader, ConversationMemberReader>();
         services.AddScoped<IUserLoginService, UserLoginService>();
+        services.AddScoped<Messenger.Application.Auth.External.IExternalUserProvisioner, ExternalUserProvisioner>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddScoped<ISessionRevoker, SessionRevoker>();
         services.AddScoped<IUserSessionReader, UserSessionReader>();
@@ -167,18 +180,22 @@ public static class DependencyInjection
         services.AddScoped<ITypingService, TypingService>();
         services.AddScoped<IReadReceiptService, ReadReceiptService>();
         services.AddScoped<IDeliveryReceiptService, DeliveryReceiptService>();
-        var openSearchUrl = configuration["OpenSearch:Url"];
-
-        if (!string.IsNullOrWhiteSpace(openSearchUrl))
+        if (searchEnabled)
         {
-            var settings = new ConnectionSettings(new Uri(openSearchUrl))
+            var settings = new ConnectionSettings(new Uri(openSearchUrl!))
                 .DefaultIndex(configuration["OpenSearch:MessagesIndex"] ?? "messenger-messages");
 
             services.AddSingleton<IOpenSearchClient>(new OpenSearchClient(settings));
             services.AddScoped<IMessageSearchIndexer, OpenSearchMessageSearchIndexer>();
+            services.AddScoped<IMessageFullTextSearchService, OpenSearchMessageFullTextSearchService>();
         }
-
-        services.AddScoped<IMessageFullTextSearchService, OpenSearchMessageFullTextSearchService>();
+        else
+        {
+            // Without OpenSearch the message endpoints must still work: indexing is skipped and search
+            // runs against PostgreSQL.
+            services.AddScoped<IMessageSearchIndexer, NoOpMessageSearchIndexer>();
+            services.AddScoped<IMessageFullTextSearchService, PostgresMessageFullTextSearchService>();
+        }
         services.AddScoped<IMessageForwarder, MessageForwarder>();
         return services;
     }

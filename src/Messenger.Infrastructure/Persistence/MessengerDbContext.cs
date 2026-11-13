@@ -27,6 +27,7 @@ public sealed class MessengerDbContext : DbContext
     public DbSet<MessageDelivery> MessageDeliveries => Set<MessageDelivery>();
     public DbSet<UserSyncCounter> UserSyncCounters => Set<UserSyncCounter>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<UploadedFile> UploadedFiles => Set<UploadedFile>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();

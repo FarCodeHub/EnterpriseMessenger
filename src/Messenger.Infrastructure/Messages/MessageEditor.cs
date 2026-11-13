@@ -3,6 +3,7 @@ using Messenger.Application.Messages.EditMessage;
 using Messenger.Application.Sync;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Messenger.Application.Search;
 
 namespace Messenger.Infrastructure.Messages;
@@ -13,9 +14,11 @@ public sealed class MessageEditor : IMessageEditor
     private readonly IUserSyncEventWriter _syncEventWriter;
     private readonly IAuditLogWriter _auditLogWriter;
     private readonly IMessageSearchIndexer _messageSearchIndexer;
+    private readonly ILogger<MessageEditor> _logger;
 
-    public MessageEditor(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer)
+    public MessageEditor(MessengerDbContext dbContext, IUserSyncEventWriter syncEventWriter, IAuditLogWriter auditLogWriter, IMessageSearchIndexer messageSearchIndexer, ILogger<MessageEditor> logger)
     {
+        _logger = logger;
         _dbContext = dbContext;
         _syncEventWriter = syncEventWriter;
         _auditLogWriter = auditLogWriter;
@@ -34,6 +37,9 @@ public sealed class MessageEditor : IMessageEditor
 
         if (message.SenderUserId != command.UserId)
             throw new UnauthorizedAccessException("You can only edit your own messages.");
+
+        // The sync event writer locks members' counters until commit.
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
         message.Edit(command.Body);
 
@@ -65,19 +71,28 @@ public sealed class MessageEditor : IMessageEditor
     cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
 
-await _messageSearchIndexer.IndexAsync(
-    new MessageSearchDocument(
-        message.Id,
-        message.ConversationId,
-        message.SenderUserId,
-        message.Body,
-        message.SequenceNumber,
-        message.CreatedAtUtc,
-        message.EditedAtUtc,
-        IsDeleted: false),
-    cancellationToken);
+        // The message is already saved; a search outage must not fail the request (the index can be rebuilt).
+        try
+        {
+            await _messageSearchIndexer.IndexAsync(
+                new MessageSearchDocument(
+                    message.Id,
+                    message.ConversationId,
+                    message.SenderUserId,
+                    message.Body,
+                    message.SequenceNumber,
+                    message.CreatedAtUtc,
+                    message.EditedAtUtc,
+                    IsDeleted: false),
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Updating the search index failed for message {MessageId}.", message.Id);
+        }
 var sender = await _dbContext.Users
     .Where(x => x.Id == message.SenderUserId)
     .Select(x => new
