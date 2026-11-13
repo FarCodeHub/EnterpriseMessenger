@@ -41,8 +41,6 @@ Known debt (phase 1 of the roadmap):
 - 16 Api types use `MessengerDbContext` directly instead of Application interfaces; the list is in
   `tests/Messenger.ArchitectureTests/ApiDbContextTests.cs`. New ones fail the test; remove a type from the list
   when it is fixed.
-- Message creation is duplicated in `MessageSender` and the two `MessageForwarder` methods; extract a shared
-  service before touching the send path again.
 - `MessageEditor` and `MessageDeleter` update the search index inside the request (after commit, errors logged)
   instead of through the outbox, so the index goes stale while OpenSearch is down.
 
@@ -88,6 +86,10 @@ docker stop messenger-test-pg
 
 ## Rules that the code relies on
 
+- **One place creates messages:** `Messages/MessageCreator.cs` (used by `MessageSender` and `MessageForwarder`)
+  numbers the message and writes its attachments, deliveries, sync events, audit entry and outbox event. New ways
+  of creating messages (bots, integrations) must use it: `LockCountersAsync` → `PrepareTargetsAsync` →
+  `CreateAsync`, inside the caller's transaction.
 - **Sequence numbers:** the conversation counter is locked with `SELECT ... FOR UPDATE`
   (`Persistence/RowLockExtensions.cs`) inside a transaction. User sync counters are locked the same way, always
   in id order (avoids deadlocks). Any new code that numbers messages or sync events must do the same.

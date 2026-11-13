@@ -77,6 +77,7 @@ public static class DependencyInjection
             });
         }
 
+        services.AddScoped<MessageCreator>();
         services.AddScoped<IMessageSender, MessageSender>();
         services.AddScoped<IMessageEditor, MessageEditor>();
         services.AddScoped<IMessageDeleter, MessageDeleter>();
