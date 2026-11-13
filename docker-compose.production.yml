@@ -1,3 +1,6 @@
+# Keep this project name: the existing volumes (enterprisemessenger_*) belong to it.
+name: enterprisemessenger
+
 services:
   postgres:
     image: postgres:15
