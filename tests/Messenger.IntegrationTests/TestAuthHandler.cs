@@ -33,7 +33,8 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, userId),
-            new Claim(ClaimTypes.Name, "test-user"),
+            // One name per user, like real tokens: the per-user rate limits are keyed by it.
+            new Claim(ClaimTypes.Name, $"test-user-{userId}"),
             new Claim(ClaimTypes.Role, role),
             new Claim("display_name", "Test User")
         };

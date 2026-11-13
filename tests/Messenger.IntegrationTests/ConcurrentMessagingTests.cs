@@ -107,6 +107,60 @@ public sealed class ConcurrentMessagingTests : IClassFixture<PostgresWebApplicat
         eventIds.Should().HaveCount(20).And.OnlyHaveUniqueItems();
     }
 
+    [PostgresFact]
+    public async Task Concurrent_Sends_And_Forwards_Into_Shared_Conversations_Should_Not_Deadlock_Or_Skip_Numbers()
+    {
+        var admin = CreateClient(Guid.NewGuid());
+        var alice = await CreateUserAsync(admin, "Alice");
+        var bob = await CreateUserAsync(admin, "Bob");
+        var carol = await CreateUserAsync(admin, "Carol");
+        var withBob = await CreatePrivateConversationAsync(admin, alice, bob);
+        var withCarol = await CreatePrivateConversationAsync(admin, alice, carol);
+
+        var aliceClient = CreateClient(alice);
+        var source = await aliceClient.PostAsJsonAsync(
+            "/api/v1/messages", new SendMessageRequest(withBob, Guid.NewGuid(), "Source"));
+        source.StatusCode.Should().Be(HttpStatusCode.OK, await source.Content.ReadAsStringAsync());
+        var sourceId = (await source.Content.ReadFromJsonAsync<SendResponse>())!.Id;
+
+        // Forwards lock both conversations (in opposite request order) while Bob and Carol send into them.
+        var requests = new List<Task<HttpResponseMessage>>();
+
+        for (var i = 0; i < 10; i++)
+        {
+            requests.Add(aliceClient.PostAsJsonAsync(
+                "/api/v1/messages/forward-batch",
+                new ForwardMessagesRequest([sourceId], [withBob, withCarol], null)));
+            requests.Add(aliceClient.PostAsJsonAsync(
+                "/api/v1/messages/forward",
+                new ForwardMessageRequest(sourceId, [withCarol, withBob], null)));
+            requests.Add(CreateClient(bob).PostAsJsonAsync(
+                "/api/v1/messages", new SendMessageRequest(withBob, Guid.NewGuid(), $"Bob {i}")));
+            requests.Add(CreateClient(carol).PostAsJsonAsync(
+                "/api/v1/messages", new SendMessageRequest(withCarol, Guid.NewGuid(), $"Carol {i}")));
+        }
+
+        foreach (var response in await Task.WhenAll(requests))
+            response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<MessengerDbContext>();
+
+        // 1 source + 20 forwards + 10 sends with Bob; 20 forwards + 10 sends with Carol.
+        (await SequenceNumbersAsync(dbContext, withBob)).Should().Equal(Enumerable.Range(1, 31).Select(x => (long)x));
+        (await SequenceNumbersAsync(dbContext, withCarol)).Should().Equal(Enumerable.Range(1, 30).Select(x => (long)x));
+
+        (await dbContext.UserSyncEvents.Where(x => x.UserId == alice).Select(x => x.EventId).ToListAsync())
+            .Should().HaveCount(61).And.OnlyHaveUniqueItems();
+    }
+
+    private static Task<List<long>> SequenceNumbersAsync(MessengerDbContext dbContext, Guid conversationId) =>
+        dbContext.Messages
+            .Where(x => x.ConversationId == conversationId)
+            .Select(x => x.SequenceNumber)
+            .OrderBy(x => x)
+            .ToListAsync();
+
     private HttpClient CreateClient(Guid userId)
     {
         var client = _factory.CreateClient();
