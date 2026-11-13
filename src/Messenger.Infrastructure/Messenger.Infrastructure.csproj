@@ -10,6 +10,9 @@
     <PackageReference Include="MassTransit" Version="8.4.1" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.4.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.15" />
+    <!-- Npgsql only asks for Relational >= 10.0.4. Without this, projects that reference Infrastructure (the
+         tests) get Relational 10.0.4 next to EF Core 10.0.15. Keep it on the EF Core version. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.15" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.15">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
