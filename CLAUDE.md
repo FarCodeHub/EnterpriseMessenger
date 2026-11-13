@@ -26,7 +26,7 @@ src/Messenger.Contracts       request/response DTOs, integration events, realtim
 tests/Messenger.ArchitectureTests   layer rules (NetArchTest)
 tests/Messenger.IntegrationTests    API tests (WebApplicationFactory)
 web/enterprise-messenger-web        Angular app
-docs/                               api contract, keycloak, frontend roadmap
+docs/                               api contract, keycloak, hybrid sync design, frontend roadmap
 ```
 
 Known debt: `ChatHub`, `MessagesController`, `UsersController` inject `MessengerDbContext` directly
@@ -86,7 +86,7 @@ send pipeline, real-time per-user groups.
 
 Next, in order:
 
-1. **Hybrid sync (phase 3)** — design doc written, waiting for the owner's answers to its open questions
+1. **Hybrid sync (phase 3)** — design: `docs/hybrid-sync.md` (Persian). Waiting for the owner's answers to its open questions
    (group-size threshold, ~200 by default; "seen by whom" in large groups; event retention, ~90 days).
    Summary: small conversations keep per-user sync events; large ones (> threshold) write one
    `ConversationEvents` row per change with a per-conversation event id, clients pull per conversation and
