@@ -1,3 +1,5 @@
+namespace Messenger.Contracts.IntegrationEvents;
+
 public sealed record MessageCreatedIntegrationEvent(
     Guid MessageId,
     Guid ConversationId,
