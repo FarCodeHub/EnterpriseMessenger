@@ -129,6 +129,7 @@ else
 
 
 builder.Services.AddScoped<ITokenService, JwtTokenService>();
+builder.Services.AddScoped<ConversationBroadcaster>();
 
 builder.Services.AddMessengerAuthentication(
     builder.Configuration,
