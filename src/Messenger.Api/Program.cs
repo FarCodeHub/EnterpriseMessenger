@@ -215,6 +215,17 @@ builder.Services.Configure<HostOptions>(options =>
 });
 
 var app = builder.Build();
+
+if (app.Services.GetRequiredService<AuthModeSettings>().LocalLoginEnabled &&
+    !app.Environment.IsDevelopment() &&
+    !app.Environment.IsEnvironment("Testing"))
+{
+    app.Logger.LogWarning(
+        "Username-only login is enabled in {Environment} (Auth:AllowLocalLogin=true). Anyone can sign in as any " +
+        "user without a password. Turn it off once Keycloak sign-in works.",
+        app.Environment.EnvironmentName);
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseSerilogRequestLogging(options =>
