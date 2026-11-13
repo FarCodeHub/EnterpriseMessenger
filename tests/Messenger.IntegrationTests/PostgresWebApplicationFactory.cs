@@ -13,7 +13,7 @@ namespace Messenger.IntegrationTests;
 /// in-memory provider cannot show: row locks, unique indexes and concurrent requests.
 /// Set MESSENGER_TEST_POSTGRES to a server connection string to enable these tests; CI does.
 /// </summary>
-public sealed class PostgresWebApplicationFactory : CustomWebApplicationFactory
+public class PostgresWebApplicationFactory : CustomWebApplicationFactory
 {
     public const string ConnectionStringVariable = "MESSENGER_TEST_POSTGRES";
 

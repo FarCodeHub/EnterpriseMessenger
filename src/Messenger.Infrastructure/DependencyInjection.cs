@@ -187,9 +187,15 @@ public static class DependencyInjection
 
             services.AddSingleton<IOpenSearchClient>(new OpenSearchClient(settings));
             services.AddScoped<IMessageSearchIndexer, OpenSearchMessageSearchIndexer>();
+            services.AddScoped<IMessageFullTextSearchService, OpenSearchMessageFullTextSearchService>();
         }
-
-        services.AddScoped<IMessageFullTextSearchService, OpenSearchMessageFullTextSearchService>();
+        else
+        {
+            // Without OpenSearch the message endpoints must still work: indexing is skipped and search
+            // runs against PostgreSQL.
+            services.AddScoped<IMessageSearchIndexer, NoOpMessageSearchIndexer>();
+            services.AddScoped<IMessageFullTextSearchService, PostgresMessageFullTextSearchService>();
+        }
         services.AddScoped<IMessageForwarder, MessageForwarder>();
         return services;
     }
