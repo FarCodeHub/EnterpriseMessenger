@@ -6,6 +6,7 @@ using FluentAssertions;
 using Messenger.Api.Observability;
 using Messenger.Contracts.Conversations;
 using Messenger.Contracts.Messages;
+using Messenger.Contracts.Telemetry;
 using Messenger.Contracts.Users;
 using Messenger.Infrastructure.Observability;
 using Microsoft.Extensions.Configuration;
@@ -74,6 +75,32 @@ public sealed class MessengerMetricsTests : IClassFixture<CustomWebApplicationFa
         Values("messenger.realtime.push.duration", "target=user_groups").Should().HaveCountGreaterThanOrEqualTo(6);
         Values("messenger.realtime.push.failures", "").Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Display_Latency_Reports_Are_Recorded_In_Seconds_Without_Implausible_Samples()
+    {
+        _measurements.Clear();
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/telemetry/display-latency",
+            new DisplayLatencyReport([120, 250, -5, -5_000, 90_000]));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        (await response.Content.ReadFromJsonAsync<RecordedResponse>())!.Recorded.Should().Be(3);
+        Values("messenger.message.display.latency", "").Should().Equal(0.12, 0.25, 0);
+    }
+
+    [Fact]
+    public async Task Display_Latency_Report_With_Too_Many_Samples_Is_Rejected()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/telemetry/display-latency",
+            new DisplayLatencyReport(Enumerable.Repeat(100.0, 201).ToList()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private sealed record RecordedResponse(int Recorded);
 
     private List<double> Values(string name, string tags) =>
         _measurements.Where(x => x.Name == name && x.Tags == tags).Select(x => x.Value).ToList();

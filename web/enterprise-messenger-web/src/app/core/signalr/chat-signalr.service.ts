@@ -241,6 +241,15 @@ async reconnectAndSync(reason: string): Promise<void> {
     await this.invoke('MarkAsDelivered', conversationId, sequenceNumber);
   }
 
+  /** The server's clock (ISO 8601), or null when not connected. Used to estimate this client's clock offset. */
+  async getServerTime(): Promise<string | null> {
+    if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
+      return null;
+    }
+
+    return this.connection.invoke<string>('GetServerTime');
+  }
+
   private async invoke(methodName: string, ...args: unknown[]): Promise<void> {
     if (!this.connection || this.connection.state !== HubConnectionState.Connected) {
       return;

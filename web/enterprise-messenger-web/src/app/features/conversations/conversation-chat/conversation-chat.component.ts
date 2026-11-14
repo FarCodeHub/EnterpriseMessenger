@@ -1,3 +1,4 @@
+import { DisplayLatencyService } from '../../../core/telemetry/display-latency.service';
 import { DatePipe } from '@angular/common';
 import { TypingState } from '../../../state/messages/typing.state';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -76,6 +77,7 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
 
   readonly conversationsState = inject(ConversationsState);
   private readonly chatSignalR = inject(ChatSignalRService);
+  private readonly displayLatency = inject(DisplayLatencyService);
   readonly typingState = inject(TypingState);
   readonly presenceState = inject(PresenceState);
   private typingStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -208,6 +210,10 @@ export class ConversationChatComponent implements OnInit, OnDestroy {
 
         if (event.conversationId === currentConversationId) {
           this.messagesState.handleMessageCreated(event);
+
+          if (event.senderUserId !== this.currentUserId() && !event.isDuplicate) {
+            this.displayLatency.recordDisplayed(event.createdAtUtc);
+          }
 
           this.scrollToBottom();
           this.markCurrentConversationAsDelivered();
