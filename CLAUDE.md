@@ -144,15 +144,16 @@ Phases:
 0. Stabilisation — done.
 1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
    the write paths — done.
-2. **In progress** (2.1 OpenTelemetry + Grafana, 2.2 send-to-display, 2.3 load test done; baseline and findings
-   in `docs/baseline.md`: one 10k-member channel message locks every member's sync counter for ~1.3 s and pushes
-   p95 of all messages to ~1.1 s; 2.5 raised outbox publishing from 10 to 80+ events/s). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
-   real group-size stats (they answer the hybrid sync threshold question).
-3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
+2. Measure first — done: OpenTelemetry + Grafana, client send-to-display metric, load test with 10k connections
+   (`loadtest/`), outbox throughput. Baseline and findings in `docs/baseline.md`: without large conversations
+   p95 send→receive is ~30 ms; one 10k-member channel message locks every member's sync counter for ~1.3 s and
+   pushes p95 of everything to ~1.1 s (fixed by phase 4); cost is ~0.12 ms per member.
+3. **Next.** Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is
    cache-then-network: signals are the source of truth and a chat loads all its cached messages with `toArray()`.
-4. Hybrid sync — design `docs/hybrid-sync.md`; open questions: group-size threshold (~200), "seen by whom" in
-   large groups, event retention (~90 days).
+4. Hybrid sync — design `docs/hybrid-sync.md` (approved): conversations above **1000** members (configurable,
+   per conversation) switch to per-conversation events; large groups show a seen *count*, not who; events are kept
+   90 days. Also align `ConversationBroadcaster` (pushes only to viewers above 500 members) with the threshold.
 5. Local search (MiniSearch in a Worker), ZWNJ in the OpenSearch analyzer (ی/ي, ک/ك are already normalized),
    presigned multipart upload, thumbnails + tiny inline preview, Web Push (VAPID).
 6. Integration layer: bot accounts, signed webhooks, structured messages with callbacks, accounting adapters as
