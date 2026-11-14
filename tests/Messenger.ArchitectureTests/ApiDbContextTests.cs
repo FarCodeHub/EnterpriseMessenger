@@ -25,7 +25,6 @@ public sealed class ApiDbContextTests
         "Messenger.Api.BackgroundServices.NotificationCleanupWorker",
         "Messenger.Api.BackgroundServices.NotificationDispatchWorker",
         "Messenger.Api.BackgroundServices.OutboxCleanupWorker",
-        "Messenger.Api.BackgroundServices.OutboxPublisherWorker",
         "Messenger.Api.BackgroundServices.RefreshTokenCleanupWorker",
     ];
 
