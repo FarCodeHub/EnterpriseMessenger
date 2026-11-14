@@ -475,3 +475,6 @@ Thumbs.db
 .env
 .env.*
 !.env.*.example
+
+# Load-test result files (summaries go into docs/baseline.md)
+loadtest/Messenger.LoadTest/results/
