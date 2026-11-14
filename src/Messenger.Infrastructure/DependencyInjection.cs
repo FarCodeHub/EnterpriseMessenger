@@ -166,6 +166,7 @@ public static class DependencyInjection
         services.AddScoped<IUserActivator, UserActivator>();
         services.AddScoped<IUserAdminMaker, UserAdminMaker>();
         services.AddScoped<IOutboxWriter, OutboxWriter>();
+        services.AddScoped<IOutboxPublisher, OutboxPublisher>();
         var minioEndpoint = configuration["Minio:Endpoint"] ?? "localhost:9000";
         var minioAccessKey = configuration["Minio:AccessKey"] ?? "minioadmin";
         var minioSecretKey = configuration["Minio:SecretKey"] ?? "minioadmin";

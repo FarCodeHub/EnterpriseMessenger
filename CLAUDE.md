@@ -116,7 +116,9 @@ docker stop messenger-test-pg
   (`MessageSearchIndexingConsumer`, for created/edited/deleted messages), notifications. Never call OpenSearch
   inside a request. Consumers re-read the current state from the database, so late, duplicate or out-of-order
   events are harmless. Integration events must have a namespace (MassTransit rejects them otherwise;
-  `IntegrationEventTests` publishes every one).
+  `IntegrationEventTests` publishes every one). `OutboxPublisher` claims events with `FOR UPDATE SKIP LOCKED`
+  (several API instances never publish one twice); settings `Outbox:BatchSize` (200), `Outbox:PublishConcurrency`
+  (32), `Outbox:PollIntervalMilliseconds` (1000, only when caught up).
 - **Optional services stay optional:** without OpenSearch, a no-op indexer and PostgreSQL search are used; without
   Redis, in-memory presence and connection tracking (one API instance only). Anything that depends on them must
   work with the fallback. `SearchDisabledTests` and `RedisDisabledTests` start the app without them and validate
@@ -143,8 +145,8 @@ Phases:
 1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
    the write paths — done.
 2. **In progress** (2.1 OpenTelemetry + Grafana, 2.2 send-to-display, 2.3 load test done; baseline and findings
-   in `docs/baseline.md`: outbox publishes at most 10 events/s; one 10k-member channel message locks every
-   member's sync counter for ~1.3 s and pushes p95 of all messages to ~1.1 s). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
+   in `docs/baseline.md`: one 10k-member channel message locks every member's sync counter for ~1.3 s and pushes
+   p95 of all messages to ~1.1 s; 2.5 raised outbox publishing from 10 to 80+ events/s). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
    real group-size stats (they answer the hybrid sync threshold question).
 3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is
