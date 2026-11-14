@@ -102,8 +102,10 @@ docker stop messenger-test-pg
   inside a request. Consumers re-read the current state from the database, so late, duplicate or out-of-order
   events are harmless. Integration events must have a namespace (MassTransit rejects them otherwise;
   `IntegrationEventTests` publishes every one).
-- **Optional services stay optional:** anything that depends on OpenSearch must also work with the no-op
-  fallback. `SearchDisabledTests` starts the app without OpenSearch and validates every DI registration.
+- **Optional services stay optional:** without OpenSearch, a no-op indexer and PostgreSQL search are used; without
+  Redis, in-memory presence and connection tracking (one API instance only). Anything that depends on them must
+  work with the fallback. `SearchDisabledTests` and `RedisDisabledTests` start the app without them and validate
+  every DI registration.
 - **Real-time:** every connection joins `user:{userId}`; message events go to members' user groups through
   `ConversationBroadcaster` (conversation group only above 500 members). Typing/presence/receipts use the
   conversation group. A failed push is logged, never fails the request (clients catch up via sync).

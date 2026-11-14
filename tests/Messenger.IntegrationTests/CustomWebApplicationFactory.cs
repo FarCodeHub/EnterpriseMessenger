@@ -22,6 +22,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     /// <summary>Replace the search services with fakes. Off in factories that test the real search setup.</summary>
     protected virtual bool UseFakeSearch => true;
 
+    /// <summary>Replace presence and the connection tracker with fakes. Off to test the in-memory ones.</summary>
+    protected virtual bool UseFakeRealtime => true;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -39,7 +42,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         {
             services.RemoveAll<IHostedService>();
             services.RemoveAll<IConnectionMultiplexer>();
-            services.RemoveAll<IPresenceService>();
+            if (UseFakeRealtime)
+                services.RemoveAll<IPresenceService>();
             if (UseFakeSearch)
             {
                 services.RemoveAll<IOpenSearchClient>();
@@ -67,9 +71,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 });
             });
 
-            services.AddSingleton<IPresenceService, FakePresenceService>();
-            services.RemoveAll<Messenger.Application.Realtime.IConnectionTracker>();
-            services.AddSingleton<Messenger.Application.Realtime.IConnectionTracker, FakeConnectionTracker>();
+            if (UseFakeRealtime)
+            {
+                services.AddSingleton<IPresenceService, FakePresenceService>();
+                services.RemoveAll<Messenger.Application.Realtime.IConnectionTracker>();
+                services.AddSingleton<Messenger.Application.Realtime.IConnectionTracker, FakeConnectionTracker>();
+            }
 
             services.AddAuthentication(options =>
             {

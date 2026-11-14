@@ -2,6 +2,7 @@ using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Messenger.Application.Messages.SendMessage;
 using Messenger.Infrastructure.Messages;
 using Messenger.Application.Messages.EditMessage;
@@ -105,6 +106,14 @@ public static class DependencyInjection
                 _ => ConnectionMultiplexer.Connect(redisConnectionString));
 
             services.AddSingleton<IPresenceService, RedisPresenceService>();
+            services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
+        }
+        else
+        {
+            // Without Redis, presence and connections are kept in this process: fine for one API instance.
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddSingleton<IPresenceService, InMemoryPresenceService>();
+            services.AddSingleton<IConnectionTracker, InMemoryConnectionTracker>();
         }
 
         var openSearchUrl = configuration["OpenSearch:Url"];
@@ -140,7 +149,6 @@ public static class DependencyInjection
             if (searchEnabled)
                 options.AddConsumer<MessageSearchIndexingConsumer>();
         });
-        services.AddSingleton<IConnectionTracker, RedisConnectionTracker>();
         services.AddScoped<IConversationMemberAdder, ConversationMemberAdder>();
         services.AddScoped<IConversationMemberRemover, ConversationMemberRemover>();
         services.AddScoped<IConversationMemberRoleSetter, ConversationMemberRoleSetter>();

@@ -154,14 +154,21 @@ var rabbitMqPassword =
     builder.Configuration["RabbitMq:Password"] ?? "guest";
 
 
-builder.Services
+var healthChecks = builder.Services
     .AddHealthChecks()
     .AddNpgSql(
         builder.Configuration.GetConnectionString("MessengerDb")!,
-        tags: ["ready"])
-    .AddRedis(
+        tags: ["ready"]);
+
+// Redis is optional (single API instance); check it only when it is used.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Redis:ConnectionString"]))
+{
+    healthChecks.AddRedis(
         builder.Configuration["Redis:ConnectionString"]!,
-        tags: ["ready"])
+        tags: ["ready"]);
+}
+
+healthChecks
     .AddRabbitMQ(
         sp =>
         {
