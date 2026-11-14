@@ -25,8 +25,9 @@ public sealed class FakeMessageSearchIndexer : IMessageSearchIndexer
 }
 
 
-public Task RebuildAsync(CancellationToken cancellationToken)
+public Task<long> RebuildAsync(Action<long>? onProgress, CancellationToken cancellationToken)
 {
-    return Task.CompletedTask;
+    onProgress?.Invoke(0);
+    return Task.FromResult(0L);
 }
 }

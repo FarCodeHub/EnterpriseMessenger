@@ -17,7 +17,7 @@ public sealed class NoOpMessageSearchIndexer : IMessageSearchIndexer
     public Task EnsureIndexAsync(CancellationToken cancellationToken)
         => Task.CompletedTask;
 
-    public Task RebuildAsync(CancellationToken cancellationToken)
+    public Task<long> RebuildAsync(Action<long>? onProgress, CancellationToken cancellationToken)
         => throw new InvalidOperationException(
             "OpenSearch is not configured (OpenSearch:Url is empty), so there is no search index to rebuild.");
 }

@@ -210,6 +210,8 @@ public static class DependencyInjection
             services.AddScoped<IMessageSearchIndexer, NoOpMessageSearchIndexer>();
             services.AddScoped<IMessageFullTextSearchService, PostgresMessageFullTextSearchService>();
         }
+
+        services.AddSingleton<ISearchIndexRebuilder, SearchIndexRebuilder>();
         services.AddScoped<IMessageForwarder, MessageForwarder>();
         return services;
     }
