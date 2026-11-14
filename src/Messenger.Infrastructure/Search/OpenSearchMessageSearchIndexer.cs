@@ -120,29 +120,70 @@ if (!createResponse.IsValid)
 
 
 
-public async Task RebuildAsync(CancellationToken cancellationToken)
-{
-    await EnsureIndexAsync(cancellationToken);
+public const int RebuildBatchSize = 1_000;
 
-    var messages = await _dbContext.Messages
-        .Where(x => x.DeletedAtUtc == null)
-        .Select(x => new MessageSearchDocument(
-            x.Id,
-            x.ConversationId,
-            x.SenderUserId,
-            x.Body,
-            x.SequenceNumber,
-            x.CreatedAtUtc,
-            x.EditedAtUtc,
-            IsDeleted: false))
-        .ToListAsync(cancellationToken);
-
-    foreach (var message in messages)
+    public async Task<long> RebuildAsync(Action<long>? onProgress, CancellationToken cancellationToken)
     {
-        await IndexAsync(message, cancellationToken);
+        await EnsureIndexAsync(cancellationToken);
+
+        long indexed = 0;
+        var lastId = Guid.Empty;
+
+        while (true)
+        {
+            // Keyset paging by id: every page is an index range scan, and only one page is in memory.
+            var page = await NextPageAsync(lastId, cancellationToken);
+
+            if (page.Count == 0)
+                break;
+
+            var response = await _client.BulkAsync(
+                bulk => bulk.Index(_indexName).IndexMany(page, (operation, document) => operation.Id(document.Id)),
+                cancellationToken);
+
+            if (!response.IsValid || response.Errors)
+            {
+                var firstError = response.ItemsWithErrors.FirstOrDefault()?.Error?.ToString();
+                throw new InvalidOperationException(
+                    firstError ?? response.ServerError?.ToString() ?? response.OriginalException?.Message);
+            }
+
+            indexed += page.Count;
+            lastId = page[^1].Id;
+            onProgress?.Invoke(indexed);
+        }
+
+        return indexed;
     }
-}
 
+    private async Task<List<MessageSearchDocument>> NextPageAsync(Guid afterId, CancellationToken cancellationToken)
+    {
+        var messages = _dbContext.Database.IsNpgsql()
+            ? _dbContext.Messages.FromSql($"""
+                SELECT * FROM "Messages"
+                WHERE "DeletedAtUtc" IS NULL AND "Id" > {afterId}
+                ORDER BY "Id"
+                LIMIT {RebuildBatchSize}
+                """)
+            : _dbContext.Messages
+                .Where(x => x.DeletedAtUtc == null && x.Id.CompareTo(afterId) > 0)
+                .OrderBy(x => x.Id)
+                .Take(RebuildBatchSize);
 
-
+        // Ordered again outside: the SQL above becomes a subquery, whose order PostgreSQL need not keep. The order
+        // must be the database's uuid order (not .NET's Guid order) so the last id is the next page's start.
+        return await messages
+            .OrderBy(x => x.Id)
+            .AsNoTracking()
+            .Select(x => new MessageSearchDocument(
+                x.Id,
+                x.ConversationId,
+                x.SenderUserId,
+                x.Body,
+                x.SequenceNumber,
+                x.CreatedAtUtc,
+                x.EditedAtUtc,
+                false))
+            .ToListAsync(cancellationToken);
+    }
 }

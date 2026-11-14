@@ -215,6 +215,7 @@ public sealed class MessageSearchIndexingConsumerTests : IAsyncLifetime
 
         public Task EnsureIndexAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task RebuildAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<long> RebuildAsync(Action<long>? onProgress, CancellationToken cancellationToken) =>
+            Task.FromResult(0L);
     }
 }

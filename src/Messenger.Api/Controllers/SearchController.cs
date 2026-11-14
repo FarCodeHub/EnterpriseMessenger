@@ -15,13 +15,13 @@ namespace Messenger.Api.Controllers;
 public sealed class SearchController : ControllerBase
 {
     private readonly IMessageFullTextSearchService _messageSearchService;
-    private readonly IMessageSearchIndexer _messageSearchIndexer;
+    private readonly ISearchIndexRebuilder _searchIndexRebuilder;
     private readonly MessengerDbContext _dbContext;
 
-    public SearchController(IMessageFullTextSearchService messageSearchService, IMessageSearchIndexer messageSearchIndexer, MessengerDbContext dbContext)
+    public SearchController(IMessageFullTextSearchService messageSearchService, ISearchIndexRebuilder searchIndexRebuilder, MessengerDbContext dbContext)
     {
         _messageSearchService = messageSearchService;
-        _messageSearchIndexer = messageSearchIndexer;
+        _searchIndexRebuilder = searchIndexRebuilder;
         _dbContext = dbContext;
     }
 
@@ -72,18 +72,29 @@ if (string.IsNullOrWhiteSpace(query))
     }
 
 
+    /// <summary>
+    /// Starts rebuilding the message search index in the background (it takes minutes on large data) and answers
+    /// right away; follow it with <c>GET messages/rebuild-index</c>.
+    /// </summary>
     [Authorize(Roles = "Admin")]
     [HttpPost("messages/rebuild-index")]
-public async Task<IActionResult> RebuildMessagesIndex(
-    CancellationToken cancellationToken)
-{
-    await _messageSearchIndexer.RebuildAsync(cancellationToken);
-
-    return Ok(new
+    public IActionResult RebuildMessagesIndex()
     {
-        Message = "Messages search index rebuilt."
-    });
-}
+        return _searchIndexRebuilder.Start() switch
+        {
+            SearchIndexRebuildStart.Started => Accepted(_searchIndexRebuilder.Status),
+            SearchIndexRebuildStart.AlreadyRunning => Conflict(_searchIndexRebuilder.Status),
+            _ => BadRequest(new ApiErrorResponse(
+                "search_not_configured",
+                "OpenSearch is not configured (OpenSearch:Url is empty), so there is no search index to rebuild.",
+                StatusCodes.Status400BadRequest,
+                DateTime.UtcNow)),
+        };
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet("messages/rebuild-index")]
+    public IActionResult GetRebuildStatus() => Ok(_searchIndexRebuilder.Status);
 
     private Guid GetCurrentUserId()
     {
