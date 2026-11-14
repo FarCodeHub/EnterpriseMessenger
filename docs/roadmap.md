@@ -46,7 +46,7 @@
 | مرحله | کار |
 | --- | --- |
 | 1.1 ✅ | سرویس مشترک ساخت پیام (`MessageCreator`) که جای کد تکراری `MessageSender` و دو متد `MessageForwarder` را گرفت |
-| 1.2 | ویرایش و حذف پیام هم رویداد outbox بنویسند و ایندکس از طریق consumer و Bulk API به‌روز شود. بعد از این، `MessageEditor` و `MessageDeleter` دیگر به OpenSearch وابسته نیستند |
+| 1.2 ✅ | ویرایش و حذف پیام رویداد outbox می‌نویسند و ایندکس از طریق consumer به‌روز می‌شود. `MessageEditor` و `MessageDeleter` دیگر به OpenSearch وابسته نیستند. استفاده از Bulk API بعد از اندازه‌گیری فاز ۲، اگر لازم شد |
 | 1.3 | بیرون آوردن DbContext از مسیرهای نوشتن (`MessagesController`، `ChatHub` و بقیه). هر کلاس اصلاح‌شده از allowlist در `ApiDbContextTests` حذف می‌شود |
 
 **شرط پایان:** فقط یک مسیر برای ساخت پیام وجود دارد. هیچ فراخوانی OpenSearch داخل درخواست کاربر نیست. تست‌های هم‌زمانی سبزند.

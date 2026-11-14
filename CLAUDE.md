@@ -41,8 +41,6 @@ Known debt (phase 1 of the roadmap):
 - 16 Api types use `MessengerDbContext` directly instead of Application interfaces; the list is in
   `tests/Messenger.ArchitectureTests/ApiDbContextTests.cs`. New ones fail the test; remove a type from the list
   when it is fixed.
-- `MessageEditor` and `MessageDeleter` update the search index inside the request (after commit, errors logged)
-  instead of through the outbox, so the index goes stale while OpenSearch is down.
 
 ## Commands
 
@@ -96,8 +94,10 @@ docker stop messenger-test-pg
 - **Idempotency:** messages are unique on (`ConversationId`, `ClientMessageId`); the duplicate check runs after
   taking the lock, and a unique-violation returns the stored message.
 - **Side effects go through the outbox** (`IOutboxWriter` → RabbitMQ consumers): search indexing
-  (`MessageSearchIndexingConsumer`), notifications. Never call OpenSearch inside a request (edit/delete still do;
-  see Known debt).
+  (`MessageSearchIndexingConsumer`, for created/edited/deleted messages), notifications. Never call OpenSearch
+  inside a request. Consumers re-read the current state from the database, so late, duplicate or out-of-order
+  events are harmless. Integration events must have a namespace (MassTransit rejects them otherwise;
+  `IntegrationEventTests` publishes every one).
 - **Optional services stay optional:** anything that depends on OpenSearch must also work with the no-op
   fallback. `SearchDisabledTests` starts the app without OpenSearch and validates every DI registration.
 - **Real-time:** every connection joins `user:{userId}`; message events go to members' user groups through
