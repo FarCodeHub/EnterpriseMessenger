@@ -1,95 +1,50 @@
-using System.Text.Json;
-using MassTransit;
-using Messenger.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using Messenger.Application.Outbox;
 
 namespace Messenger.Api.BackgroundServices;
 
+/// <summary>
+/// Publishes outbox events to the bus. While there is a backlog it takes batch after batch without waiting;
+/// when it has caught up it polls every <c>Outbox:PollIntervalMilliseconds</c>.
+/// </summary>
 public sealed class OutboxPublisherWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OutboxPublisherWorker> _logger;
+    private readonly int _batchSize;
+    private readonly TimeSpan _pollInterval;
 
     public OutboxPublisherWorker(
         IServiceScopeFactory scopeFactory,
+        IConfiguration configuration,
         ILogger<OutboxPublisherWorker> logger)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _batchSize = configuration.GetValue("Outbox:BatchSize", 200);
+        _pollInterval = TimeSpan.FromMilliseconds(configuration.GetValue("Outbox:PollIntervalMilliseconds", 1_000));
     }
 
-protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-{
-    while (!stoppingToken.IsCancellationRequested)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        try
+        while (!stoppingToken.IsCancellationRequested)
         {
-            await PublishPendingMessagesAsync(stoppingToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Outbox publisher worker failed. It will retry later.");
-        }
+            var published = 0;
 
-        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
-    }
-}
-
-    private async Task PublishPendingMessagesAsync(CancellationToken cancellationToken)
-    {
-        using var scope = _scopeFactory.CreateScope();
-
-        var dbContext = scope.ServiceProvider.GetRequiredService<MessengerDbContext>();
-        var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
-
-        var messages = await dbContext.OutboxMessages
-            .Where(x => x.ProcessedAtUtc == null && x.RetryCount < 5)
-            .OrderBy(x => x.OccurredAtUtc)
-            .Take(50)
-            .ToListAsync(cancellationToken);
-
-        foreach (var message in messages)
-        {
             try
             {
-                var messageType = Type.GetType(message.Type);
+                using var scope = _scopeFactory.CreateScope();
+                var publisher = scope.ServiceProvider.GetRequiredService<IOutboxPublisher>();
 
-                if (messageType is null)
-                    throw new InvalidOperationException($"Cannot resolve outbox message type: {message.Type}");
-
-                var integrationEvent = JsonSerializer.Deserialize(
-                    message.Payload,
-                    messageType);
-
-                if (integrationEvent is null)
-                    throw new InvalidOperationException("Cannot deserialize outbox message payload.");
-
-                await publishEndpoint.Publish(
-                    integrationEvent,
-                    messageType,
-                    cancellationToken);
-
-                message.MarkAsProcessed();
-
-                _logger.LogInformation(
-                    "Outbox message published. OutboxMessageId: {OutboxMessageId}, Type: {Type}",
-                    message.Id,
-                    message.Type);
+                published = await publisher.PublishBatchAsync(_batchSize, stoppingToken);
             }
-            catch (Exception ex)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                message.MarkAsFailed(ex.Message);
-
-                _logger.LogError(
-                    ex,
-                    "Failed to publish outbox message {OutboxMessageId}",
-                    message.Id);
+                _logger.LogError(exception, "Outbox publisher worker failed. It will retry later.");
             }
-        }
 
-        if (messages.Count > 0)
-            await dbContext.SaveChangesAsync(cancellationToken);
+            // A full batch means more is waiting: take the next one right away.
+            if (published < _batchSize)
+                await Task.Delay(_pollInterval, stoppingToken);
+        }
     }
 }

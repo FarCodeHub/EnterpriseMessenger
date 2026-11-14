@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Messenger.Application.Messages.SendMessage;
 using Messenger.Domain.Messages;
+using Messenger.Infrastructure.Observability;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Conversations;
@@ -23,6 +25,24 @@ public sealed class MessageSender : IMessageSender
     }
 
     public async Task<SendMessageResult> SendAsync(
+        SendMessageCommand command,
+        CancellationToken cancellationToken)
+    {
+        var start = Stopwatch.GetTimestamp();
+
+        var result = await StoreAsync(command, cancellationToken);
+
+        MessengerMetrics.SendDuration.Record(
+            MessengerMetrics.ElapsedSeconds(start),
+            new KeyValuePair<string, object?>("result", result.IsDuplicate ? "duplicate" : "created"));
+
+        if (!result.IsDuplicate)
+            MessengerMetrics.MessagesCreated.Add(1, new KeyValuePair<string, object?>("kind", "send"));
+
+        return result;
+    }
+
+    private async Task<SendMessageResult> StoreAsync(
         SendMessageCommand command,
         CancellationToken cancellationToken)
     {

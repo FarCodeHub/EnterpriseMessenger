@@ -1,3 +1,4 @@
+using Messenger.Api.Observability;
 using Messenger.Infrastructure;
 using Messenger.Api.Hubs;
 
@@ -36,6 +37,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
+builder.Services.AddMessengerObservability(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -154,14 +156,21 @@ var rabbitMqPassword =
     builder.Configuration["RabbitMq:Password"] ?? "guest";
 
 
-builder.Services
+var healthChecks = builder.Services
     .AddHealthChecks()
     .AddNpgSql(
         builder.Configuration.GetConnectionString("MessengerDb")!,
-        tags: ["ready"])
-    .AddRedis(
+        tags: ["ready"]);
+
+// Redis is optional (single API instance); check it only when it is used.
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Redis:ConnectionString"]))
+{
+    healthChecks.AddRedis(
         builder.Configuration["Redis:ConnectionString"]!,
-        tags: ["ready"])
+        tags: ["ready"]);
+}
+
+healthChecks
     .AddRabbitMQ(
         sp =>
         {

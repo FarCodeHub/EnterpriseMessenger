@@ -18,6 +18,14 @@ messages are in English.
 - **Search:** with `OpenSearch:Url` set, OpenSearch indexes and searches messages. Empty, a no-op indexer and a
   PostgreSQL substring search are used instead (dev and small installs; no index, slow on large data).
 - **API reference:** Swagger UI in Development (`http://localhost:5113/swagger`). `docs/api-contract.md` is old.
+- **Observability:** OpenTelemetry, on only when `OpenTelemetry:TracesEndpoint` / `MetricsEndpoint` are set
+  (`Observability/ObservabilitySetup.cs`). Traces → Jaeger (`:16686`), metrics → Prometheus 3 over OTLP (`:9090`),
+  Grafana (`:3000`) with the provisioned "Messenger overview" dashboard (`observability/`). The messenger's own
+  metrics are in `Infrastructure/Observability/MessengerMetrics.cs`; histograms in seconds need explicit bucket
+  advice (the OpenTelemetry default buckets are meant for milliseconds).
+- **Send-to-display:** the web client (`core/telemetry/display-latency.service.ts`) estimates its clock offset with
+  the hub's `GetServerTime`, measures `createdAtUtc` → next frame for live messages from others, and posts batches
+  to `POST /api/v1/telemetry/display-latency` every 30 s → `messenger.message.display.latency`.
 
 ## Layout
 
@@ -34,6 +42,8 @@ web/enterprise-messenger-web        Angular app: src/app/{core (api, auth, signa
 keycloak/realm-messenger.json       realm imported on first start, then managed in the admin console
 docker-compose.yml                  dev dependencies (project enterprise-messenger-dev)
 docker-compose.production.yml       full stack (project enterprisemessenger): API, web, nginx, Keycloak, ...
+observability/                      Prometheus config, Grafana data sources and dashboards
+loadtest/                           load generator: 10k SignalR users + senders (see loadtest/README.md)
 docs/                               roadmap, hybrid sync design, keycloak, api contract (old)
 ```
 
@@ -49,7 +59,8 @@ Known debt:
 ## Commands
 
 ```bash
-docker compose up -d                       # postgres, redis, rabbitmq, minio, opensearch, keycloak (dev)
+docker compose up -d                       # postgres, redis, rabbitmq, minio, opensearch, keycloak,
+                                           # prometheus, jaeger, grafana (dev)
 dotnet build EnterpriseMessenger.slnx
 dotnet test EnterpriseMessenger.slnx
 dotnet ef database update --project src/Messenger.Infrastructure --startup-project src/Messenger.Api
@@ -58,6 +69,10 @@ dotnet ef migrations add <Name> --project src/Messenger.Infrastructure --startup
 cd web/enterprise-messenger-web && npm ci && npm start     # http://localhost:4200
 npx ng test --watch=false
 ```
+
+On Windows, `ng test` right after clearing `.angular/cache` sometimes fails every spec with "Vitest failed to find
+the runner" (seen in Nov 2026 when adding a spec); the next run, with the cache warm, passes. CI (Linux, always
+clean) is the reference.
 
 The dev and production compose files are separate projects with their own containers and volumes, but they
 publish some of the same host ports: stop one stack before starting the other. The owner often runs the
@@ -101,9 +116,13 @@ docker stop messenger-test-pg
   (`MessageSearchIndexingConsumer`, for created/edited/deleted messages), notifications. Never call OpenSearch
   inside a request. Consumers re-read the current state from the database, so late, duplicate or out-of-order
   events are harmless. Integration events must have a namespace (MassTransit rejects them otherwise;
-  `IntegrationEventTests` publishes every one).
-- **Optional services stay optional:** anything that depends on OpenSearch must also work with the no-op
-  fallback. `SearchDisabledTests` starts the app without OpenSearch and validates every DI registration.
+  `IntegrationEventTests` publishes every one). `OutboxPublisher` claims events with `FOR UPDATE SKIP LOCKED`
+  (several API instances never publish one twice); settings `Outbox:BatchSize` (200), `Outbox:PublishConcurrency`
+  (32), `Outbox:PollIntervalMilliseconds` (1000, only when caught up).
+- **Optional services stay optional:** without OpenSearch, a no-op indexer and PostgreSQL search are used; without
+  Redis, in-memory presence and connection tracking (one API instance only). Anything that depends on them must
+  work with the fallback. `SearchDisabledTests` and `RedisDisabledTests` start the app without them and validate
+  every DI registration.
 - **Real-time:** every connection joins `user:{userId}`; message events go to members' user groups through
   `ConversationBroadcaster` (conversation group only above 500 members). Typing/presence/receipts use the
   conversation group. A failed push is logged, never fails the request (clients catch up via sync).
@@ -125,13 +144,16 @@ Phases:
 0. Stabilisation — done.
 1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
    the write paths — done.
-2. **Next.** Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
-   real group-size stats (they answer the hybrid sync threshold question).
-3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
+2. Measure first — done: OpenTelemetry + Grafana, client send-to-display metric, load test with 10k connections
+   (`loadtest/`), outbox throughput. Baseline and findings in `docs/baseline.md`: without large conversations
+   p95 send→receive is ~30 ms; one 10k-member channel message locks every member's sync counter for ~1.3 s and
+   pushes p95 of everything to ~1.1 s (fixed by phase 4); cost is ~0.12 ms per member.
+3. **Next.** Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is
    cache-then-network: signals are the source of truth and a chat loads all its cached messages with `toArray()`.
-4. Hybrid sync — design `docs/hybrid-sync.md`; open questions: group-size threshold (~200), "seen by whom" in
-   large groups, event retention (~90 days).
+4. Hybrid sync — design `docs/hybrid-sync.md` (approved): conversations above **1000** members (configurable,
+   per conversation) switch to per-conversation events; large groups show a seen *count*, not who; events are kept
+   90 days. Also align `ConversationBroadcaster` (pushes only to viewers above 500 members) with the threshold.
 5. Local search (MiniSearch in a Worker), ZWNJ in the OpenSearch analyzer (ی/ي, ک/ك are already normalized),
    presigned multipart upload, thumbnails + tiny inline preview, Web Push (VAPID).
 6. Integration layer: bot accounts, signed webhooks, structured messages with callbacks, accounting adapters as

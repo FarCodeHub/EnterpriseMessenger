@@ -54,6 +54,20 @@ public sealed class RealtimeDeliveryTests : IClassFixture<CustomWebApplicationFa
         updated.GetProperty("senderDisplayName").GetString().Should().Be("Sender");
     }
 
+    [Fact]
+    public async Task Hub_Returns_The_Server_Time_For_Clock_Offset_Estimates()
+    {
+        var user = await CreateUserAsync("Clock");
+        await using var connection = CreateHubConnection(user);
+        await connection.StartAsync();
+
+        var before = DateTime.UtcNow;
+        var serverTime = await connection.InvokeAsync<DateTime>("GetServerTime");
+
+        serverTime.Kind.Should().Be(DateTimeKind.Utc);
+        serverTime.Should().BeOnOrAfter(before).And.BeOnOrBefore(DateTime.UtcNow);
+    }
+
     [Theory]
     [InlineData("/api/v1/messages/forward")]
     [InlineData("/api/v1/messages/forward-batch")]
