@@ -39,14 +39,14 @@ export interface LocalPendingFile {
 }
 
 export class AppLocalDb extends Dexie {
-    pendingFiles!: Table<LocalPendingFile, string>;
+  pendingFiles!: Table<LocalPendingFile, string>;
   conversations!: Table<ConversationListItemDto, string>;
   messages!: Table<LocalMessage, string>;
   pendingOperations!: Table<PendingOperation, string>;
   syncState!: Table<SyncState, string>;
 
-  constructor() {
-    super('EnterpriseMessengerDb');
+  constructor(name: string) {
+    super(name);
 
     this.version(1).stores({
       conversations: 'id, lastMessageAtUtc',
@@ -58,4 +58,55 @@ export class AppLocalDb extends Dexie {
   }
 }
 
-export const appLocalDb = new AppLocalDb();
+/*
+ * One IndexedDB database per signed-in user, so one user never reads another user's cached messages or sends their
+ * unsent ones (the browser may be shared). Before sign-in an empty "anonymous" database is used.
+ * AuthService switches the database on sign-in and deletes it on an explicit sign-out.
+ */
+const databaseNamePrefix = 'EnterpriseMessengerDb';
+const anonymous = 'anonymous';
+
+let currentOwner = anonymous;
+let currentDb: AppLocalDb | null = null;
+
+function databaseName(owner: string): string {
+  return `${databaseNamePrefix}-${owner}`;
+}
+
+/** The current user's local database. */
+export function localDb(): AppLocalDb {
+  currentDb ??= new AppLocalDb(databaseName(currentOwner));
+  return currentDb;
+}
+
+/** Switches to the database of this user (null: signed out). */
+export function useLocalDbFor(userId: string | null): void {
+  const owner = userId ?? anonymous;
+
+  if (owner === currentOwner) {
+    return;
+  }
+
+  currentDb?.close();
+  currentDb = null;
+  currentOwner = owner;
+}
+
+/** Deletes this user's local data (sign-out) and switches to the anonymous database. */
+export async function deleteLocalDbFor(userId: string): Promise<void> {
+  if (currentOwner === userId) {
+    useLocalDbFor(null);
+  }
+
+  await Dexie.delete(databaseName(userId));
+}
+
+/** Deletes the database used before data was kept per user; it cannot be attributed to anyone. */
+export function deleteSharedLegacyDb(): Promise<void> {
+  return Dexie.delete(databaseNamePrefix);
+}
+
+/** Deletes what was written while nobody was signed in (e.g. by a request that finished after sign-out). */
+export function deleteAnonymousDb(): Promise<void> {
+  return currentOwner === anonymous ? Promise.resolve() : Dexie.delete(databaseName(anonymous));
+}

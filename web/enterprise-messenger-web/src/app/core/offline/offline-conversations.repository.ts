@@ -1,18 +1,18 @@
 import { Injectable } from '@angular/core';
 
 import { ConversationListItemDto } from '../../features/conversations/models/conversation-list-item.dto';
-import { appLocalDb } from './app-local-db';
+import { localDb } from './app-local-db';
 
 @Injectable({
   providedIn: 'root'
 })
 export class OfflineConversationsRepository {
   async saveMany(conversations: ConversationListItemDto[]): Promise<void> {
-    await appLocalDb.conversations.bulkPut(conversations);
+    await localDb().conversations.bulkPut(conversations);
   }
 
   async getAll(): Promise<ConversationListItemDto[]> {
-    const conversations = await appLocalDb.conversations
+    const conversations = await localDb().conversations
       .orderBy('lastMessageAtUtc')
       .reverse()
       .toArray();
@@ -21,14 +21,14 @@ export class OfflineConversationsRepository {
   }
 
   async getById(id: string): Promise<ConversationListItemDto | undefined> {
-    return appLocalDb.conversations.get(id);
+    return localDb().conversations.get(id);
   }
 
   async save(conversation: ConversationListItemDto): Promise<void> {
-    await appLocalDb.conversations.put(conversation);
+    await localDb().conversations.put(conversation);
   }
 
   async clear(): Promise<void> {
-    await appLocalDb.conversations.clear();
+    await localDb().conversations.clear();
   }
 }
