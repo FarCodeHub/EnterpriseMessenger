@@ -37,10 +37,14 @@ docker-compose.production.yml       full stack (project enterprisemessenger): AP
 docs/                               roadmap, hybrid sync design, keycloak, api contract (old)
 ```
 
-Known debt (phase 1 of the roadmap):
-- 16 Api types use `MessengerDbContext` directly instead of Application interfaces; the list is in
-  `tests/Messenger.ArchitectureTests/ApiDbContextTests.cs`. New ones fail the test; remove a type from the list
-  when it is fixed.
+Known debt:
+- 10 Api types still use `MessengerDbContext` directly: 3 read-only controllers (audit logs, dead letters,
+  conversation search) and the 7 background workers (they belong in Infrastructure). The list is in
+  `tests/Messenger.ArchitectureTests/ApiDbContextTests.cs`; new ones fail the test, fixed ones must be removed.
+  Write paths (messages, conversations, users, auth, `ChatHub`, `ConversationBroadcaster`) are clean.
+- `GET /api/v1/users` returns every user, without paging.
+- Receipts: only `MarkAsDelivered`/`MarkAsSeen` (per sequence number) remain on the hub; the per-message
+  `MessageDeliveries` rows are still written on send and go away with hybrid sync (phase 4).
 
 ## Commands
 
@@ -119,9 +123,9 @@ per-user groups (PRs #392–#399); phase 0 stabilisation (PRs #402–#406).
 
 Phases:
 0. Stabilisation — done.
-1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; move DbContext out of
-   the write paths. **Next.**
-2. Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
+1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
+   the write paths — done.
+2. **Next.** Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
    real group-size stats (they answer the hybrid sync threshold question).
 3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is
