@@ -51,6 +51,39 @@ public sealed class RealtimeDeliveryTests : IClassFixture<CustomWebApplicationFa
 
         var updated = await conversationUpdated.Task.WaitAsync(EventTimeout);
         updated.GetProperty("conversationId").GetGuid().Should().Be(conversationId);
+        updated.GetProperty("senderDisplayName").GetString().Should().Be("Sender");
+    }
+
+    [Theory]
+    [InlineData("/api/v1/messages/forward")]
+    [InlineData("/api/v1/messages/forward-batch")]
+    public async Task Forward_Should_Update_The_Conversation_List_With_The_Forwarders_Name(string endpoint)
+    {
+        var author = await CreateUserAsync("Author");
+        var forwarder = await CreateUserAsync("Forwarder");
+        var receiver = await CreateUserAsync("Receiver");
+        var source = await CreatePrivateConversationAsync(author, forwarder);
+        var target = await CreatePrivateConversationAsync(forwarder, receiver);
+
+        var sent = await CreateApiClient(author).PostAsJsonAsync(
+            "/api/v1/messages", new SendMessageRequest(source, Guid.NewGuid(), "Original"));
+        var sourceMessageId = (await sent.Content.ReadFromJsonAsync<IdResponse>())!.Id;
+
+        var conversationUpdated = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var connection = CreateHubConnection(receiver);
+        connection.On<JsonElement>(RealtimeEvents.ConversationUpdated, payload => conversationUpdated.TrySetResult(payload));
+        await connection.StartAsync();
+
+        object request = endpoint.EndsWith("batch")
+            ? new ForwardMessagesRequest([sourceMessageId], [target], null)
+            : new ForwardMessageRequest(sourceMessageId, [target], null);
+
+        var response = await CreateApiClient(forwarder).PostAsJsonAsync(endpoint, request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+
+        var updated = await conversationUpdated.Task.WaitAsync(EventTimeout);
+        updated.GetProperty("conversationId").GetGuid().Should().Be(target);
+        updated.GetProperty("senderDisplayName").GetString().Should().Be("Forwarder");
     }
 
     [Fact]

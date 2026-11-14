@@ -49,6 +49,7 @@ using Messenger.Infrastructure.Outbox;
 using Minio;
 using Messenger.Application.Files.GetDownloadUrl;
 using Messenger.Application.Conversations;
+using Messenger.Application.Users;
 using Messenger.Application.Abstractions.Realtime;
 using Microsoft.Extensions.Hosting;
 using Messenger.Application.Search;
@@ -176,6 +177,8 @@ public static class DependencyInjection
         services.AddScoped<IFileUploader, MinioFileUploader>();
         services.AddScoped<IAttachmentDownloadUrlGenerator, MinioAttachmentDownloadUrlGenerator>();
         services.AddScoped<IConversationPermissionChecker, ConversationPermissionChecker>();
+        services.AddScoped<IActiveMemberReader, ActiveMemberReader>();
+        services.AddScoped<IUserReader, UserReader>();
         services.AddScoped<AdminUserSeeder>();
 
         services.AddScoped<ITypingService, TypingService>();
