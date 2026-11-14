@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 
 import { MessageDto } from '../../features/messages/models/message.dto';
-import { LocalMessage, appLocalDb } from './app-local-db';
+import { LocalMessage, localDb } from './app-local-db';
 
 @Injectable({
   providedIn: 'root'
@@ -17,7 +17,7 @@ async saveMany(messages: MessageDto[]): Promise<void> {
       await this.deletePendingDuplicateOfServerMessage(message);
     }
 
-    await appLocalDb.messages.put({
+    await localDb().messages.put({
       ...message,
       attachments: message.attachments ?? [],
       syncStatus: 'synced'
@@ -25,7 +25,7 @@ async saveMany(messages: MessageDto[]): Promise<void> {
   }
 }
 async deletePendingDuplicateOfServerMessage(serverMessage: MessageDto): Promise<void> {
-  const candidates = await appLocalDb.messages
+  const candidates = await localDb().messages
     .where('conversationId')
     .equals(serverMessage.conversationId)
     .toArray();
@@ -45,49 +45,49 @@ async deletePendingDuplicateOfServerMessage(serverMessage: MessageDto): Promise<
     );
   });
 
-  await appLocalDb.messages.bulkDelete(
+  await localDb().messages.bulkDelete(
     duplicates.map(x => x.id)
   );
 }
 
   async deleteByClientMessageId(clientMessageId: string): Promise<void> {
-  const messages = await appLocalDb.messages
+  const messages = await localDb().messages
     .where('clientMessageId')
     .equals(clientMessageId)
     .toArray();
 
-  await appLocalDb.messages.bulkDelete(messages.map(x => x.id));
+  await localDb().messages.bulkDelete(messages.map(x => x.id));
 }
 
 async deleteById(id: string): Promise<void> {
-  await appLocalDb.messages.delete(id);
+  await localDb().messages.delete(id);
 }
 
 
   async save(message: MessageDto, syncStatus: LocalMessage['syncStatus'] = 'synced'): Promise<void> {
-    await appLocalDb.messages.put({
+    await localDb().messages.put({
       ...message,
       syncStatus
     });
   }
 
 async getByConversationId(conversationId: string): Promise<LocalMessage[]> {
-  return appLocalDb.messages
+  return localDb().messages
     .where('conversationId')
     .equals(conversationId)
     .toArray();
 }
 
   async deleteByConversationId(conversationId: string): Promise<void> {
-    const messages = await appLocalDb.messages
+    const messages = await localDb().messages
       .where('conversationId')
       .equals(conversationId)
       .toArray();
 
-    await appLocalDb.messages.bulkDelete(messages.map(x => x.id));
+    await localDb().messages.bulkDelete(messages.map(x => x.id));
   }
 
   async clear(): Promise<void> {
-    await appLocalDb.messages.clear();
+    await localDb().messages.clear();
   }
 }

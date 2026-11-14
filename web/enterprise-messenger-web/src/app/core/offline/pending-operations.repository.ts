@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import {
   PendingOperation,
   PendingOperationType,
-  appLocalDb
+  localDb
 } from './app-local-db';
 
 @Injectable({
@@ -23,7 +23,7 @@ export class PendingOperationsRepository {
       status: 'pending'
     };
 
-    await appLocalDb.pendingOperations.add(operation);
+    await localDb().pendingOperations.add(operation);
 
     return operation;
   }
@@ -34,7 +34,7 @@ async upsertByClientMessageId(
   clientMessageId: string,
   payload: unknown
 ): Promise<void> {
-  const existing = await appLocalDb.pendingOperations
+  const existing = await localDb().pendingOperations
     .filter(operation =>
       operation.type === type &&
       JSON.stringify(operation.payload).includes(clientMessageId)
@@ -42,7 +42,7 @@ async upsertByClientMessageId(
     .first();
 
   if (existing) {
-    await appLocalDb.pendingOperations.put({
+    await localDb().pendingOperations.put({
       ...existing,
       payload,
       status: 'pending',
@@ -61,7 +61,7 @@ async upsertByMessageId(
   messageId: string,
   payload: unknown
 ): Promise<void> {
-  const existing = await appLocalDb.pendingOperations
+  const existing = await localDb().pendingOperations
     .filter(operation =>
       operation.type === type &&
       JSON.stringify(operation.payload).includes(messageId)
@@ -69,7 +69,7 @@ async upsertByMessageId(
     .first();
 
   if (existing) {
-    await appLocalDb.pendingOperations.put({
+    await localDb().pendingOperations.put({
       ...existing,
       payload,
       status: 'pending',
@@ -83,9 +83,9 @@ async upsertByMessageId(
 }
 
   async resetAllToPending(): Promise<void> {
-  const operations = await appLocalDb.pendingOperations.toArray();
+  const operations = await localDb().pendingOperations.toArray();
 
-  await appLocalDb.pendingOperations.bulkPut(
+  await localDb().pendingOperations.bulkPut(
     operations.map(operation => ({
       ...operation,
       status: 'pending' as const
@@ -94,36 +94,36 @@ async upsertByMessageId(
 }
 
   async getPending(): Promise<PendingOperation[]> {
-    return appLocalDb.pendingOperations
+    return localDb().pendingOperations
       .where('status')
       .equals('pending')
       .sortBy('createdAtUtc');
   }
 
   async markProcessing(id: string): Promise<void> {
-    await appLocalDb.pendingOperations.update(id, {
+    await localDb().pendingOperations.update(id, {
       status: 'processing'
     });
   }
 
 
   async deleteByClientMessageId(clientMessageId: string): Promise<void> {
-  const operations = await appLocalDb.pendingOperations
+  const operations = await localDb().pendingOperations
     .filter(operation =>
       JSON.stringify(operation.payload).includes(clientMessageId)
     )
     .toArray();
 
-  await appLocalDb.pendingOperations.bulkDelete(
+  await localDb().pendingOperations.bulkDelete(
     operations.map(x => x.id)
   );
 }
 
 async markFailed(id: string): Promise<void> {
-  const operation = await appLocalDb.pendingOperations.get(id);
+  const operation = await localDb().pendingOperations.get(id);
   const retryCount = (operation?.retryCount ?? 0) + 1;
 
-  await appLocalDb.pendingOperations.update(id, {
+  await localDb().pendingOperations.update(id, {
     status: retryCount >= 5 ? 'failed' : 'pending',
     retryCount
   });
@@ -131,12 +131,12 @@ async markFailed(id: string): Promise<void> {
 
 
 async retryFailed(): Promise<void> {
-  const failed = await appLocalDb.pendingOperations
+  const failed = await localDb().pendingOperations
     .where('status')
     .equals('failed')
     .toArray();
 
-  await appLocalDb.pendingOperations.bulkPut(
+  await localDb().pendingOperations.bulkPut(
     failed.map(operation => ({
       ...operation,
       status: 'pending' as const
@@ -145,16 +145,16 @@ async retryFailed(): Promise<void> {
 }
 
   async remove(id: string): Promise<void> {
-    await appLocalDb.pendingOperations.delete(id);
+    await localDb().pendingOperations.delete(id);
   }
 
   async resetProcessingToPending(): Promise<void> {
-    const processing = await appLocalDb.pendingOperations
+    const processing = await localDb().pendingOperations
       .where('status')
       .equals('processing')
       .toArray();
 
-    await appLocalDb.pendingOperations.bulkPut(
+    await localDb().pendingOperations.bulkPut(
       processing.map(operation => ({
         ...operation,
         status: 'pending' as const
@@ -163,7 +163,7 @@ async retryFailed(): Promise<void> {
   }
 
 async getById(id: string): Promise<PendingOperation | undefined> {
-  return appLocalDb.pendingOperations.get(id);
+  return localDb().pendingOperations.get(id);
 }
 
 

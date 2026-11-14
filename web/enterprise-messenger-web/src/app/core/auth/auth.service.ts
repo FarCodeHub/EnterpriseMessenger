@@ -10,6 +10,7 @@ import { applicationConfig } from '../config/application-config';
 import { LoginRequest } from '../../features/auth/models/login-request';
 import { AuthResponse } from '../../features/auth/models/auth-response';
 import { AuthUserDto } from '../../features/auth/models/auth-user.dto';
+import { deleteAnonymousDb, deleteLocalDbFor, deleteSharedLegacyDb, useLocalDbFor } from '../offline/app-local-db';
 
 interface MeResponse {
   userId: string;
@@ -34,6 +35,9 @@ export class AuthService {
     this.tokenStorage.getUser()
   );
 
+  // The user whose data this tab has loaded into memory (states, signals); see storeSession.
+  private userInThisTab: string | null = this.userSignal()?.id ?? null;
+
   private refreshInFlight: Observable<string> | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -44,6 +48,8 @@ export class AuthService {
   });
 
   constructor() {
+    useLocalDbFor(this.userSignal()?.id ?? null);
+    void deleteSharedLegacyDb().catch(() => undefined);
     this.scheduleRefresh();
   }
 
@@ -117,6 +123,10 @@ export class AuthService {
     return this.refreshInFlight;
   }
 
+  /**
+   * Signs out and deletes this user's local data (cached messages, unsent changes): the next person on this browser
+   * must not see them. Reload the page afterwards so nothing stays in memory either.
+   */
   logout(): Observable<void> {
     if (this.tokenStorage.getProvider() === 'keycloak') {
       return this.logoutFromOrganization();
@@ -124,10 +134,11 @@ export class AuthService {
 
     const refreshToken = this.tokenStorage.getRefreshToken();
     const deviceId = this.tokenStorage.getDeviceId();
+    const userId = this.userSignal()?.id ?? null;
 
     if (!refreshToken) {
       this.clearLocalAuth();
-      return of(void 0);
+      return from(this.forgetLocalData(userId));
     }
 
     return this.authApi.logout({
@@ -138,7 +149,7 @@ export class AuthService {
       finalize(() => {
         this.clearLocalAuth();
       }),
-      map(() => void 0)
+      switchMap(() => from(this.forgetLocalData(userId)))
     );
   }
 
@@ -147,12 +158,14 @@ export class AuthService {
       return this.logoutFromOrganization();
     }
 
+    const userId = this.userSignal()?.id ?? null;
+
     return this.authApi.logoutAll().pipe(
       catchError(() => of(null)),
       finalize(() => {
         this.clearLocalAuth();
       }),
-      map(() => void 0)
+      switchMap(() => from(this.forgetLocalData(userId)))
     );
   }
 
@@ -160,11 +173,15 @@ export class AuthService {
     return this.tokenStorage.getAccessToken();
   }
 
-  /** Clears the session without contacting the server, e.g. after the refresh token is rejected. */
+  /**
+   * Clears the session without contacting the server, e.g. after the refresh token is rejected. The user's local
+   * data stays (their database), so unsent messages survive an expired session; another user gets their own.
+   */
   clearLocalAuth(): void {
     this.cancelRefreshTimer();
     this.tokenStorage.clear();
     this.userSignal.set(null);
+    useLocalDbFor(null);
   }
 
   private refreshLocal(refreshToken: string): Observable<void> {
@@ -195,10 +212,13 @@ export class AuthService {
 
   private logoutFromOrganization(): Observable<void> {
     const idToken = this.tokenStorage.getIdToken();
+    const userId = this.userSignal()?.id ?? null;
 
     return from(this.requireKeycloakConfig()).pipe(
       map(config => this.oidc.logoutUrl(config, idToken)),
       catchError(() => of(null)),
+      // Before redirecting away: the page does not come back to finish it.
+      switchMap(logoutUrl => from(this.forgetLocalData(userId)).pipe(map(() => logoutUrl))),
       tap(logoutUrl => {
         this.clearLocalAuth();
 
@@ -246,7 +266,30 @@ export class AuthService {
   private storeSession(response: AuthResponse, provider: 'local' | 'keycloak', idToken: string | null = null): void {
     this.tokenStorage.saveAuth(response, provider, idToken);
     this.userSignal.set(response.user);
+    useLocalDbFor(response.user.id);
+    void deleteAnonymousDb().catch(() => undefined);
     this.scheduleRefresh();
+
+    // Another user signed in in a tab that has the previous user's conversations in memory (their session expired
+    // and someone else signed in): start the app fresh with the new user's data.
+    const previousUser = this.userInThisTab;
+    this.userInThisTab = response.user.id;
+
+    if (previousUser && previousUser !== response.user.id) {
+      window.location.reload();
+    }
+  }
+
+  private async forgetLocalData(userId: string | null): Promise<void> {
+    if (!userId) {
+      return;
+    }
+
+    try {
+      await deleteLocalDbFor(userId);
+    } catch {
+      // Blocked by another open tab of this user; the data stays only in that user's own database.
+    }
   }
 
   /** Refreshes the access token shortly before it expires so requests and SignalR reconnects never use a stale one. */

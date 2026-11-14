@@ -117,9 +117,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   logout(): void {
     this.chatSignalR.disconnect().finally(() => {
       this.authService.logout().subscribe({
-        next: () => {
-          this.router.navigateByUrl('/auth/login');
-        }
+        // A full page load, not a route change: nothing of this user stays in memory for the next one.
+        next: () => window.location.assign('/auth/login')
       });
     });
   }

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { LocalPendingFile, appLocalDb } from './app-local-db';
+import { LocalPendingFile, localDb } from './app-local-db';
 
 @Injectable({
   providedIn: 'root'
@@ -15,16 +15,16 @@ export class OfflineFilesRepository {
       createdAtUtc: new Date().toISOString()
     };
 
-    await appLocalDb.pendingFiles.put(localFile);
+    await localDb().pendingFiles.put(localFile);
 
     return localFile;
   }
 
   async get(id: string): Promise<LocalPendingFile | undefined> {
-    return appLocalDb.pendingFiles.get(id);
+    return localDb().pendingFiles.get(id);
   }
 
   async remove(id: string): Promise<void> {
-    await appLocalDb.pendingFiles.delete(id);
+    await localDb().pendingFiles.delete(id);
   }
 }
