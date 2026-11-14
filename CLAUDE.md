@@ -127,6 +127,9 @@ docker stop messenger-test-pg
   `ConversationBroadcaster` (conversation group only above 500 members). Typing/presence/receipts use the
   conversation group. A failed push is logged, never fails the request (clients catch up via sync).
 - **Members who left** (`LeftAtUtc != null`) get no deliveries, sync events or pushes.
+- **Local data is per user:** the web client keeps one IndexedDB per signed-in user (`localDb()` in
+  `core/offline/app-local-db.ts`, switched by `AuthService`); an explicit logout deletes it and reloads the page.
+  Never open a database or keep cached data that is not keyed by the signed-in user.
 - **Authorization:** endpoints with `{userId}` in the route must check it is the current user (or Admin).
   Admin-only endpoints use `[Authorize(Roles = "Admin")]`. Attachments are referenced by `fileId` only and must
   belong to the sender (`UploadedFiles` table).
