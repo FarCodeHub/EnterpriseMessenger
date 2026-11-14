@@ -10,6 +10,7 @@ namespace Messenger.LoadTest;
 /// <item>user i: <c>load-user-{i}</c>, user name <c>load-{i}</c></item>
 /// <item>private conversation k: users 2k and 2k+1</item>
 /// <item>team of 10 b: users 10b … 10b+9; team of 50 c: users 50c … 50c+49</item>
+/// <item>large groups of <see cref="LargeGroupSizes"/> members, in blocks the same way (e.g. users 1000d … 1000d+999)</item>
 /// <item>one company channel with every user; the first <see cref="ChannelAdmins"/> users post in it</item>
 /// </list>
 /// </summary>
@@ -29,6 +30,11 @@ public static class LoadData
 
     public static Guid Channel() => FromName("load-channel");
 
+    /// <summary>Sizes of the large groups, to measure how the per-member cost grows (hybrid sync threshold).</summary>
+    public static readonly int[] LargeGroupSizes = [200, 500, 1000];
+
+    public static Guid LargeGroup(int size, int user) => FromName($"load-group{size}-{user / size}");
+
     // Same as PostgreSQL's md5(name)::uuid: the 32 hex digits in order.
     private static Guid FromName(string name) =>
         Guid.ParseExact(Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(name))), "N");
@@ -39,6 +45,23 @@ public static class LoadData
         var pairs = users / 2;
         var teams10 = users / 10;
         var teams50 = users / 50;
+
+        var largeConversations = new StringBuilder();
+        var largeMembers = new StringBuilder();
+
+        foreach (var size in LargeGroupSizes)
+        {
+            largeConversations.AppendLine($"""
+                UNION ALL
+                SELECT md5('load-group{size}-' || g)::uuid, 2, 'Group of {size} #' || g, md5('load-user-' || ({size} * g))::uuid, now()
+                FROM generate_series(0, {users / size - 1}) AS g
+                """);
+
+            largeMembers.AppendLine($"""
+                UNION ALL
+                SELECT md5('load-group{size}-' || (i / {size}))::uuid, i, 1 FROM generate_series(0, {users / size * size - 1}) AS i
+                """);
+        }
 
         return $"""
             INSERT INTO "Users" ("Id", "DisplayName", "UserName", "IsActive", "CreatedAtUtc", "IsAdmin")
@@ -55,7 +78,8 @@ public static class LoadData
             SELECT md5('load-group50-' || c)::uuid, 2, 'Team of 50 #' || c, md5('load-user-' || (50 * c))::uuid, now()
             FROM generate_series(0, {teams50 - 1}) AS c
             UNION ALL
-            SELECT md5('load-channel')::uuid, 3, 'Company', md5('load-user-0')::uuid, now();
+            SELECT md5('load-channel')::uuid, 3, 'Company', md5('load-user-0')::uuid, now()
+            {largeConversations};
 
             INSERT INTO "ConversationMembers" ("Id", "ConversationId", "UserId", "LastReadSequenceNumber",
                 "LastDeliveredSequenceNumber", "CreatedAtUtc", "JoinedAtUtc", "IsMuted", "IsPinned", "IsArchived", "Role")
@@ -71,6 +95,7 @@ public static class LoadData
                 UNION ALL
                 SELECT md5('load-channel')::uuid, i, CASE WHEN i < {ChannelAdmins} THEN 2 ELSE 1 END
                 FROM generate_series(0, {users - 1}) AS i
+                {largeMembers}
             ) AS members;
 
             INSERT INTO "ConversationCounters" ("Id", "ConversationId", "LastSequenceNumber", "CreatedAtUtc")

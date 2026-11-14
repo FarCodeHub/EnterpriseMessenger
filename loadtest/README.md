@@ -15,12 +15,15 @@ one clock. Results of earlier runs: [`docs/baseline.md`](../docs/baseline.md).
 | team | users 10b … 10b+9 | 10 |
 | team | users 50c … 50c+49 | 50 |
 | company channel | everyone; users 0–49 post | all users |
+| large groups | users 200d …, 500d …, 1000d … (blocks) | 200, 500, 1000 |
 
 Each simulated user opens (`JoinConversation`) its private chat and its team of 10; `--channel-viewers` of them also
 have the channel open. Conversations above 500 members only push live events to members who have them open
 (`ConversationBroadcaster`), so the expected deliveries count only those viewers.
 
-Messages: `--channel-share` of them go to the channel, the rest 70% private, 20% teams of 10, 10% teams of 50.
+Messages: `--channel-share` of them go to the channel and `--large-share` to the large group of `--large-size`
+(200, 500 or 1000; every member has it open), the rest 70% private, 20% teams of 10, 10% teams of 50. The cost by
+group size measured this way is in `docs/hybrid-sync.md`.
 Receipts, typing, presence and sync are not simulated.
 
 ## Running it
