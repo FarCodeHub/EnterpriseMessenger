@@ -43,6 +43,7 @@ keycloak/realm-messenger.json       realm imported on first start, then managed 
 docker-compose.yml                  dev dependencies (project enterprise-messenger-dev)
 docker-compose.production.yml       full stack (project enterprisemessenger): API, web, nginx, Keycloak, ...
 observability/                      Prometheus config, Grafana data sources and dashboards
+loadtest/                           load generator: 10k SignalR users + senders (see loadtest/README.md)
 docs/                               roadmap, hybrid sync design, keycloak, api contract (old)
 ```
 
@@ -141,7 +142,9 @@ Phases:
 0. Stabilisation — done.
 1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
    the write paths — done.
-2. **In progress** (2.1 OpenTelemetry + Grafana, 2.2 send-to-display done). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
+2. **In progress** (2.1 OpenTelemetry + Grafana, 2.2 send-to-display, 2.3 load test done; baseline and findings
+   in `docs/baseline.md`: outbox publishes at most 10 events/s; one 10k-member channel message locks every
+   member's sync counter for ~1.3 s and pushes p95 of all messages to ~1.1 s). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
    real group-size stats (they answer the hybrid sync threshold question).
 3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is

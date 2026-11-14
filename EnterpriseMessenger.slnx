@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/loadtest/">
+    <Project Path="loadtest/Messenger.LoadTest/Messenger.LoadTest.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Messenger.Api/Messenger.Api.csproj" />
     <Project Path="src/Messenger.Application/Messenger.Application.csproj" />
