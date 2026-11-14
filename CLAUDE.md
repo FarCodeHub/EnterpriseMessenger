@@ -23,6 +23,9 @@ messages are in English.
   Grafana (`:3000`) with the provisioned "Messenger overview" dashboard (`observability/`). The messenger's own
   metrics are in `Infrastructure/Observability/MessengerMetrics.cs`; histograms in seconds need explicit bucket
   advice (the OpenTelemetry default buckets are meant for milliseconds).
+- **Send-to-display:** the web client (`core/telemetry/display-latency.service.ts`) estimates its clock offset with
+  the hub's `GetServerTime`, measures `createdAtUtc` → next frame for live messages from others, and posts batches
+  to `POST /api/v1/telemetry/display-latency` every 30 s → `messenger.message.display.latency`.
 
 ## Layout
 
@@ -65,6 +68,10 @@ dotnet ef migrations add <Name> --project src/Messenger.Infrastructure --startup
 cd web/enterprise-messenger-web && npm ci && npm start     # http://localhost:4200
 npx ng test --watch=false
 ```
+
+On Windows, `ng test` right after clearing `.angular/cache` sometimes fails every spec with "Vitest failed to find
+the runner" (seen in Nov 2026 when adding a spec); the next run, with the cache warm, passes. CI (Linux, always
+clean) is the reference.
 
 The dev and production compose files are separate projects with their own containers and volumes, but they
 publish some of the same host ports: stop one stack before starting the other. The owner often runs the
@@ -132,7 +139,7 @@ Phases:
 0. Stabilisation — done.
 1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
    the write paths — done.
-2. **In progress** (2.1 OpenTelemetry + Grafana done). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
+2. **In progress** (2.1 OpenTelemetry + Grafana, 2.2 send-to-display done). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
    real group-size stats (they answer the hybrid sync threshold question).
 3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is
