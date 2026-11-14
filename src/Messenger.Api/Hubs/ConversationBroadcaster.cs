@@ -1,6 +1,5 @@
-using Messenger.Infrastructure.Persistence;
+using Messenger.Application.Conversations;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 
 namespace Messenger.Api.Hubs;
 
@@ -27,16 +26,16 @@ public sealed class ConversationBroadcaster
     public const int UserGroupFanOutLimit = 500;
 
     private readonly IHubContext<ChatHub> _hubContext;
-    private readonly MessengerDbContext _dbContext;
+    private readonly IActiveMemberReader _activeMemberReader;
     private readonly ILogger<ConversationBroadcaster> _logger;
 
     public ConversationBroadcaster(
         IHubContext<ChatHub> hubContext,
-        MessengerDbContext dbContext,
+        IActiveMemberReader activeMemberReader,
         ILogger<ConversationBroadcaster> logger)
     {
         _hubContext = hubContext;
-        _dbContext = dbContext;
+        _activeMemberReader = activeMemberReader;
         _logger = logger;
     }
 
@@ -48,12 +47,10 @@ public sealed class ConversationBroadcaster
     {
         try
         {
-            var memberUserIds = await _dbContext.ConversationMembers
-                .AsNoTracking()
-                .Where(x => x.ConversationId == conversationId && x.LeftAtUtc == null)
-                .Select(x => x.UserId)
-                .Take(UserGroupFanOutLimit + 1)
-                .ToListAsync(cancellationToken);
+            var memberUserIds = await _activeMemberReader.GetActiveMemberIdsAsync(
+                conversationId,
+                UserGroupFanOutLimit + 1,
+                cancellationToken);
 
             var clients = memberUserIds.Count > UserGroupFanOutLimit
                 ? _hubContext.Clients.Group(RealtimeGroups.Conversation(conversationId))

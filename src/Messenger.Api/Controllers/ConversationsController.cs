@@ -2,7 +2,6 @@ using Messenger.Contracts.Conversations;
 using Messenger.Application.Conversations.AddMember;
 using Messenger.Domain.Conversations;
 using Messenger.Domain.Enums;
-using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Conversations.CreatePrivateConversation;
@@ -23,7 +22,6 @@ namespace Messenger.Api.Controllers;
 [Route("api/v1/[controller]")]
 public sealed class ConversationsController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
     private readonly IGroupConversationCreator _groupConversationCreator;
     private readonly IPrivateConversationCreator _privateConversationCreator;
     private readonly IUserConversationReader _userConversationReader;
@@ -33,9 +31,8 @@ public sealed class ConversationsController : ControllerBase
     private readonly IConversationLeaver _conversationLeaver;
     private readonly IConversationMemberSettingsUpdater _memberSettingsUpdater;
     private readonly IConversationMemberReader _conversationMemberReader;
-    public ConversationsController(MessengerDbContext dbContext, IPrivateConversationCreator privateConversationCreator, IGroupConversationCreator groupConversationCreator, IUserConversationReader userConversationReader, IConversationMemberAdder conversationMemberAdder, IConversationMemberRemover conversationMemberRemover, IConversationMemberRoleSetter conversationMemberRoleSetter, IConversationLeaver conversationLeaver, IConversationMemberSettingsUpdater memberSettingsUpdater, IConversationMemberReader conversationMemberReader)
+    public ConversationsController(IPrivateConversationCreator privateConversationCreator, IGroupConversationCreator groupConversationCreator, IUserConversationReader userConversationReader, IConversationMemberAdder conversationMemberAdder, IConversationMemberRemover conversationMemberRemover, IConversationMemberRoleSetter conversationMemberRoleSetter, IConversationLeaver conversationLeaver, IConversationMemberSettingsUpdater memberSettingsUpdater, IConversationMemberReader conversationMemberReader)
     {
-        _dbContext = dbContext;
         _privateConversationCreator = privateConversationCreator;
         _groupConversationCreator = groupConversationCreator;
         _privateConversationCreator = privateConversationCreator;
