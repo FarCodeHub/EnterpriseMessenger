@@ -1,5 +1,4 @@
 using Messenger.Contracts.Auth;
-using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -15,7 +14,6 @@ namespace Messenger.Api.Controllers;
 [Route("api/v1/[controller]")]
 public sealed class AuthController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
     private readonly IUserLoginService _userLoginService;
     private readonly IRefreshTokenService _refreshTokenService;
     private readonly IUserSessionReader _userSessionReader;
@@ -23,7 +21,6 @@ public sealed class AuthController : ControllerBase
     private readonly AuthModeSettings _authMode;
 
     public AuthController(
-        MessengerDbContext dbContext,
         IUserLoginService userLoginService,
         IRefreshTokenService refreshTokenService,
         ISessionRevoker sessionRevoker,
@@ -31,7 +28,6 @@ public sealed class AuthController : ControllerBase
         AuthModeSettings authMode)
     {
         _authMode = authMode;
-        _dbContext = dbContext;
         _userLoginService = userLoginService;
         _refreshTokenService = refreshTokenService;
         _sessionRevoker = sessionRevoker;

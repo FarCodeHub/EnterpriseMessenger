@@ -37,14 +37,14 @@ docker-compose.production.yml       full stack (project enterprisemessenger): AP
 docs/                               roadmap, hybrid sync design, keycloak, api contract (old)
 ```
 
-Known debt (phase 1 of the roadmap):
-- 16 Api types use `MessengerDbContext` directly instead of Application interfaces; the list is in
-  `tests/Messenger.ArchitectureTests/ApiDbContextTests.cs`. New ones fail the test; remove a type from the list
-  when it is fixed.
-- Message creation is duplicated in `MessageSender` and the two `MessageForwarder` methods; extract a shared
-  service before touching the send path again.
-- `MessageEditor` and `MessageDeleter` update the search index inside the request (after commit, errors logged)
-  instead of through the outbox, so the index goes stale while OpenSearch is down.
+Known debt:
+- 10 Api types still use `MessengerDbContext` directly: 3 read-only controllers (audit logs, dead letters,
+  conversation search) and the 7 background workers (they belong in Infrastructure). The list is in
+  `tests/Messenger.ArchitectureTests/ApiDbContextTests.cs`; new ones fail the test, fixed ones must be removed.
+  Write paths (messages, conversations, users, auth, `ChatHub`, `ConversationBroadcaster`) are clean.
+- `GET /api/v1/users` returns every user, without paging.
+- Receipts: only `MarkAsDelivered`/`MarkAsSeen` (per sequence number) remain on the hub; the per-message
+  `MessageDeliveries` rows are still written on send and go away with hybrid sync (phase 4).
 
 ## Commands
 
@@ -88,14 +88,20 @@ docker stop messenger-test-pg
 
 ## Rules that the code relies on
 
+- **One place creates messages:** `Messages/MessageCreator.cs` (used by `MessageSender` and `MessageForwarder`)
+  numbers the message and writes its attachments, deliveries, sync events, audit entry and outbox event. New ways
+  of creating messages (bots, integrations) must use it: `LockCountersAsync` → `PrepareTargetsAsync` →
+  `CreateAsync`, inside the caller's transaction.
 - **Sequence numbers:** the conversation counter is locked with `SELECT ... FOR UPDATE`
   (`Persistence/RowLockExtensions.cs`) inside a transaction. User sync counters are locked the same way, always
   in id order (avoids deadlocks). Any new code that numbers messages or sync events must do the same.
 - **Idempotency:** messages are unique on (`ConversationId`, `ClientMessageId`); the duplicate check runs after
   taking the lock, and a unique-violation returns the stored message.
 - **Side effects go through the outbox** (`IOutboxWriter` → RabbitMQ consumers): search indexing
-  (`MessageSearchIndexingConsumer`), notifications. Never call OpenSearch inside a request (edit/delete still do;
-  see Known debt).
+  (`MessageSearchIndexingConsumer`, for created/edited/deleted messages), notifications. Never call OpenSearch
+  inside a request. Consumers re-read the current state from the database, so late, duplicate or out-of-order
+  events are harmless. Integration events must have a namespace (MassTransit rejects them otherwise;
+  `IntegrationEventTests` publishes every one).
 - **Optional services stay optional:** anything that depends on OpenSearch must also work with the no-op
   fallback. `SearchDisabledTests` starts the app without OpenSearch and validates every DI registration.
 - **Real-time:** every connection joins `user:{userId}`; message events go to members' user groups through
@@ -117,9 +123,9 @@ per-user groups (PRs #392–#399); phase 0 stabilisation (PRs #402–#406).
 
 Phases:
 0. Stabilisation — done.
-1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; move DbContext out of
-   the write paths. **Next.**
-2. Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
+1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
+   the write paths — done.
+2. **Next.** Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
    real group-size stats (they answer the hybrid sync threshold question).
 3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is

@@ -7,10 +7,17 @@ using Microsoft.EntityFrameworkCore;
 namespace Messenger.Infrastructure.Consumers;
 
 /// <summary>
-/// Adds new messages to the search index from the outbox event, so sending a message never waits for
-/// (or fails because of) the search cluster. Failed deliveries are retried by MassTransit.
+/// Keeps the search index in step with messages, from outbox events, so sending, editing and deleting never wait
+/// for (or fail because of) the search cluster. Failed deliveries are retried by MassTransit.
+/// <para>
+/// Every event re-reads the message and indexes its current state: events may arrive late or out of order
+/// (an edit before its create), and handling one twice is harmless.
+/// </para>
 /// </summary>
-public sealed class MessageSearchIndexingConsumer : IConsumer<MessageCreatedIntegrationEvent>
+public sealed class MessageSearchIndexingConsumer :
+    IConsumer<MessageCreatedIntegrationEvent>,
+    IConsumer<MessageEditedIntegrationEvent>,
+    IConsumer<MessageDeletedIntegrationEvent>
 {
     private readonly MessengerDbContext _dbContext;
     private readonly IMessageSearchIndexer _messageSearchIndexer;
@@ -23,15 +30,26 @@ public sealed class MessageSearchIndexingConsumer : IConsumer<MessageCreatedInte
         _messageSearchIndexer = messageSearchIndexer;
     }
 
-    public async Task Consume(ConsumeContext<MessageCreatedIntegrationEvent> context)
+    public Task Consume(ConsumeContext<MessageCreatedIntegrationEvent> context) =>
+        SyncAsync(context.Message.MessageId, context.CancellationToken);
+
+    public Task Consume(ConsumeContext<MessageEditedIntegrationEvent> context) =>
+        SyncAsync(context.Message.MessageId, context.CancellationToken);
+
+    public Task Consume(ConsumeContext<MessageDeletedIntegrationEvent> context) =>
+        SyncAsync(context.Message.MessageId, context.CancellationToken);
+
+    private async Task SyncAsync(Guid messageId, CancellationToken cancellationToken)
     {
-        // Index the message as it is now: it may have been edited or deleted since the event was written.
         var message = await _dbContext.Messages
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == context.Message.MessageId, context.CancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken);
 
         if (message is null || message.DeletedAtUtc is not null)
+        {
+            await _messageSearchIndexer.DeleteAsync(messageId, cancellationToken);
             return;
+        }
 
         await _messageSearchIndexer.IndexAsync(
             new MessageSearchDocument(
@@ -43,6 +61,6 @@ public sealed class MessageSearchIndexingConsumer : IConsumer<MessageCreatedInte
                 message.CreatedAtUtc,
                 message.EditedAtUtc,
                 IsDeleted: false),
-            context.CancellationToken);
+            cancellationToken);
     }
 }

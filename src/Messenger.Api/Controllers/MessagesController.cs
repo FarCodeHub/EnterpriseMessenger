@@ -1,8 +1,5 @@
 using Messenger.Contracts.Messages;
-using Messenger.Domain.Messages;
-using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Messenger.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Messenger.Application.Messages.SendMessage;
@@ -16,6 +13,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.RateLimiting;
 using Messenger.Contracts.Realtime;
 using Messenger.Application.Messages.ForwardMessage;
+using Messenger.Application.Users;
 
 namespace Messenger.Api.Controllers;
 
@@ -24,7 +22,7 @@ namespace Messenger.Api.Controllers;
 [Route("api/v1/[controller]")]
 public sealed class MessagesController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
+    private readonly IUserReader _userReader;
     private readonly IHubContext<ChatHub> _hubContext;
     private readonly IMessageSender _messageSender;
     private readonly IMessageEditor _messageEditor;
@@ -35,7 +33,7 @@ public sealed class MessagesController : ControllerBase
     private readonly IMessageForwarder _messageForwarder;
     private readonly ConversationBroadcaster _broadcaster;
     public MessagesController(
-        MessengerDbContext dbContext,
+        IUserReader userReader,
         IHubContext<ChatHub> hubContext,
         IMessageSender messageSender,
         IMessageEditor messageEditor,
@@ -47,7 +45,7 @@ public sealed class MessagesController : ControllerBase
         ConversationBroadcaster broadcaster)
     {
         _broadcaster = broadcaster;
-        _dbContext = dbContext;
+        _userReader = userReader;
         _hubContext = hubContext;
         _messageSender = messageSender;
         _messageEditor = messageEditor;
@@ -67,6 +65,7 @@ public async Task<IActionResult> ForwardMessages(
     CancellationToken cancellationToken)
 {
     var currentUserId = GetCurrentUserId();
+    var forwarderDisplayName = await _userReader.GetDisplayNameAsync(currentUserId, cancellationToken);
 
     var result = await _messageForwarder.ForwardBatchAsync(
         new ForwardMessagesCommand(
@@ -116,7 +115,7 @@ public async Task<IActionResult> ForwardMessages(
                     message.Id,
                     message.Body,
                     message.SenderUserId,
-                    null,
+                    forwarderDisplayName,
                     message.SequenceNumber,
                     message.CreatedAtUtc),
                 cancellationToken);
@@ -134,6 +133,7 @@ public async Task<IActionResult> ForwardMessage(
     CancellationToken cancellationToken)
 {
     var currentUserId = GetCurrentUserId();
+    var forwarderDisplayName = await _userReader.GetDisplayNameAsync(currentUserId, cancellationToken);
 
     var result = await _messageForwarder.ForwardAsync(
         new ForwardMessageCommand(
@@ -175,7 +175,7 @@ public async Task<IActionResult> ForwardMessage(
                     message.Id,
                     message.Body,
                     message.SenderUserId,
-                    null,
+                    forwarderDisplayName,
                     message.SequenceNumber,
                     message.CreatedAtUtc),
                 cancellationToken);
@@ -211,16 +211,7 @@ public async Task<IActionResult> ForwardMessage(
         if (!result.IsDuplicate)
         {
 
-var sender = await _dbContext.Users
-    .Where(x => x.Id == result.SenderUserId)
-    .Select(x => new
-    {
-        x.DisplayName,
-        x.UserName
-    })
-    .FirstOrDefaultAsync(cancellationToken);
-
-var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
+            var senderUserDisplayName = await _userReader.GetDisplayNameAsync(result.SenderUserId, cancellationToken);
 
             await _broadcaster.SendToMembersAsync(
                 result.ConversationId,
@@ -369,44 +360,6 @@ var senderUserDisplayName = sender?.DisplayName ?? sender?.UserName;
 
         return Ok(result);
 
-    }
-
-    private async Task AddSyncEventForConversationMembers(
-        Guid conversationId,
-        Guid? messageId,
-        string eventType,
-        object payload,
-        CancellationToken cancellationToken)
-    {
-        var memberUserIds = await _dbContext.ConversationMembers
-            .Where(x => x.ConversationId == conversationId)
-            .Select(x => x.UserId)
-            .ToListAsync(cancellationToken);
-
-        var payloadJson = System.Text.Json.JsonSerializer.Serialize(payload);
-
-        foreach (var memberUserId in memberUserIds)
-        {
-            var syncCounter = await _dbContext.UserSyncCounters
-                .FirstOrDefaultAsync(x => x.UserId == memberUserId, cancellationToken);
-
-            if (syncCounter is null)
-            {
-                syncCounter = new Messenger.Domain.Sync.UserSyncCounter(memberUserId);
-                _dbContext.UserSyncCounters.Add(syncCounter);
-            }
-
-            var eventId = syncCounter.GetNextEventId();
-
-            _dbContext.UserSyncEvents.Add(
-                new Messenger.Domain.Sync.UserSyncEvent(
-                    eventId,
-                    memberUserId,
-                    eventType,
-                    payloadJson,
-                    conversationId,
-                    messageId));
-        }
     }
 
     private Guid GetCurrentUserId()

@@ -14,14 +14,6 @@ public sealed class ApiDbContextTests
 
     private static readonly string[] KnownDirectDbContextUsers =
     [
-        // Write paths and core logic: move behind Application services first.
-        "Messenger.Api.Controllers.AuthController",
-        "Messenger.Api.Controllers.ConversationsController",
-        "Messenger.Api.Controllers.MessagesController",
-        "Messenger.Api.Controllers.UsersController",
-        "Messenger.Api.Hubs.ChatHub",
-        "Messenger.Api.Hubs.ConversationBroadcaster",
-
         // Read-only admin and search queries.
         "Messenger.Api.Controllers.AuditLogsController",
         "Messenger.Api.Controllers.DeadLetterOutboxController",

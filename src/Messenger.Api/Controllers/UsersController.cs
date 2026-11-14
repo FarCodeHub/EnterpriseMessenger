@@ -1,5 +1,5 @@
+using Messenger.Application.Users;
 using Messenger.Contracts.Users;
-using Messenger.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Messenger.Application.Users.CreateUser;
@@ -18,16 +18,16 @@ namespace Messenger.Api.Controllers;
 [Route("api/v1/[controller]")]
 public sealed class UsersController : ControllerBase
 {
-    private readonly MessengerDbContext _dbContext;
+    private readonly IUserReader _userReader;
     private readonly IUserCreator _userCreator;
     private readonly IUserDeviceRegistrar _userDeviceRegistrar;
     private readonly IUserDeactivator _userDeactivator;
     private readonly IUserActivator _userActivator;
     private readonly IUserAdminMaker _userAdminMaker;
 
-    public UsersController(MessengerDbContext dbContext, IUserDeviceRegistrar userDeviceRegistrar, IUserCreator userCreator, IUserDeactivator userDeactivator, IUserActivator userActivator, IUserAdminMaker userAdminMaker)
+    public UsersController(IUserReader userReader, IUserDeviceRegistrar userDeviceRegistrar, IUserCreator userCreator, IUserDeactivator userDeactivator, IUserActivator userActivator, IUserAdminMaker userAdminMaker)
     {
-        _dbContext = dbContext;
+        _userReader = userReader;
         _userDeviceRegistrar = userDeviceRegistrar;
         _userCreator = userCreator;
         _userDeactivator = userDeactivator;
@@ -146,17 +146,7 @@ return Ok(new UserAdminActionResponse(
     [HttpGet]
     public async Task<IActionResult> GetUsers(CancellationToken cancellationToken)
     {
-        var users = await _dbContext.Users
-            .OrderBy(x => x.DisplayName)
-            .Select(x => new
-            {
-                x.Id,
-                x.DisplayName,
-                x.UserName,
-                x.IsActive,
-                x.CreatedAtUtc
-            })
-            .ToListAsync(cancellationToken);
+        var users = await _userReader.GetAllAsync(cancellationToken);
 
         return Ok(users);
     }
