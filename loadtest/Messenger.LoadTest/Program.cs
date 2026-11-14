@@ -29,6 +29,7 @@ static int Usage()
         seed --connection <postgres connection string> --users <n>
         run  --api <base url> --secret <Jwt:SecretKey> --users <n> [--rate <messages/s>=20] [--duration <s>=120]
              [--ramp <connections/s>=200] [--warmup <s>=10] [--channel-share <0..1>=0.01]
+             [--large-size <200|500|1000>] [--large-share <0..1>]
              [--channel-viewers <0..1>=0.2] [--out <dir>=results]
         """);
     return 1;
@@ -69,6 +70,11 @@ static async Task<int> RunAsync(Dictionary<string, string> options)
     var warmup = TimeSpan.FromSeconds(double.Parse(options.GetValueOrDefault("warmup", "10")));
     var channelViewerShare = double.Parse(options.GetValueOrDefault("channel-viewers", "0.2"));
     var channelShare = double.Parse(options.GetValueOrDefault("channel-share", "0.01"));
+    var largeSize = int.Parse(options.GetValueOrDefault("large-size", "0"));
+    var largeShare = double.Parse(options.GetValueOrDefault("large-share", "0"));
+
+    if (largeSize != 0 && !LoadData.LargeGroupSizes.Contains(largeSize))
+        throw new ArgumentException($"--large-size must be one of {string.Join(", ", LoadData.LargeGroupSizes)}.");
     var outDir = options.GetValueOrDefault("out", "results");
     var tokens = Enumerable.Range(0, users).Select(i => CreateToken(i, options["secret"])).ToArray();
 
@@ -114,8 +120,11 @@ static async Task<int> RunAsync(Dictionary<string, string> options)
         for (; due >= 1; due--)
         {
             var roll = random.NextDouble();
-            var (kind, sender, conversationId) = random.NextDouble() < channelShare
+            var special = random.NextDouble();
+            var (kind, sender, conversationId) = special < channelShare
                 ? Pick("channel", random.Next(Math.Min(LoadData.ChannelAdmins, users)), _ => LoadData.Channel())
+                : special < channelShare + largeShare && largeSize > 0
+                ? Pick($"group{largeSize}", random.Next(users / largeSize * largeSize), u => LoadData.LargeGroup(largeSize, u))
                 : roll switch
                 {
                     < 0.70 => Pick("private", random.Next(users), LoadData.PrivateConversation),
@@ -144,6 +153,8 @@ static async Task<int> RunAsync(Dictionary<string, string> options)
         RateMessagesPerSecond = rate,
         DurationSeconds = duration.TotalSeconds,
         ChannelShare = channelShare,
+        LargeGroupSize = largeSize,
+        LargeGroupShare = largeShare,
         ChannelViewers = channelViewers.Count,
         metrics.Connected,
         metrics.ConnectFailures,
@@ -218,6 +229,11 @@ static async Task<int> RunAsync(Dictionary<string, string> options)
             await connection.InvokeAsync("JoinConversation", LoadData.PrivateConversation(user).ToString());
             await connection.InvokeAsync("JoinConversation", LoadData.Team10(user).ToString());
 
+            // Everyone in the measured large group has it open, so every member counts as an expected receiver
+            // (above 500 members only viewers get live events).
+            if (largeSize > 0 && user < users / largeSize * largeSize)
+                await connection.InvokeAsync("JoinConversation", LoadData.LargeGroup(largeSize, user).ToString());
+
             if (Random.Shared.NextDouble() < channelViewerShare)
             {
                 await connection.InvokeAsync("JoinConversation", LoadData.Channel().ToString());
@@ -247,6 +263,7 @@ static async Task<int> RunAsync(Dictionary<string, string> options)
             "private" => Connected(sender ^ 1) ? 1 : 0,
             "team10" => Enumerable.Range(sender / 10 * 10, 10).Count(Connected),
             "team50" => Enumerable.Range(sender / 50 * 50, 50).Count(Connected),
+            _ when kind == $"group{largeSize}" => Enumerable.Range(sender / largeSize * largeSize, largeSize).Count(Connected),
             _ => channelViewers.Keys.Count(Connected),
         };
     }
