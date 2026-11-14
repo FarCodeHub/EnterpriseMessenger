@@ -21,6 +21,7 @@ public sealed class ActiveMemberReader : IActiveMemberReader
         return await _dbContext.ConversationMembers
             .AsNoTracking()
             .Where(x => x.ConversationId == conversationId && x.LeftAtUtc == null)
+            .OrderBy(x => x.UserId)
             .Select(x => x.UserId)
             .Take(take)
             .ToListAsync(cancellationToken);

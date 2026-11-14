@@ -1,5 +1,6 @@
 using Messenger.Application.Messages.ForwardMessage;
 using Messenger.Application.Messages.SendMessage;
+using Messenger.Infrastructure.Observability;
 using Messenger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -128,6 +129,8 @@ public sealed class MessageForwarder : IMessageForwarder
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        MessengerMetrics.MessagesCreated.Add(results.Count, new KeyValuePair<string, object?>("kind", "forward"));
 
         return results;
     }

@@ -1,3 +1,4 @@
+using Messenger.Api.Observability;
 using Messenger.Infrastructure;
 using Messenger.Api.Hubs;
 
@@ -36,6 +37,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
+builder.Services.AddMessengerObservability(builder.Configuration);
 
 builder.Services.AddEndpointsApiExplorer();
 

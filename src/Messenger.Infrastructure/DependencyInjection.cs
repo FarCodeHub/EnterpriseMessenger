@@ -117,8 +117,9 @@ public static class DependencyInjection
                 var host = configuration["RabbitMq:Host"] ?? "localhost";
                 var username = configuration["RabbitMq:Username"] ?? "guest";
                 var password = configuration["RabbitMq:Password"] ?? "guest";
+                var port = configuration.GetValue<ushort?>("RabbitMq:Port") ?? 5672;
 
-                cfg.Host(host, "/", h =>
+                cfg.Host(host, port, "/", h =>
                 {
                     h.Username(username);
                     h.Password(password);

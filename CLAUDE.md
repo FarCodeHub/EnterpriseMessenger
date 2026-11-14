@@ -18,6 +18,11 @@ messages are in English.
 - **Search:** with `OpenSearch:Url` set, OpenSearch indexes and searches messages. Empty, a no-op indexer and a
   PostgreSQL substring search are used instead (dev and small installs; no index, slow on large data).
 - **API reference:** Swagger UI in Development (`http://localhost:5113/swagger`). `docs/api-contract.md` is old.
+- **Observability:** OpenTelemetry, on only when `OpenTelemetry:TracesEndpoint` / `MetricsEndpoint` are set
+  (`Observability/ObservabilitySetup.cs`). Traces → Jaeger (`:16686`), metrics → Prometheus 3 over OTLP (`:9090`),
+  Grafana (`:3000`) with the provisioned "Messenger overview" dashboard (`observability/`). The messenger's own
+  metrics are in `Infrastructure/Observability/MessengerMetrics.cs`; histograms in seconds need explicit bucket
+  advice (the OpenTelemetry default buckets are meant for milliseconds).
 
 ## Layout
 
@@ -34,6 +39,7 @@ web/enterprise-messenger-web        Angular app: src/app/{core (api, auth, signa
 keycloak/realm-messenger.json       realm imported on first start, then managed in the admin console
 docker-compose.yml                  dev dependencies (project enterprise-messenger-dev)
 docker-compose.production.yml       full stack (project enterprisemessenger): API, web, nginx, Keycloak, ...
+observability/                      Prometheus config, Grafana data sources and dashboards
 docs/                               roadmap, hybrid sync design, keycloak, api contract (old)
 ```
 
@@ -49,7 +55,8 @@ Known debt:
 ## Commands
 
 ```bash
-docker compose up -d                       # postgres, redis, rabbitmq, minio, opensearch, keycloak (dev)
+docker compose up -d                       # postgres, redis, rabbitmq, minio, opensearch, keycloak,
+                                           # prometheus, jaeger, grafana (dev)
 dotnet build EnterpriseMessenger.slnx
 dotnet test EnterpriseMessenger.slnx
 dotnet ef database update --project src/Messenger.Infrastructure --startup-project src/Messenger.Api
@@ -125,7 +132,7 @@ Phases:
 0. Stabilisation — done.
 1. Send pipeline: shared message-creation service; edit/delete indexing through the outbox; DbContext out of
    the write paths — done.
-2. **Next.** Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
+2. **In progress** (2.1 OpenTelemetry + Grafana done). Measure first: OpenTelemetry + Grafana, client send-to-display metric, k6/NBomber with 10k connections,
    real group-size stats (they answer the hybrid sync threshold question).
 3. Local-first client: render from IndexedDB (`liveQuery`, `[conversationId+sequenceNumber]` index, paged
    window), virtual scroll, sync in a Worker with one leader tab, gap detection. Today the client is

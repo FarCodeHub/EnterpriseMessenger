@@ -69,9 +69,51 @@ services:
       - "9200:9200"
     volumes:
       - enterprise_messenger_opensearch_data:/usr/share/opensearch/data
+  # Observability: the API pushes traces to Jaeger and metrics to Prometheus over OTLP; Grafana shows both.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: enterprise-messenger-dev-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-otlp-receiver
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - enterprise_messenger_prometheus_data:/prometheus
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/jaeger:2.5.0
+    container_name: enterprise-messenger-dev-jaeger
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    container_name: enterprise-messenger-dev-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - enterprise_messenger_grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped
 volumes:
   enterprise_messenger_postgres_data:
   enterprise_messenger_redis_data:
   enterprise_messenger_rabbitmq_data:
   enterprise_messenger_minio_data:
   enterprise_messenger_opensearch_data:
+  enterprise_messenger_prometheus_data:
+  enterprise_messenger_grafana_data:

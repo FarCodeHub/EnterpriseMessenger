@@ -1,0 +1,14 @@
+# The API pushes its metrics over OTLP (Prometheus runs with --web.enable-otlp-receiver), so nothing is scraped.
+global:
+  evaluation_interval: 15s
+
+otlp:
+  # service.name becomes the "job" label and service.instance.id the "instance" label.
+  promote_resource_attributes:
+    - service.version
+    - deployment.environment
+
+storage:
+  tsdb:
+    # Out-of-order samples happen when several API instances push; accept a short window.
+    out_of_order_time_window: 30m

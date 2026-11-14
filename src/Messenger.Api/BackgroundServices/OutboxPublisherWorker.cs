@@ -1,3 +1,4 @@
+using Messenger.Infrastructure.Observability;
 using System.Text.Json;
 using MassTransit;
 using Messenger.Infrastructure.Persistence;
@@ -73,6 +74,10 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 
                 message.MarkAsProcessed();
 
+                MessengerMetrics.OutboxPublishDelay.Record(
+                    (DateTime.UtcNow - message.OccurredAtUtc).TotalSeconds,
+                    new KeyValuePair<string, object?>("type", messageType.Name));
+
                 _logger.LogInformation(
                     "Outbox message published. OutboxMessageId: {OutboxMessageId}, Type: {Type}",
                     message.Id,
@@ -81,6 +86,10 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
             catch (Exception ex)
             {
                 message.MarkAsFailed(ex.Message);
+
+                MessengerMetrics.OutboxPublishFailures.Add(
+                    1,
+                    new KeyValuePair<string, object?>("type", ShortTypeName(message.Type)));
 
                 _logger.LogError(
                     ex,
@@ -92,4 +101,8 @@ protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         if (messages.Count > 0)
             await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    // "Namespace.TypeName, Assembly, ..." -> "TypeName"
+    private static string ShortTypeName(string assemblyQualifiedName) =>
+        assemblyQualifiedName.Split(',')[0].Split('.')[^1];
 }
