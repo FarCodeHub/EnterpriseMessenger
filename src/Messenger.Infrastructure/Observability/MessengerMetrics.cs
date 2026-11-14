@@ -20,11 +20,28 @@ public static class MessengerMetrics
         HistogramBucketBoundaries = [0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10],
     };
 
+    // Send-to-display is a user-visible latency: fine-grained around the 200 ms target.
+    private static readonly InstrumentAdvice<double> DisplayBuckets = new()
+    {
+        HistogramBucketBoundaries = [0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 5, 10, 30],
+    };
+
     // Outbox delays include the publisher's poll interval and retries, so they reach further.
     private static readonly InstrumentAdvice<double> DelayBuckets = new()
     {
         HistogramBucketBoundaries = [0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600],
     };
+
+    /// <summary>
+    /// Time from storing a message to it being drawn on a receiver's screen, as reported by the clients
+    /// (measured against the server clock after correcting for the client's clock offset).
+    /// </summary>
+    public static readonly Histogram<double> DisplayLatency = Meter.CreateHistogram<double>(
+        "messenger.message.display.latency",
+        unit: "s",
+        description: "Time from storing a message to showing it to a receiver, reported by clients.",
+        tags: null,
+        advice: DisplayBuckets);
 
     /// <summary>Messages stored, by <c>kind</c> (send, forward).</summary>
     public static readonly Counter<long> MessagesCreated = Meter.CreateCounter<long>(

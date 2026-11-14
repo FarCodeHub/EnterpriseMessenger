@@ -88,6 +88,12 @@ public sealed class ChatHub : Hub
                 Context.ConnectionAborted);
     }
 
+    /// <summary>
+    /// The server's clock, for clients to estimate their clock offset (send-to-display latency is measured
+    /// against the server's <c>createdAtUtc</c>).
+    /// </summary>
+    public DateTime GetServerTime() => DateTime.UtcNow;
+
     public async Task RegisterUser()
     {
         var userId = GetCurrentUserId();
