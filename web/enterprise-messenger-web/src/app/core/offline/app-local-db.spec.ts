@@ -1,4 +1,4 @@
-import 'fake-indexeddb/auto';
+import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
@@ -17,7 +17,15 @@ describe('local database per user', () => {
   const message = (id: string): MessageDto =>
     ({ id, conversationId: 'c1', sequenceNumber: 1, body: 'secret', createdAtUtc: new Date().toISOString() }) as MessageDto;
 
+  // Dexie reads the IndexedDB API when its module loads, which in the test bundle can happen before this file runs,
+  // so hand it the in-memory implementation directly.
+  beforeAll(() => {
+    Dexie.dependencies.indexedDB = indexedDB;
+    Dexie.dependencies.IDBKeyRange = IDBKeyRange;
+  });
+
   afterEach(async () => {
+    TestBed.resetTestingModule();
     useLocalDbFor(null);
     await Promise.all((await Dexie.getDatabaseNames()).map(name => Dexie.delete(name)));
   });
