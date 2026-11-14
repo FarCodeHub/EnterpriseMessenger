@@ -28,9 +28,11 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: enterprise-messenger-rabbitmq
+    # Host ports only for tools on this machine (the API uses the Docker network); change them in .env.production
+    # when the defaults are taken, e.g. by a RabbitMQ installed on the host.
     ports:
-      - "127.0.0.1:5672:5672"
-      - "127.0.0.1:15672:15672"
+      - "127.0.0.1:${RABBITMQ_HOST_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_HOST_PORT:-15672}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -92,7 +94,7 @@ services:
     image: enterprise-messenger-web:latest
     container_name: enterprise-messenger-web
     ports:
-      - "4200:80"
+      - "${WEB_HOST_PORT:-4200}:80"
     depends_on:
       - messenger-api
       - postgres
