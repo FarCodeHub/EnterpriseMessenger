@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Messenger.Infrastructure.Observability;
 using Messenger.Application.Conversations;
 using Microsoft.AspNetCore.SignalR;
 
@@ -45,6 +47,8 @@ public sealed class ConversationBroadcaster
         object payload,
         CancellationToken cancellationToken)
     {
+        var start = Stopwatch.GetTimestamp();
+
         try
         {
             var memberUserIds = await _activeMemberReader.GetActiveMemberIdsAsync(
@@ -52,15 +56,23 @@ public sealed class ConversationBroadcaster
                 UserGroupFanOutLimit + 1,
                 cancellationToken);
 
-            var clients = memberUserIds.Count > UserGroupFanOutLimit
+            var toConversationGroup = memberUserIds.Count > UserGroupFanOutLimit;
+
+            var clients = toConversationGroup
                 ? _hubContext.Clients.Group(RealtimeGroups.Conversation(conversationId))
                 : _hubContext.Clients.Groups(memberUserIds.Select(RealtimeGroups.User).ToList());
 
             await clients.SendAsync(eventName, payload, cancellationToken);
+
+            MessengerMetrics.RealtimePushDuration.Record(
+                MessengerMetrics.ElapsedSeconds(start),
+                new KeyValuePair<string, object?>("target", toConversationGroup ? "conversation_group" : "user_groups"));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             // The change is already saved; clients that miss the push receive it through sync.
+            MessengerMetrics.RealtimePushFailures.Add(1);
+
             _logger.LogWarning(
                 exception,
                 "Real-time event {EventName} for conversation {ConversationId} could not be sent.",

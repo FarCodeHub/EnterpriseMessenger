@@ -80,6 +80,8 @@ services:
       Keycloak__Authority: ${KEYCLOAK_PUBLIC_URL:?KEYCLOAK_PUBLIC_URL must be set in .env.production}/realms/messenger
       Keycloak__MetadataAddress: http://keycloak:8080/sso/realms/messenger/.well-known/openid-configuration
       Keycloak__RequireHttpsMetadata: "false"
+      OpenTelemetry__TracesEndpoint: http://jaeger:4318/v1/traces
+      OpenTelemetry__MetricsEndpoint: http://prometheus:9090/api/v1/otlp/v1/metrics
     depends_on:
       - keycloak
 
@@ -165,6 +167,46 @@ services:
     
 
 
+  # Observability: the API pushes traces to Jaeger and metrics to Prometheus over OTLP; Grafana shows both.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: enterprise-messenger-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-otlp-receiver
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - enterprise_messenger_prometheus_data:/prometheus
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/jaeger:2.5.0
+    container_name: enterprise-messenger-jaeger
+    ports:
+      - "127.0.0.1:16686:16686"
+      - "127.0.0.1:4318:4318"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    container_name: enterprise-messenger-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set in .env.production}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - enterprise_messenger_grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped
+
 volumes:
   enterprise_messenger_postgres_data:
   enterprise_messenger_redis_data:
@@ -172,3 +214,5 @@ volumes:
   enterprise_messenger_minio_data:
   enterprise_messenger_opensearch_data:
   enterprise_messenger_keycloak_postgres_data:
+  enterprise_messenger_prometheus_data:
+  enterprise_messenger_grafana_data:
